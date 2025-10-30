@@ -10,7 +10,7 @@ import SwiftUI
 import Combine
 
 class WindowManager: NSObject, ObservableObject {
-    private var window: NSWindow?
+    var window: NSWindow?
     
     @Published var windowSize: CGSize = CGSize(width: 450, height: 300)
 
@@ -21,23 +21,13 @@ class WindowManager: NSObject, ObservableObject {
     private let maxHeight: CGFloat = 600
     
     func setupFloatingWindow() {
-        // Create floating utility window
-        let window = NSWindow(
+        // Create borderless floating window
+        let window = FloatingWindow(
             contentRect: NSRect(x: 0, y: 0, width: windowSize.width, height: windowSize.height),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            styleMask: [.borderless, .resizable],
             backing: .buffered,
             defer: false
         )
-        
-        // Configure window properties
-        window.title = "Athena"
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        window.isMovableByWindowBackground = true
-        
-        // Set window level to float above other windows
-        window.level = .floating
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         
         // Set size constraints
         window.minSize = CGSize(width: minWidth, height: minHeight)

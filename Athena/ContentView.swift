@@ -22,6 +22,7 @@ struct ContentView: View {
             TitleBarView(selectedView: $selectedView)
 
             Divider()
+                .opacity(0.5)
 
             // Main Content Area
             Group {
@@ -35,7 +36,15 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: windowManager.windowSize.width, height: windowManager.windowSize.height)
-        .background(Color(NSColor.windowBackgroundColor).opacity(0.85))
+        .background(
+            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+        )
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 10)
     }
 }
 
@@ -68,11 +77,30 @@ struct TitleBarView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color(NSColor.windowBackgroundColor).opacity(0.85))
+        .background(Color.clear)
     }
 }
 
 
+
+// Visual effect blur for transparent window background
+struct VisualEffectBlur: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+    var blendingMode: NSVisualEffectView.BlendingMode
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+    }
+}
 
 #Preview {
     ContentView()

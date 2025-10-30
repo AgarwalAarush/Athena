@@ -21,11 +21,18 @@ from models.schemas import (
     HealthResponse,
     ModelsResponse,
     ModelInfo,
-    StreamChunk
+    StreamChunk,
+    ToolsListResponse,
+    ToolDefinition,
+    ToolCallRequest,
+    ToolCallResponse
 )
 from providers.base import BaseProvider
 from providers.openai_provider import OpenAIProvider
 from providers.anthropic_provider import AnthropicProvider
+from tools.registry import get_registry
+from tools.google_calendar_tool import GoogleCalendarTool
+from tools.system_tool import SystemTool
 
 
 # Initialize FastAPI app
@@ -46,6 +53,26 @@ app.add_middleware(
 
 # Provider registry
 _providers: Dict[str, BaseProvider] = {}
+
+# Tool registry initialization
+def initialize_tools():
+    """Register all available tools"""
+    registry = get_registry()
+
+    # Register Google Calendar tool
+    try:
+        registry.register_tool(GoogleCalendarTool())
+    except ValueError:
+        pass  # Already registered
+
+    # Register System tool
+    try:
+        registry.register_tool(SystemTool())
+    except ValueError:
+        pass  # Already registered
+
+# Initialize tools on startup
+initialize_tools()
 
 
 def get_provider(provider_name: str, api_key: str) -> BaseProvider:
@@ -124,6 +151,78 @@ async def list_models():
     ])
     
     return ModelsResponse(models=models)
+
+
+@app.get("/tools", response_model=ToolsListResponse)
+async def list_tools():
+    """List all available tools"""
+    registry = get_registry()
+    tool_schemas = registry.get_tool_schemas()
+
+    tools = [
+        ToolDefinition(
+            name=schema["name"],
+            description=schema["description"],
+            parameters=schema["parameters"]
+        )
+        for schema in tool_schemas
+    ]
+
+    return ToolsListResponse(
+        tools=tools,
+        count=len(tools)
+    )
+
+
+@app.post("/tools/execute", response_model=ToolCallResponse)
+async def execute_tool(request: ToolCallRequest):
+    """
+    Execute a specific tool with given parameters
+
+    For tools requiring authentication (e.g., Google Calendar),
+    pass tokens via the context field.
+    """
+    try:
+        # Get tool from registry
+        registry = get_registry()
+        tool = registry.get_tool(request.tool_name)
+
+        if not tool:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Tool '{request.tool_name}' not found"
+            )
+
+        # Validate parameters
+        if not tool.validate_parameters(request.parameters):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid parameters for tool '{request.tool_name}'"
+            )
+
+        # Execute tool
+        result = await tool.execute(
+            parameters=request.parameters,
+            context=request.context
+        )
+
+        # Return result
+        return ToolCallResponse(
+            success=result.get("success", False),
+            result=result.get("result"),
+            error=result.get("error"),
+            tool_name=request.tool_name
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        return ToolCallResponse(
+            success=False,
+            result=None,
+            error=f"Tool execution failed: {str(e)}",
+            tool_name=request.tool_name
+        )
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -280,11 +379,14 @@ if __name__ == "__main__":
     
     print(f"Starting Athena AI Service on port {port}...")
     print("Available providers: OpenAI, Anthropic")
+    print("Available tools: Google Calendar, System")
     print("\nEndpoints:")
     print(f"  - GET  http://localhost:{port}/health")
     print(f"  - GET  http://localhost:{port}/models")
+    print(f"  - GET  http://localhost:{port}/tools")
     print(f"  - POST http://localhost:{port}/chat")
     print(f"  - POST http://localhost:{port}/chat/stream")
+    print(f"  - POST http://localhost:{port}/tools/execute")
     print(f"  - POST http://localhost:{port}/test-connection")
     
     uvicorn.run(
