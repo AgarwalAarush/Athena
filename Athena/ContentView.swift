@@ -10,29 +10,24 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var windowManager: WindowManager
     @State private var selectedView: MainView = .chat
-    @State private var showingSidebar = true
-    
+
     enum MainView {
         case chat
         case settings
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Title Bar
-            TitleBarView(selectedView: $selectedView, showingSidebar: $showingSidebar)
-            
+            TitleBarView(selectedView: $selectedView)
+
             Divider()
-            
+
             // Main Content Area
             Group {
                 switch selectedView {
                 case .chat:
-                    if showingSidebar {
-                        ConversationListView()
-                    } else {
-                        ChatView()
-                    }
+                    ChatView()
                 case .settings:
                     SettingsView()
                 }
@@ -40,32 +35,21 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: windowManager.windowSize.width, height: windowManager.windowSize.height)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(Color(NSColor.windowBackgroundColor).opacity(0.85))
     }
 }
 
 struct TitleBarView: View {
     @Binding var selectedView: ContentView.MainView
-    @Binding var showingSidebar: Bool
-    
+
     var body: some View {
         HStack {
-            // Sidebar Toggle (only show in chat view)
-            if selectedView == .chat {
-                Button(action: { showingSidebar.toggle() }) {
-                    Image(systemName: "sidebar.left")
-                        .foregroundColor(showingSidebar ? .accentColor : .secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Toggle Sidebar")
-            }
-            
             Text("Athena")
                 .font(.headline)
                 .foregroundColor(.primary)
-            
+
             Spacer()
-            
+
             HStack(spacing: 12) {
                 Button(action: { selectedView = .chat }) {
                     Image(systemName: "message")
@@ -73,7 +57,7 @@ struct TitleBarView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Chat")
-                
+
                 Button(action: { selectedView = .settings }) {
                     Image(systemName: "gear")
                         .foregroundColor(selectedView == .settings ? .accentColor : .secondary)
@@ -84,7 +68,7 @@ struct TitleBarView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(Color(NSColor.windowBackgroundColor).opacity(0.85))
     }
 }
 

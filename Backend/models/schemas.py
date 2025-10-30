@@ -74,4 +74,3 @@ class ModelInfo(BaseModel):
 class ModelsResponse(BaseModel):
     """Available models response"""
     models: List[ModelInfo]
-

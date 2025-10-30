@@ -78,12 +78,12 @@ class DatabaseManager {
     }
     
     // MARK: - Database Access
-    
-    func reader<T>(_ block: (Database) throws -> T) rethrows -> T {
+
+    func reader<T>(_ block: (Database) throws -> T) throws -> T {
         try dbQueue.read(block)
     }
-    
-    func writer<T>(_ block: (Database) throws -> T) rethrows -> T {
+
+    func writer<T>(_ block: (Database) throws -> T) throws -> T {
         try dbQueue.write(block)
     }
     
@@ -120,7 +120,7 @@ class DatabaseManager {
     }
     
     func deleteConversation(id: Int64) throws {
-        try writer { db in
+        _ = try writer { db in
             try Conversation.deleteOne(db, key: id)
         }
     }
@@ -149,14 +149,14 @@ class DatabaseManager {
         try writer { db in
             var message = Message(conversationId: conversationId, role: role, content: content)
             try message.insert(db)
-            
+
             // Update conversation's message count and timestamp
             if var conversation = try Conversation.fetchOne(db, key: conversationId) {
                 conversation.incrementMessageCount()
                 conversation.updateTimestamp()
                 try conversation.update(db)
             }
-            
+
             return message
         }
     }

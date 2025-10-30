@@ -17,9 +17,32 @@ class ConversationService: ObservableObject {
     @Published var conversations: [Conversation] = []
     @Published var currentConversation: Conversation?
     @Published var currentMessages: [Message] = []
-    
+
     private init() {
-        loadConversations()
+        initializeSingleConversation()
+    }
+
+    // Initialize or load the single persistent conversation
+    private func initializeSingleConversation() {
+        do {
+            // Try to load existing conversations
+            let existingConversations = try database.fetchAllConversations()
+
+            if let mainConversation = existingConversations.first {
+                // Use existing conversation
+                currentConversation = mainConversation
+                loadMessages(for: mainConversation.id!)
+            } else {
+                // Create the main conversation
+                let conversation = try database.createConversation(title: "Athena Session")
+                currentConversation = conversation
+            }
+
+            // Keep conversations list for compatibility
+            conversations = existingConversations
+        } catch {
+            print("Failed to initialize conversation: \(error)")
+        }
     }
     
     // MARK: - Conversation Management
@@ -41,7 +64,11 @@ class ConversationService: ObservableObject {
     
     func selectConversation(_ conversation: Conversation) {
         currentConversation = conversation
-        loadMessages(for: conversation.id!)
+        guard let id = conversation.id else {
+            print("Warning: Conversation has no ID")
+            return
+        }
+        loadMessages(for: id)
     }
     
     func deleteConversation(_ conversation: Conversation) throws {

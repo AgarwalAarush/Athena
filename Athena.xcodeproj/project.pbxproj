@@ -7,8 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		9B530D852EB30A18001C771B /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 9B530D842EB30A18001C771B /* GRDB */; };
-		9B530D872EB30A18001C771B /* GRDB-dynamic in Frameworks */ = {isa = PBXBuildFile; productRef = 9B530D862EB30A18001C771B /* GRDB-dynamic */; };
+		9B530D8A2EB323EA001C771B /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 9B530D892EB323EA001C771B /* GRDB */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,8 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9B530D852EB30A18001C771B /* GRDB in Frameworks */,
-				9B530D872EB30A18001C771B /* GRDB-dynamic in Frameworks */,
+				9B530D8A2EB323EA001C771B /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -40,6 +38,7 @@
 			isa = PBXGroup;
 			children = (
 				9B530D3B2EB2D478001C771B /* Athena */,
+				9B530D882EB323EA001C771B /* Frameworks */,
 				9B530D3A2EB2D478001C771B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -50,6 +49,13 @@
 				9B530D392EB2D478001C771B /* Athena.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		9B530D882EB323EA001C771B /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -72,8 +78,7 @@
 			);
 			name = Athena;
 			packageProductDependencies = (
-				9B530D842EB30A18001C771B /* GRDB */,
-				9B530D862EB30A18001C771B /* GRDB-dynamic */,
+				9B530D892EB323EA001C771B /* GRDB */,
 			);
 			productName = Athena;
 			productReference = 9B530D392EB2D478001C771B /* Athena.app */;
@@ -356,15 +361,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		9B530D842EB30A18001C771B /* GRDB */ = {
+		9B530D892EB323EA001C771B /* GRDB */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 9B530D832EB30A18001C771B /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
-		};
-		9B530D862EB30A18001C771B /* GRDB-dynamic */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9B530D832EB30A18001C771B /* XCRemoteSwiftPackageReference "GRDB.swift" */;
-			productName = "GRDB-dynamic";
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -7,17 +7,18 @@
 
 import AppKit
 import SwiftUI
+import Combine
 
 class WindowManager: NSObject, ObservableObject {
     private var window: NSWindow?
     
-    @Published var windowSize: CGSize = CGSize(width: 470, height: 640)
-    
+    @Published var windowSize: CGSize = CGSize(width: 450, height: 300)
+
     // Window size constraints
     private let minWidth: CGFloat = 400
     private let maxWidth: CGFloat = 800
-    private let minHeight: CGFloat = 500
-    private let maxHeight: CGFloat = 1200
+    private let minHeight: CGFloat = 250
+    private let maxHeight: CGFloat = 600
     
     func setupFloatingWindow() {
         // Create floating utility window

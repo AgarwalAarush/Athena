@@ -10,103 +10,56 @@ import SwiftUI
 struct ChatView: View {
     @StateObject private var viewModel = ChatViewModel()
     @ObservedObject var conversationService = ConversationService.shared
-    @State private var scrollProxy: ScrollViewProxy?
-    
+
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack {
             if conversationService.currentConversation == nil {
                 EmptyConversationView()
             } else {
-                // Messages Area
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            ForEach(viewModel.messages) { message in
-                                MessageBubbleView(message: message)
-                                    .id(message.id)
-                                    .contextMenu {
-                                        Button("Copy") {
-                                            viewModel.copyMessage(message)
-                                        }
-                                        
-                                        if message.role == .user {
-                                            Button("Delete") {
-                                                viewModel.deleteMessage(message)
-                                            }
-                                        }
-                                    }
-                            }
-                            
-                            // Streaming message indicator
-                            if viewModel.isStreaming && !viewModel.streamingMessage.isEmpty {
-                                StreamingMessageView(content: viewModel.streamingMessage)
-                                    .id("streaming")
-                            }
+                VStack(spacing: 0) {
+                    Spacer()
+
+                    // Error Banner
+                    if let error = viewModel.errorMessage {
+                        ErrorBannerView(message: error) {
+                            viewModel.clearError()
                         }
-                        .padding()
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
                     }
-                    .onAppear {
-                        scrollProxy = proxy
-                    }
-                    .onChange(of: viewModel.messages.count) { _ in
-                        scrollToBottom()
-                    }
-                    .onChange(of: viewModel.streamingMessage) { _ in
-                        scrollToBottom()
-                    }
-                }
-                
-                Divider()
-                
-                // Error Banner
-                if let error = viewModel.errorMessage {
-                    ErrorBannerView(message: error) {
-                        viewModel.clearError()
-                    }
-                }
-                
-                // Input Area
-                MessageInputView(
-                    text: $viewModel.inputText,
-                    isLoading: viewModel.isLoading,
-                    canSend: viewModel.canSendMessage
-                ) {
-                    Task {
-                        await viewModel.sendMessage()
+
+                    // Input Area
+                    MessageInputView(
+                        text: $viewModel.inputText,
+                        isLoading: viewModel.isLoading,
+                        canSend: viewModel.canSendMessage
+                    ) {
+                        Task {
+                            await viewModel.sendMessage()
+                        }
                     }
                 }
             }
         }
-    }
-    
-    private func scrollToBottom() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            withAnimation {
-                if viewModel.isStreaming {
-                    scrollProxy?.scrollTo("streaming", anchor: .bottom)
-                } else if let lastMessage = viewModel.messages.last {
-                    scrollProxy?.scrollTo(lastMessage.id, anchor: .bottom)
-                }
-            }
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.clear)
     }
 }
 
 struct EmptyConversationView: View {
-    @ObservedObject var conversationService = ConversationService.shared
     @ObservedObject var config = ConfigurationManager.shared
-    
+
     var body: some View {
         VStack(spacing: 24) {
-            Image(systemName: "bubble.left.and.bubble.right")
+            Image(systemName: "sparkles")
                 .font(.system(size: 64))
                 .foregroundColor(.secondary)
-            
+
             VStack(spacing: 8) {
                 Text("Welcome to Athena")
                     .font(.title)
                     .fontWeight(.semibold)
-                
+
                 if !config.hasAPIKey(for: config.selectedProvider) {
                     Text("Configure your API keys in Settings to get started")
                         .font(.body)
@@ -114,30 +67,10 @@ struct EmptyConversationView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 } else {
-                    Text("Start a new conversation to begin")
+                    Text("Type your query below")
                         .font(.body)
                         .foregroundColor(.secondary)
                 }
-            }
-            
-            if config.hasAPIKey(for: config.selectedProvider) {
-                Button(action: {
-                    do {
-                        let conversation = try conversationService.createConversation()
-                        conversationService.selectConversation(conversation)
-                    } catch {
-                        print("Failed to create conversation: \(error)")
-                    }
-                }) {
-                    Label("New Conversation", systemImage: "plus.circle.fill")
-                        .font(.headline)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.accentColor)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .buttonStyle(.plain)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

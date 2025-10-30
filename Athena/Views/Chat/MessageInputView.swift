@@ -36,7 +36,7 @@ struct MessageInputView: View {
                                     .onAppear {
                                         textHeight = min(max(geometry.size.height, minHeight), maxHeight)
                                     }
-                                    .onChange(of: text) { _ in
+                                    .onChange(of: text) {
                                         textHeight = min(max(geometry.size.height, minHeight), maxHeight)
                                     }
                             }
