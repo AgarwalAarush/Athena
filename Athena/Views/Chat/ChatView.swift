@@ -53,23 +53,24 @@ struct EmptyConversationView: View {
         VStack(spacing: 24) {
             Image(systemName: "sparkles")
                 .font(.system(size: 64))
-                .foregroundColor(.secondary)
+                .foregroundColor(.primary.opacity(0.5))
 
             VStack(spacing: 8) {
                 Text("Welcome to Athena")
                     .font(.title)
                     .fontWeight(.semibold)
+                    .foregroundColor(.primary)
 
                 if !config.hasAPIKey(for: config.selectedProvider) {
                     Text("Configure your API keys in Settings to get started")
                         .font(.body)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.primary.opacity(0.6))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 } else {
                     Text("Type your query below")
                         .font(.body)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.primary.opacity(0.6))
                 }
             }
         }

@@ -36,13 +36,11 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: windowManager.windowSize.width, height: windowManager.windowSize.height)
-        .background(
-            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-        )
+        .background(Color.white.opacity(0.95))
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 10)
     }
@@ -53,23 +51,19 @@ struct TitleBarView: View {
 
     var body: some View {
         HStack {
-            Text("Athena")
-                .font(.headline)
-                .foregroundColor(.primary)
-
             Spacer()
 
             HStack(spacing: 12) {
                 Button(action: { selectedView = .chat }) {
                     Image(systemName: "message")
-                        .foregroundColor(selectedView == .chat ? .accentColor : .secondary)
+                        .foregroundColor(selectedView == .chat ? .accentColor : .primary.opacity(0.5))
                 }
                 .buttonStyle(.plain)
                 .help("Chat")
 
                 Button(action: { selectedView = .settings }) {
                     Image(systemName: "gear")
-                        .foregroundColor(selectedView == .settings ? .accentColor : .secondary)
+                        .foregroundColor(selectedView == .settings ? .accentColor : .primary.opacity(0.5))
                 }
                 .buttonStyle(.plain)
                 .help("Settings")
