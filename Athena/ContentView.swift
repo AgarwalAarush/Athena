@@ -9,61 +9,57 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var windowManager: WindowManager
-    @State private var selectedView: MainView = .chat
-
-    enum MainView {
-        case chat
-        case settings
-    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Title Bar
-            TitleBarView(selectedView: $selectedView)
+        ZStack {
+            // Define the rounded shell shape once
+            let shell = RoundedRectangle(cornerRadius: 12, style: .continuous)
 
-            Divider()
-                .opacity(0.5)
+            // 1) Background shell with shadow (NOT clipped)
+            shell
+                .fill(Color.white.opacity(0.85))
+                .overlay(
+                    shell.stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 10)
 
-            // Main Content Area
-            Group {
-                switch selectedView {
-                case .chat:
-                    ChatView()
-                case .settings:
-                    SettingsView()
-                }
+            // 2) Content clipped to the shell shape
+            VStack(spacing: 0) {
+                // Title Bar
+                TitleBarView()
+
+                Divider()
+                    .opacity(0.5)
+
+                // Main Content Area
+                ChatView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipShape(shell)
+            .compositingGroup()
         }
         .frame(width: windowManager.windowSize.width, height: windowManager.windowSize.height)
-        .background(Color.white.opacity(0.85))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 10)
     }
 }
 
 struct TitleBarView: View {
-    @Binding var selectedView: ContentView.MainView
+    @EnvironmentObject var windowManager: WindowManager
 
     var body: some View {
         HStack {
             Spacer()
 
             HStack(spacing: 12) {
-                Button(action: { selectedView = .chat }) {
+                Button(action: {}) {
                     Image(systemName: "message")
-                        .foregroundColor(selectedView == .chat ? .accentColor : .primary.opacity(0.5))
+                        .foregroundColor(.accentColor)
                 }
                 .buttonStyle(.plain)
                 .help("Chat")
 
-                Button(action: { selectedView = .settings }) {
+                Button(action: { windowManager.openSettingsWindow() }) {
                     Image(systemName: "gear")
-                        .foregroundColor(selectedView == .settings ? .accentColor : .primary.opacity(0.5))
+                        .foregroundColor(.primary)
                 }
                 .buttonStyle(.plain)
                 .help("Settings")

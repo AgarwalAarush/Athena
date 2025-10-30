@@ -11,7 +11,8 @@ import Combine
 
 class WindowManager: NSObject, ObservableObject {
     var window: NSWindow?
-    
+    var settingsWindow: NSWindow?
+
     @Published var windowSize: CGSize = CGSize(width: 450, height: 300)
 
     // Window size constraints
@@ -28,27 +29,61 @@ class WindowManager: NSObject, ObservableObject {
             backing: .buffered,
             defer: false
         )
-        
+
         // Set size constraints
         window.minSize = CGSize(width: minWidth, height: minHeight)
         window.maxSize = CGSize(width: maxWidth, height: maxHeight)
-        
+
         // Center window on screen
         window.center()
-        
+
         // Set content view with SwiftUI
         let contentView = ContentView()
             .environmentObject(self)
         window.contentView = NSHostingView(rootView: contentView)
-        
+
         // Make window key and order front
         window.makeKeyAndOrderFront(nil)
-        
+
         // Store window reference
         self.window = window
-        
+
         // Restore saved position if available
         restoreWindowPosition()
+    }
+
+    func openSettingsWindow() {
+        // If settings window already exists and is visible, just bring it to front
+        if let existingWindow = settingsWindow, existingWindow.isVisible {
+            existingWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        // Create a standard window with title bar
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 700),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+
+        // Configure window
+        window.title = "Settings"
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.minSize = CGSize(width: 500, height: 600)
+
+        // Set content view with SwiftUI
+        let settingsView = SettingsView()
+        window.contentView = NSHostingView(rootView: settingsView)
+
+        // Show window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        // Store window reference
+        settingsWindow = window
     }
     
     func setWindowSize(_ size: CGSize, animated: Bool = true) {
