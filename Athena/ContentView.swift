@@ -36,7 +36,7 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: windowManager.windowSize.width, height: windowManager.windowSize.height)
-        .background(Color.white.opacity(0.95))
+        .background(Color.white.opacity(0.85))
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)

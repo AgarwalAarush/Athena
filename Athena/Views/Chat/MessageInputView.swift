@@ -52,15 +52,15 @@ struct MessageInputView: View {
                 )
                 .opacity(0)
 
-            // Actual TextEditor with rounded style (inverted colors)
+            // Actual TextEditor with rounded style
             TextEditor(text: $text)
                 .font(.body)
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
                 .scrollContentBackground(.hidden)
                 .frame(height: textHeight)
                 .padding(.horizontal, 20)
                 .padding(.vertical, 8)
-                .background(Color.black.opacity(0.85))
+                .background(Color.gray.opacity(0.15))
                 .clipShape(Capsule())
                 .focused($isFocused)
                 .disabled(isLoading)

@@ -11,6 +11,7 @@ import SwiftUI
 class AppDelegate: NSObject, NSApplicationDelegate {
     var windowManager: WindowManager?
     var statusItem: NSStatusItem?
+    private var eventMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Create the status bar item (menu bar icon)
@@ -30,6 +31,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Initially hide the window - it will be shown when menu bar icon is clicked
         windowManager?.toggleWindowVisibility()
+
+        setupGlobalShortcutMonitor()
     }
 
     @objc func toggleWindow() {
@@ -55,8 +58,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         windowManager.toggleWindowVisibility()
     }
     
+    private func setupGlobalShortcutMonitor() {
+        let shortcutMask: NSEvent.ModifierFlags = [.command, .control]
+        let shortcutKeyCode: UInt16 = 38 // Key code for the "J" key on macOS keyboards
+
+        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self else { return }
+
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if flags == shortcutMask && event.keyCode == shortcutKeyCode {
+                DispatchQueue.main.async {
+                    self.toggleWindow()
+                }
+            }
+        }
+    }
+    
     func applicationWillTerminate(_ notification: Notification) {
-        // Cleanup if needed
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
     }
     
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -64,4 +86,3 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 }
-
