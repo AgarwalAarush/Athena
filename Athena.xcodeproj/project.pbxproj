@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		9B530D852EB30A18001C771B /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 9B530D842EB30A18001C771B /* GRDB */; };
+		9B530D872EB30A18001C771B /* GRDB-dynamic in Frameworks */ = {isa = PBXBuildFile; productRef = 9B530D862EB30A18001C771B /* GRDB-dynamic */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		9B530D392EB2D478001C771B /* Athena.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Athena.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +28,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9B530D852EB30A18001C771B /* GRDB in Frameworks */,
+				9B530D872EB30A18001C771B /* GRDB-dynamic in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +72,8 @@
 			);
 			name = Athena;
 			packageProductDependencies = (
+				9B530D842EB30A18001C771B /* GRDB */,
+				9B530D862EB30A18001C771B /* GRDB-dynamic */,
 			);
 			productName = Athena;
 			productReference = 9B530D392EB2D478001C771B /* Athena.app */;
@@ -94,6 +103,9 @@
 			);
 			mainGroup = 9B530D302EB2D478001C771B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9B530D832EB30A18001C771B /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9B530D3A2EB2D478001C771B /* Products */;
 			projectDirPath = "";
@@ -331,6 +343,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		9B530D832EB30A18001C771B /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9B530D842EB30A18001C771B /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9B530D832EB30A18001C771B /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+		9B530D862EB30A18001C771B /* GRDB-dynamic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9B530D832EB30A18001C771B /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = "GRDB-dynamic";
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 9B530D312EB2D478001C771B /* Project object */;
 }

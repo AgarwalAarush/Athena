@@ -6,54 +6,91 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
-
+    @EnvironmentObject var windowManager: WindowManager
+    @State private var selectedView: MainView = .chat
+    @State private var showingSidebar = true
+    
+    enum MainView {
+        case chat
+        case settings
+    }
+    
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        VStack(spacing: 0) {
+            // Title Bar
+            TitleBarView(selectedView: $selectedView, showingSidebar: $showingSidebar)
+            
+            Divider()
+            
+            // Main Content Area
+            Group {
+                switch selectedView {
+                case .chat:
+                    if showingSidebar {
+                        ConversationListView()
+                    } else {
+                        ChatView()
                     }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-            .toolbar {
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
+                case .settings:
+                    SettingsView()
                 }
             }
-        } detail: {
-            Text("Select an item")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
-        }
+        .frame(width: windowManager.windowSize.width, height: windowManager.windowSize.height)
+        .background(Color(NSColor.windowBackgroundColor))
     }
 }
 
+struct TitleBarView: View {
+    @Binding var selectedView: ContentView.MainView
+    @Binding var showingSidebar: Bool
+    
+    var body: some View {
+        HStack {
+            // Sidebar Toggle (only show in chat view)
+            if selectedView == .chat {
+                Button(action: { showingSidebar.toggle() }) {
+                    Image(systemName: "sidebar.left")
+                        .foregroundColor(showingSidebar ? .accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Toggle Sidebar")
+            }
+            
+            Text("Athena")
+                .font(.headline)
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
+            HStack(spacing: 12) {
+                Button(action: { selectedView = .chat }) {
+                    Image(systemName: "message")
+                        .foregroundColor(selectedView == .chat ? .accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Chat")
+                
+                Button(action: { selectedView = .settings }) {
+                    Image(systemName: "gear")
+                        .foregroundColor(selectedView == .settings ? .accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Settings")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color(NSColor.windowBackgroundColor))
+    }
+}
+
+
+
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .environmentObject(WindowManager())
 }
