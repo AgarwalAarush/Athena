@@ -39,6 +39,7 @@ struct ChatView: View {
                             }
                         },
                         isRecording: viewModel.isRecording,
+                        isProcessingTranscript: viewModel.isProcessingTranscript,
                         onStartVoiceInput: {
                             viewModel.startVoiceInput()
                         },

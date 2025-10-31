@@ -23,6 +23,7 @@ class ChatViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isRecording: Bool = false
+    @Published var isProcessingTranscript: Bool = false
 
     private let conversationService = ConversationService.shared
     private let configManager = ConfigurationManager.shared
@@ -71,18 +72,29 @@ class ChatViewModel: ObservableObject {
             .sink { [weak self] state in
                 guard let self = self else { return }
 
+                print("[ChatViewModel] Pipeline state changed to: \(state)")
+
                 switch state {
                 case .idle:
+                    print("[ChatViewModel] State: idle - Setting isRecording=false, isProcessingTranscript=false")
                     self.isRecording = false
+                    self.isProcessingTranscript = false
                     self.restoreInputAfterVoiceSession()
+                    print("[ChatViewModel] State: idle - Final values: isRecording=\(self.isRecording), isProcessingTranscript=\(self.isProcessingTranscript)")
                 case .listening:
+                    print("[ChatViewModel] State: listening - Setting isRecording=true, isProcessingTranscript=false")
                     self.errorMessage = nil
                     self.isRecording = true
+                    self.isProcessingTranscript = false
                     self.preserveInputForVoiceSessionIfNeeded()
                 case .finishing:
-                    self.isRecording = true
+                    print("[ChatViewModel] State: finishing - Setting isRecording=false, isProcessingTranscript=true")
+                    self.isRecording = false  // Stop showing red recording state
+                    self.isProcessingTranscript = true  // Show processing state
                 case .error(let message):
+                    print("[ChatViewModel] State: error - Setting isRecording=false, isProcessingTranscript=false")
                     self.isRecording = false
+                    self.isProcessingTranscript = false
                     self.errorMessage = "Speech recognition error: \(message)"
                     self.restoreInputAfterVoiceSession()
                 }
@@ -249,7 +261,15 @@ class ChatViewModel: ObservableObject {
     }
 
     private func restoreInputAfterVoiceSession() {
+        // Don't restore preserved text if we have a final transcript
+        if speechService.pipeline?.finalTranscript != nil {
+            print("[ChatViewModel] restoreInputAfterVoiceSession: Not restoring preserved text because final transcript exists")
+            preservedInputText = nil  // Clear it so it doesn't interfere later
+            return
+        }
+
         guard let preserved = preservedInputText else { return }
+        print("[ChatViewModel] restoreInputAfterVoiceSession: Restoring preserved text: '\(preserved)'")
         inputText = preserved
         preservedInputText = nil
     }

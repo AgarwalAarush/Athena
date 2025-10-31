@@ -15,6 +15,7 @@ struct MessageInputView: View {
     let canSend: Bool
     let onSend: () -> Void
     let isRecording: Bool
+    let isProcessingTranscript: Bool
     let onStartVoiceInput: () -> Void
     let onStopVoiceInput: () -> Void
 
@@ -115,19 +116,27 @@ struct MessageInputView: View {
     private var micIconName: String {
         if isRecording {
             return "stop.circle.fill"
+        } else if isProcessingTranscript {
+            return "waveform.circle.fill"
         } else {
             return "mic.circle.fill"
         }
     }
 
     private var micButtonColor: Color {
+        let color: Color
         if isRecording {
-            return .red
+            color = .red
+        } else if isProcessingTranscript {
+            color = .orange
         } else if isLoading {
-            return .gray
+            color = .gray
         } else {
-            return .blue
+            color = .blue
         }
+
+        print("[MessageInputView] micButtonColor: isRecording=\(isRecording), isProcessingTranscript=\(isProcessingTranscript), isLoading=\(isLoading) -> color=\(color)")
+        return color
     }
     
 }
@@ -220,6 +229,7 @@ struct CustomTextEditor: NSViewRepresentable {
             canSend: true,
             onSend: {},
             isRecording: false,
+            isProcessingTranscript: false,
             onStartVoiceInput: {},
             onStopVoiceInput: {}
         )
