@@ -65,19 +65,19 @@ struct EmptyConversationView: View {
 
             VStack(spacing: 8) {
                 Text("Welcome to Athena")
-                    .font(.title)
+                    .font(.apercu(size: 24))
                     .fontWeight(.semibold)
                     .foregroundColor(.primary)
 
                 if !config.hasAPIKey(for: config.selectedProvider) {
                     Text("Configure your API keys in Settings to get started")
-                        .font(.body)
+                        .font(.apercu)
                         .foregroundColor(.primary.opacity(0.6))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 } else {
                     Text("Type your query below")
-                        .font(.body)
+                        .font(.apercu)
                         .foregroundColor(.primary.opacity(0.6))
                 }
             }

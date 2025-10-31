@@ -21,7 +21,7 @@ struct MessageBubbleView: View {
                 // Message Content
                 Text(message.content)
                     .textSelection(.enabled)
-                    .font(.body)
+                    .font(.apercu)
                     .foregroundColor(message.isFromUser ? .white : .primary)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)

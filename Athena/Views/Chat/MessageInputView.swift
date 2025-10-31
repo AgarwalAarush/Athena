@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import AppKit
+import CoreText
 
 struct MessageInputView: View {
     @Binding var text: String
@@ -40,7 +42,7 @@ struct MessageInputView: View {
                 ZStack(alignment: .topLeading) {
                     // Invisible Text to calculate height
                     Text(text.isEmpty ? " " : text)
-                        .font(.body)
+                        .font(.apercu)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 6)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -58,17 +60,17 @@ struct MessageInputView: View {
                         .opacity(0)
 
                     // Actual TextEditor with rounded style
-                    TextEditor(text: $text)
-                        .font(.body)
-                        .foregroundColor(.black)
-                        .scrollContentBackground(.hidden)
+                    CustomTextEditor(text: $text, isFocused: isFocused)
                         .frame(height: textHeight)
                         .padding(.horizontal, 20)
-                        .padding(.vertical, 4)
+                        .padding(.top, 4)
+                        .padding(.bottom, 4)
                         .background(Color.gray.opacity(0.30))
-                        .clipShape(Capsule())
-                        .focused($isFocused)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                         .disabled(isLoading || isRecording)
+                        .onTapGesture {
+                            isFocused = true
+                        }
                         .onSubmit {
                             if canSend {
                                 onSend()
@@ -102,7 +104,7 @@ struct MessageInputView: View {
                     .frame(width: 32, height: 32)
 
                 Image(systemName: micIconName)
-                    .font(.system(size: 16))
+                    .font(.apercu(size: 16))
                     .foregroundColor(.white)
             }
             .contentShape(Circle())
@@ -110,8 +112,8 @@ struct MessageInputView: View {
         .buttonStyle(.plain)
         .disabled(isLoading)
         .simultaneousGesture(
-            // Press-and-hold mode: hold to record, release to stop
-            DragGesture(minimumDistance: 0)
+            // Press-and-hold mode: only active when NOT recording (tap takes priority when recording)
+            !isRecording ? DragGesture(minimumDistance: 0)
                 .onChanged { _ in
                     if !isPressingMic && !isRecording {
                         isPressingMic = true
@@ -124,6 +126,7 @@ struct MessageInputView: View {
                         onStopVoiceInput()
                     }
                 }
+            : nil
         )
     }
 
@@ -142,6 +145,88 @@ struct MessageInputView: View {
             return .gray
         } else {
             return .blue
+        }
+    }
+    
+}
+
+// Custom TextEditor wrapper that removes extra padding
+struct CustomTextEditor: NSViewRepresentable {
+    @Binding var text: String
+    var isFocused: Bool
+    
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        let textView = NSTextView()
+        
+        // Configure text view with Apercu font
+        if let apercuFont = NSFont.apercuFontName {
+            textView.font = NSFont(name: apercuFont, size: 14) ?? .systemFont(ofSize: 14)
+        } else {
+            textView.font = .systemFont(ofSize: 14)
+        }
+        // Use labelColor which adapts to light/dark mode
+        textView.textColor = NSColor.labelColor
+        textView.backgroundColor = .clear
+        textView.isRichText = false
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.string = text
+        textView.delegate = context.coordinator
+        
+        // Remove extra padding - this is key to eliminating the extra line
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainerInset = NSSize(width: 0, height: 0)
+        textView.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.heightTracksTextView = false
+        
+        // Configure scroll view
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.documentView = textView
+        scrollView.borderType = .noBorder
+        scrollView.backgroundColor = .clear
+        
+        // Store coordinator
+        context.coordinator.textView = textView
+        
+        return scrollView
+    }
+    
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        if let textView = nsView.documentView as? NSTextView {
+            if textView.string != text {
+                textView.string = text
+            }
+            // Update focus
+            if isFocused {
+                let currentResponder = textView.window?.firstResponder
+                if currentResponder != textView {
+                    textView.window?.makeFirstResponder(textView)
+                }
+            }
+            // Update text color to adapt to appearance
+            textView.textColor = NSColor.labelColor
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: CustomTextEditor
+        var textView: NSTextView?
+        
+        init(_ parent: CustomTextEditor) {
+            self.parent = parent
+        }
+        
+        func textDidChange(_ notification: Notification) {
+            if let textView = textView {
+                parent.text = textView.string
+            }
         }
     }
 }

@@ -18,12 +18,12 @@ struct StreamingMessageView: View {
                 HStack(alignment: .bottom, spacing: 4) {
                     Text(content)
                         .textSelection(.enabled)
-                        .font(.body)
+                        .font(.apercu)
                         .foregroundColor(.primary)
                     
                     // Animated cursor
                     Text("▋")
-                        .font(.body)
+                        .font(.apercu)
                         .foregroundColor(.accentColor)
                         .opacity(cursorVisible ? 1 : 0)
                         .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: cursorVisible)

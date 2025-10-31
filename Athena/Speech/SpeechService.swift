@@ -105,6 +105,11 @@ final class SpeechService: ObservableObject {
     func cancelListening() {
         pipeline?.cancelListening()
     }
+    
+    /// Check if currently listening or finishing
+    var isActive: Bool {
+        pipeline?.state.isActive ?? false
+    }
 
     /// Reset the service (e.g., after errors)
     func reset() {

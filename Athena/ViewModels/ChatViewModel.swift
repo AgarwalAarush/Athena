@@ -109,9 +109,21 @@ class ChatViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            // Get current provider and model
+            // Get current provider and validate API key
             let provider = AIProvider(rawValue: configManager.selectedProvider) ?? .openai
-            let model = configManager.selectedModel
+            
+            // Ensure API key exists for the provider
+            guard configManager.hasAPIKey(for: provider.rawValue) else {
+                errorMessage = "No API key configured for \(provider.displayName). Please configure in Settings."
+                isLoading = false
+                return
+            }
+            
+            // Get model, fallback to provider default if invalid
+            let selectedModel = configManager.selectedModel
+            let model = provider.availableModels.contains(where: { $0.id == selectedModel }) 
+                ? selectedModel 
+                : provider.defaultModel
 
             // Send message (response is processed but not displayed)
             _ = try await conversationService.sendMessage(
@@ -142,8 +154,21 @@ class ChatViewModel: ObservableObject {
         errorMessage = nil
 
         do {
+            // Get current provider and validate API key
             let provider = AIProvider(rawValue: configManager.selectedProvider) ?? .openai
-            let model = configManager.selectedModel
+            
+            // Ensure API key exists for the provider
+            guard configManager.hasAPIKey(for: provider.rawValue) else {
+                errorMessage = "No API key configured for \(provider.displayName). Please configure in Settings."
+                isLoading = false
+                return
+            }
+            
+            // Get model, fallback to provider default if invalid
+            let selectedModel = configManager.selectedModel
+            let model = provider.availableModels.contains(where: { $0.id == selectedModel }) 
+                ? selectedModel 
+                : provider.defaultModel
 
             _ = try await conversationService.sendMessage(
                 messageContent,
@@ -171,7 +196,13 @@ class ChatViewModel: ObservableObject {
 
     func stopVoiceInput() {
         Task {
-            await speechService.stopListening()
+            // If pipeline is in listening state, stop gracefully
+            // Otherwise, cancel immediately
+            if let pipeline = speechService.pipeline, pipeline.state == .listening {
+                await speechService.stopListening()
+            } else {
+                speechService.cancelListening()
+            }
         }
     }
 
