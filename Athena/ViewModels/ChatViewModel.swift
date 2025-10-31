@@ -152,31 +152,42 @@ class ChatViewModel: ObservableObject {
     }
 
     private func sendVoiceTranscript(_ transcript: String) async {
+        print("[ChatViewModel] sendVoiceTranscript: Starting to send transcript to chat: '\(transcript)'")
+
         // Use the same logic as sendMessage but with voice transcript
         let messageContent = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        print("[ChatViewModel] sendVoiceTranscript: Trimmed message content: '\(messageContent)'")
+
         guard !messageContent.isEmpty, currentConversation != nil, hasValidAPIKey else {
+            print("[ChatViewModel] sendVoiceTranscript: Guard failed - Empty: \(messageContent.isEmpty), HasConversation: \(currentConversation != nil), HasAPIKey: \(hasValidAPIKey)")
             return
         }
 
+        print("[ChatViewModel] sendVoiceTranscript: All guards passed, starting message send")
         isLoading = true
         errorMessage = nil
 
         do {
             // Get current provider and validate API key
             let provider = AIProvider(rawValue: configManager.selectedProvider) ?? .openai
-            
+            print("[ChatViewModel] sendVoiceTranscript: Using provider: \(provider.displayName)")
+
             // Ensure API key exists for the provider
             guard configManager.hasAPIKey(for: provider.rawValue) else {
-                errorMessage = "No API key configured for \(provider.displayName). Please configure in Settings."
+                let errorMsg = "No API key configured for \(provider.displayName). Please configure in Settings."
+                errorMessage = errorMsg
                 isLoading = false
+                print("[ChatViewModel] sendVoiceTranscript: ERROR - \(errorMsg)")
                 return
             }
-            
+
             // Get model, fallback to provider default if invalid
             let selectedModel = configManager.selectedModel
-            let model = provider.availableModels.contains(where: { $0.id == selectedModel }) 
-                ? selectedModel 
+            let model = provider.availableModels.contains(where: { $0.id == selectedModel })
+                ? selectedModel
                 : provider.defaultModel
+
+            print("[ChatViewModel] sendVoiceTranscript: Sending message with model: \(model)")
 
             _ = try await conversationService.sendMessage(
                 messageContent,
@@ -184,12 +195,17 @@ class ChatViewModel: ObservableObject {
                 model: model,
                 streaming: false
             )
+
+            print("[ChatViewModel] sendVoiceTranscript: SUCCESS - Message sent to chat")
         } catch {
-            errorMessage = "Failed to send message: \(error.localizedDescription)"
+            let errorMsg = "Failed to send message: \(error.localizedDescription)"
+            errorMessage = errorMsg
+            print("[ChatViewModel] sendVoiceTranscript: ERROR - \(errorMsg)")
             print("Error sending voice message: \(error)")
         }
 
         isLoading = false
+        print("[ChatViewModel] sendVoiceTranscript: Completed, isLoading = false")
     }
 
     func startVoiceInput() {
@@ -239,14 +255,23 @@ class ChatViewModel: ObservableObject {
     }
 
     private func handleFinalTranscript(_ transcript: String) {
+        print("[ChatViewModel] handleFinalTranscript: RECEIVED FINAL TRANSCRIPT: '\(transcript)'")
+
         // ALWAYS populate the input field with the transcription
+        print("[ChatViewModel] handleFinalTranscript: Setting inputText to transcript")
         inputText = transcript
+        print("[ChatViewModel] handleFinalTranscript: inputText is now: '\(inputText)'")
 
         // Conditionally auto-send to AI based on config/debug setting
         // When shouldAutoSendVoiceTranscript is false, the transcript stays in the input field
         // for manual review/editing before sending
-        guard shouldAutoSendVoiceTranscript else { return }
+        print("[ChatViewModel] handleFinalTranscript: shouldAutoSendVoiceTranscript = \(shouldAutoSendVoiceTranscript)")
+        guard shouldAutoSendVoiceTranscript else {
+            print("[ChatViewModel] handleFinalTranscript: NOT auto-sending - transcript stays in input field for manual editing")
+            return
+        }
 
+        print("[ChatViewModel] handleFinalTranscript: Auto-sending transcript to chat")
         Task {
             await self.sendVoiceTranscript(transcript)
         }

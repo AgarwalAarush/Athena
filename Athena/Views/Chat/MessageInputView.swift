@@ -20,7 +20,6 @@ struct MessageInputView: View {
 
     @FocusState private var isFocused: Bool
     @State private var textHeight: CGFloat = 32
-    @State private var isPressingMic: Bool = false
 
     private let maxHeight: CGFloat = 120
     private let minHeight: CGFloat = 32
@@ -78,7 +77,7 @@ struct MessageInputView: View {
                         }
                 }
 
-                // Microphone button with both tap and press-and-hold
+                // Microphone button with tap-to-toggle recording
                 microphoneButton
             }
             .padding(.horizontal, 16)
@@ -91,7 +90,7 @@ struct MessageInputView: View {
 
     private var microphoneButton: some View {
         Button(action: {
-            // Toggle mode: tap to start/stop
+            // Tap to toggle recording on/off
             if isRecording {
                 onStopVoiceInput()
             } else {
@@ -111,23 +110,6 @@ struct MessageInputView: View {
         }
         .buttonStyle(.plain)
         .disabled(isLoading)
-        .simultaneousGesture(
-            // Press-and-hold mode: only active when NOT recording (tap takes priority when recording)
-            !isRecording ? DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    if !isPressingMic && !isRecording {
-                        isPressingMic = true
-                        onStartVoiceInput()
-                    }
-                }
-                .onEnded { _ in
-                    if isPressingMic {
-                        isPressingMic = false
-                        onStopVoiceInput()
-                    }
-                }
-            : nil
-        )
     }
 
     private var micIconName: String {

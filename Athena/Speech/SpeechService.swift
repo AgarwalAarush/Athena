@@ -10,6 +10,7 @@ import Combine
 import Speech
 import AVFoundation
 
+
 /// Main service for managing speech recognition
 @MainActor
 final class SpeechService: ObservableObject {
@@ -36,13 +37,20 @@ final class SpeechService: ObservableObject {
     private let configManager = ConfigurationManager.shared
 
     private init() {
+        print("[SpeechService] Initializing SpeechService")
+
         // Check initial authorization status
         self.authorizationStatus = SFSpeechRecognizer.authorizationStatus()
         self.isAuthorized = (authorizationStatus == .authorized)
         self.microphonePermission = currentMicrophonePermission()
 
+        print("[SpeechService] Initial status - Speech auth: \(authorizationStatus), Microphone: \(microphonePermission), Combined authorized: \(isAuthorized && hasMicrophonePermission)")
+
         if isAuthorized && hasMicrophonePermission {
+            print("[SpeechService] Both permissions granted, initializing pipeline")
             initializePipeline()
+        } else {
+            print("[SpeechService] Permissions not granted - Speech: \(isAuthorized), Mic: \(hasMicrophonePermission)")
         }
     }
 
@@ -50,6 +58,8 @@ final class SpeechService: ObservableObject {
 
     /// Request authorization for speech recognition
     func requestAuthorization() async {
+        print("[SpeechService] Requesting speech recognition authorization...")
+
         let status = await withCheckedContinuation { continuation in
             SFSpeechRecognizer.requestAuthorization { status in
                 continuation.resume(returning: status)
@@ -59,112 +69,180 @@ final class SpeechService: ObservableObject {
         authorizationStatus = status
         isAuthorized = (status == .authorized)
 
+        print("[SpeechService] Speech authorization result: \(status), isAuthorized: \(isAuthorized)")
+
         // Initialize pipeline if authorized
         if isAuthorized && hasMicrophonePermission {
+            print("[SpeechService] Both permissions now granted after speech auth, initializing pipeline")
             initializePipeline()
         } else {
+            print("[SpeechService] Clearing pipeline - Speech auth: \(isAuthorized), Mic permission: \(hasMicrophonePermission)")
             pipeline = nil
         }
     }
 
     /// Request permission to use the microphone
     func requestMicrophonePermission() async {
+        print("[SpeechService] Requesting microphone permission...")
+
         if hasMicrophonePermission {
+            print("[SpeechService] Microphone permission already granted")
             return
         }
 
         #if os(macOS)
-        let authorizationStatus = AVCaptureDevice.authorizationStatus(for: .audio)
-        if authorizationStatus == .notDetermined {
-            await withCheckedContinuation { continuation in
-                AVCaptureDevice.requestAccess(for: .audio) { _ in
-                    continuation.resume()
-                }
-            }
+        let currentPermission = AVAudioApplication.shared.recordPermission
+        print("[SpeechService] macOS - Current mic permission before request: \(currentPermission)")
+
+        if currentPermission == .undetermined {
+            print("[SpeechService] Requesting microphone permission via AVAudioApplication...")
+            // Request permission - this is a class method that returns a Bool indicating if granted
+            let granted = await AVAudioApplication.requestRecordPermission()
+            print("[SpeechService] AVAudioApplication.requestRecordPermission() returned: \(granted)")
         }
-        microphonePermission = mapCapturePermission(AVCaptureDevice.authorizationStatus(for: .audio))
+
+        let finalPermission = AVAudioApplication.shared.recordPermission
+        microphonePermission = mapAudioApplicationPermission(finalPermission)
+        print("[SpeechService] Final macOS mic permission: \(finalPermission) -> mapped to: \(microphonePermission)")
         #else
         let session = AVAudioSession.sharedInstance()
+        print("[SpeechService] iOS - Current mic permission before request: \(session.recordPermission)")
+
         if session.recordPermission == .undetermined {
+            print("[SpeechService] Requesting microphone permission via AVAudioSession...")
             await withCheckedContinuation { continuation in
-                session.requestRecordPermission { _ in
+                session.requestRecordPermission { granted in
+                    print("[SpeechService] AVAudioSession.requestRecordPermission callback with granted: \(granted)")
                     continuation.resume()
                 }
             }
         }
-        microphonePermission = mapMicrophonePermission(session.recordPermission)
+
+        let finalPermission = session.recordPermission
+        microphonePermission = mapMicrophonePermission(finalPermission)
+        print("[SpeechService] Final iOS mic permission: \(finalPermission) -> mapped to: \(microphonePermission)")
         #endif
 
         if isAuthorized && hasMicrophonePermission {
+            print("[SpeechService] Both permissions now granted after mic auth, initializing pipeline")
             initializePipeline()
+        } else {
+            print("[SpeechService] Pipeline not initialized - Speech auth: \(isAuthorized), Mic permission: \(hasMicrophonePermission)")
         }
     }
 
     /// Initialize or reinitialize the speech pipeline
     func initializePipeline() {
+        print("[SpeechService] initializePipeline called")
+
         guard hasMicrophonePermission else {
+            print("[SpeechService] initializePipeline: No microphone permission, clearing pipeline")
             pipeline = nil
             return
         }
 
+        print("[SpeechService] initializePipeline: Microphone permission granted, creating pipeline")
+
         do {
             let localeIdentifier = configManager.getString(.speechRecognitionLanguage)
             let locale = Locale(identifier: localeIdentifier)
+            print("[SpeechService] initializePipeline: Creating pipeline with locale: \(localeIdentifier)")
+
             pipeline = try SpeechPipeline.makeDefault(locale: locale)
+            print("[SpeechService] initializePipeline: Successfully created pipeline with configured locale")
         } catch {
             // Fallback to system default locale if the configured one is unavailable
-            print("Failed to create speech pipeline for configured locale: \(error.localizedDescription). Falling back to system locale.")
+            print("[SpeechService] initializePipeline: Failed to create speech pipeline for configured locale: \(error.localizedDescription). Falling back to system locale.")
             do {
+                print("[SpeechService] initializePipeline: Attempting fallback with system locale")
                 pipeline = try SpeechPipeline.makeDefault(locale: .current)
+                print("[SpeechService] initializePipeline: Successfully created pipeline with system locale")
             } catch {
                 pipeline = nil
-                print("Failed to create speech pipeline with system locale: \(error.localizedDescription)")
+                print("[SpeechService] initializePipeline: Failed to create speech pipeline with system locale: \(error.localizedDescription)")
             }
         }
+
+        print("[SpeechService] initializePipeline: Pipeline creation complete, pipeline is \(pipeline == nil ? "nil" : "not nil")")
     }
 
     /// Start listening for speech
     func startListening() async {
+        print("[SpeechService] startListening called")
+
         if !hasMicrophonePermission {
+            print("[SpeechService] startListening: Requesting microphone permission")
             await requestMicrophonePermission()
+        } else {
+            print("[SpeechService] startListening: Microphone permission already granted")
         }
 
         if !isAuthorized {
+            print("[SpeechService] startListening: Requesting speech authorization")
             await requestAuthorization()
+        } else {
+            print("[SpeechService] startListening: Speech authorization already granted")
         }
 
-        guard isAuthorized && hasMicrophonePermission else { return }
+        guard isAuthorized && hasMicrophonePermission else {
+            print("[SpeechService] startListening: Guard failed - Speech auth: \(isAuthorized), Mic permission: \(hasMicrophonePermission)")
+            return
+        }
+
+        print("[SpeechService] startListening: Both permissions granted")
 
         if pipeline == nil {
+            print("[SpeechService] startListening: Pipeline is nil, initializing...")
             initializePipeline()
+        } else {
+            print("[SpeechService] startListening: Pipeline already exists")
         }
 
-        guard let pipeline else { return }
+        guard let pipeline else {
+            print("[SpeechService] startListening: Pipeline is still nil after initialization, aborting")
+            return
+        }
+
+        print("[SpeechService] startListening: Calling pipeline.startListening()")
         await pipeline.startListening()
+        print("[SpeechService] startListening: pipeline.startListening() completed")
     }
 
     /// Stop listening and wait for final transcript
     func stopListening() async {
+        print("[SpeechService] stopListening called")
         await pipeline?.stopListening()
+        print("[SpeechService] stopListening completed")
     }
 
     /// Cancel listening immediately
     func cancelListening() {
+        print("[SpeechService] cancelListening called")
         pipeline?.cancelListening()
+        print("[SpeechService] cancelListening completed")
     }
-    
+
     /// Check if currently listening or finishing
     var isActive: Bool {
-        pipeline?.state.isActive ?? false
+        let active = pipeline?.state.isActive ?? false
+        print("[SpeechService] isActive queried: \(active)")
+        return active
     }
 
     /// Reset the service (e.g., after errors)
     func reset() {
+        print("[SpeechService] reset called")
         pipeline?.cancelListening()
         pipeline = nil
+        print("[SpeechService] reset: Pipeline cleared")
+
         if isAuthorized {
+            print("[SpeechService] reset: Reinitializing pipeline since authorized")
             initializePipeline()
+        } else {
+            print("[SpeechService] reset: Not reinitializing pipeline - not authorized")
         }
+        print("[SpeechService] reset completed")
     }
 }
 
@@ -224,13 +302,21 @@ extension SpeechService {
 
     private func currentMicrophonePermission() -> MicrophonePermissionStatus {
         #if os(macOS)
-        return mapCapturePermission(AVCaptureDevice.authorizationStatus(for: .audio))
+        let permission = AVAudioApplication.shared.recordPermission
+        let mapped = mapAudioApplicationPermission(permission)
+        print("[SpeechService] currentMicrophonePermission (macOS): \(permission) -> \(mapped)")
+        return mapped
         #else
-        return mapMicrophonePermission(AVAudioSession.sharedInstance().recordPermission)
+        let permission = AVAudioSession.sharedInstance().recordPermission
+        let mapped = mapMicrophonePermission(permission)
+        print("[SpeechService] currentMicrophonePermission (iOS): \(permission) -> \(mapped)")
+        return mapped
         #endif
     }
 
-    private func mapMicrophonePermission(_ permission: AVAudioSession.RecordPermission) -> MicrophonePermissionStatus {
+    #if !os(macOS)
+    private func mapMicrophonePermission(_ permission: AVAudioSession.recordPermission) -> MicrophonePermissionStatus {
+        print("[SpeechService] mapMicrophonePermission (iOS): mapping \(permission)")
         switch permission {
         case .undetermined:
             return .undetermined
@@ -239,20 +325,23 @@ extension SpeechService {
         case .granted:
             return .granted
         @unknown default:
+            print("[SpeechService] mapMicrophonePermission (iOS): unknown permission value: \(permission)")
             return .undetermined
         }
     }
+    #endif
 
     #if os(macOS)
-    private func mapCapturePermission(_ status: AVAuthorizationStatus) -> MicrophonePermissionStatus {
-        switch status {
-        case .notDetermined:
-            return .undetermined
-        case .restricted, .denied:
-            return .denied
-        case .authorized, .limited:
+    private func mapAudioApplicationPermission(_ permission: AVAudioApplication.recordPermission) -> MicrophonePermissionStatus {
+        print("[SpeechService] mapAudioApplicationPermission (macOS): mapping \(permission)")
+        if permission == .granted {
+            print("[SpeechService] mapAudioApplicationPermission (macOS): mapped to granted")
             return .granted
-        @unknown default:
+        } else if permission == .denied {
+            print("[SpeechService] mapAudioApplicationPermission (macOS): mapped to denied")
+            return .denied
+        } else {
+            print("[SpeechService] mapAudioApplicationPermission (macOS): mapped to undetermined (value: \(permission))")
             return .undetermined
         }
     }
