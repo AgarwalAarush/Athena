@@ -32,12 +32,20 @@ struct ChatView: View {
                     MessageInputView(
                         text: $viewModel.inputText,
                         isLoading: viewModel.isLoading,
-                        canSend: viewModel.canSendMessage
-                    ) {
-                        Task {
-                            await viewModel.sendMessage()
+                        canSend: viewModel.canSendMessage,
+                        onSend: {
+                            Task {
+                                await viewModel.sendMessage()
+                            }
+                        },
+                        isRecording: viewModel.isRecording,
+                        onStartVoiceInput: {
+                            viewModel.startVoiceInput()
+                        },
+                        onStopVoiceInput: {
+                            viewModel.stopVoiceInput()
                         }
-                    }
+                    )
                 }
             }
         }

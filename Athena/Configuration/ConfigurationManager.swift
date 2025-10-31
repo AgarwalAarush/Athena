@@ -17,18 +17,21 @@ class ConfigurationManager: ObservableObject {
     // Publishers for configuration changes
     @Published private(set) var selectedProvider: String
     @Published private(set) var selectedModel: String
-    @Published private(set) var temperature: Double
+    @Published private(set) var speechRecognitionLanguage: String
+    @Published private(set) var autoSendVoiceTranscription: Bool
     
     private init() {
         // Initialize published properties with defaults
         self.selectedProvider = ConfigurationKey.selectedProvider.defaultValue as! String
         self.selectedModel = ConfigurationKey.selectedModel.defaultValue as! String
-        self.temperature = ConfigurationKey.temperature.defaultValue as! Double
+        self.speechRecognitionLanguage = ConfigurationKey.speechRecognitionLanguage.defaultValue as! String
+        self.autoSendVoiceTranscription = ConfigurationKey.autoSendVoiceTranscription.defaultValue as! Bool
         
         // Load current values
         self.selectedProvider = getString(.selectedProvider)
         self.selectedModel = getString(.selectedModel)
-        self.temperature = getDouble(.temperature)
+        self.speechRecognitionLanguage = getString(.speechRecognitionLanguage)
+        self.autoSendVoiceTranscription = getBool(.autoSendVoiceTranscription)
     }
     
     // MARK: - Generic Getters
@@ -142,14 +145,6 @@ class ConfigurationManager: ObservableObject {
     
     func validate(_ value: Any, for key: ConfigurationKey) -> Bool {
         switch key {
-        case .temperature:
-            guard let temp = value as? Double else { return false }
-            return temp >= 0.0 && temp <= 2.0
-            
-        case .maxTokens:
-            guard let tokens = value as? Int else { return false }
-            return tokens > 0 && tokens <= 100000
-            
         case .topP:
             guard let topP = value as? Double else { return false }
             return topP >= 0.0 && topP <= 1.0
@@ -204,8 +199,10 @@ class ConfigurationManager: ObservableObject {
                 self.selectedProvider = self.getString(.selectedProvider)
             case .selectedModel:
                 self.selectedModel = self.getString(.selectedModel)
-            case .temperature:
-                self.temperature = self.getDouble(.temperature)
+            case .speechRecognitionLanguage:
+                self.speechRecognitionLanguage = self.getString(.speechRecognitionLanguage)
+            case .autoSendVoiceTranscription:
+                self.autoSendVoiceTranscription = self.getBool(.autoSendVoiceTranscription)
             default:
                 break
             }
@@ -217,8 +214,8 @@ class ConfigurationManager: ObservableObject {
             guard let self = self else { return }
             self.selectedProvider = self.getString(.selectedProvider)
             self.selectedModel = self.getString(.selectedModel)
-            self.temperature = self.getDouble(.temperature)
+            self.speechRecognitionLanguage = self.getString(.speechRecognitionLanguage)
+            self.autoSendVoiceTranscription = self.getBool(.autoSendVoiceTranscription)
         }
     }
 }
-

@@ -18,8 +18,6 @@ enum ConfigurationKey: String, CaseIterable {
     case selectedModel = "selected_model"
     
     // Model Parameters (UserDefaults)
-    case temperature = "temperature"
-    case maxTokens = "max_tokens"
     case topP = "top_p"
     
     // UI Preferences (UserDefaults)
@@ -41,6 +39,10 @@ enum ConfigurationKey: String, CaseIterable {
     case enableVoiceMode = "enable_voice_mode"
     case enableComputerUse = "enable_computer_use"
     case enableCalendarIntegration = "enable_calendar_integration"
+
+    // Speech Settings (UserDefaults)
+    case speechRecognitionLanguage = "speech_recognition_language"
+    case autoSendVoiceTranscription = "auto_send_voice_transcription"
     
     var defaultValue: Any {
         switch self {
@@ -53,10 +55,6 @@ enum ConfigurationKey: String, CaseIterable {
             return "gpt-5-nano-2025-08-07"
             
         // Model parameter defaults
-        case .temperature:
-            return 0.7
-        case .maxTokens:
-            return 2048
         case .topP:
             return 1.0
             
@@ -91,7 +89,13 @@ enum ConfigurationKey: String, CaseIterable {
             return false
         case .enableCalendarIntegration:
             return false
-            
+
+        // Speech settings defaults
+        case .speechRecognitionLanguage:
+            return "en-US"
+        case .autoSendVoiceTranscription:
+            return true
+
         // Secure keys have no defaults
         case .openaiAPIKey, .anthropicAPIKey:
             return ""
@@ -111,7 +115,7 @@ enum ConfigurationKey: String, CaseIterable {
         switch self {
         case .openaiAPIKey, .anthropicAPIKey, .ollamaBaseURL, .selectedProvider, .selectedModel:
             return .aiProvider
-        case .temperature, .maxTokens, .topP:
+        case .topP:
             return .modelParameters
         case .theme, .fontSize, .showTimestamps, .enableAnimations:
             return .userInterface
@@ -121,6 +125,8 @@ enum ConfigurationKey: String, CaseIterable {
             return .backend
         case .enableVoiceMode, .enableComputerUse, .enableCalendarIntegration:
             return .features
+        case .speechRecognitionLanguage, .autoSendVoiceTranscription:
+            return .speech
         }
     }
 }
@@ -132,5 +138,6 @@ enum ConfigurationCategory: String, CaseIterable {
     case window = "Window"
     case backend = "Backend"
     case features = "Features"
+    case speech = "Speech"
 }
 

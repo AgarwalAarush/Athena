@@ -121,7 +121,6 @@ class ConversationService: ObservableObject {
         _ content: String,
         provider: AIProvider,
         model: String,
-        temperature: Double,
         streaming: Bool = true
     ) async throws -> String {
         
@@ -130,9 +129,9 @@ class ConversationService: ObservableObject {
         }
         
         if streaming {
-            return try await streamMessage(content, conversationId: conversationId, provider: provider, model: model, temperature: temperature)
+            return try await streamMessage(content, conversationId: conversationId, provider: provider, model: model)
         } else {
-            return try await aiService.sendMessage(content, conversationId: conversationId, provider: provider, model: model, temperature: temperature)
+            return try await aiService.sendMessage(content, conversationId: conversationId, provider: provider, model: model)
         }
     }
     
@@ -140,14 +139,13 @@ class ConversationService: ObservableObject {
         _ content: String,
         conversationId: Int64,
         provider: AIProvider,
-        model: String,
-        temperature: Double
+        model: String
     ) async throws -> String {
         
         return try await withCheckedThrowingContinuation { continuation in
             var cancellable: AnyCancellable?
             
-            cancellable = aiService.streamMessage(content, conversationId: conversationId, provider: provider, model: model, temperature: temperature)
+            cancellable = aiService.streamMessage(content, conversationId: conversationId, provider: provider, model: model)
                 .sink(
                     receiveCompletion: { completion in
                         switch completion {

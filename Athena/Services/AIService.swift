@@ -81,8 +81,7 @@ class AIService: AIServiceProtocol {
         _ message: String,
         conversationId: Int64,
         provider: AIProvider,
-        model: String,
-        temperature: Double
+        model: String
     ) async throws -> String {
         
         // Get conversation history
@@ -100,13 +99,13 @@ class AIService: AIServiceProtocol {
             throw NSError(domain: "AIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No API key configured for \(provider.displayName)"])
         }
         
-        // Create request
+        // Create request with hardcoded values (set by developer)
         let request = ChatRequest(
             provider: provider.rawValue,
             model: model,
             messages: allMessages,
-            temperature: temperature,
-            maxTokens: config.getInt(.maxTokens),
+            temperature: 0.7,
+            maxTokens: 2048,
             topP: config.getDouble(.topP),
             stream: false
         )
@@ -134,8 +133,7 @@ class AIService: AIServiceProtocol {
         _ message: String,
         conversationId: Int64,
         provider: AIProvider,
-        model: String,
-        temperature: Double
+        model: String
     ) -> AnyPublisher<String, Error> {
         
         return Future<String, Error> { [weak self] promise in
@@ -161,13 +159,13 @@ class AIService: AIServiceProtocol {
                         throw NSError(domain: "AIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No API key configured for \(provider.displayName)"])
                     }
                     
-                    // Create request
+                    // Create request with hardcoded values (set by developer)
                     let request = ChatRequest(
                         provider: provider.rawValue,
                         model: model,
                         messages: allMessages,
-                        temperature: temperature,
-                        maxTokens: self.config.getInt(.maxTokens),
+                        temperature: 0.7,
+                        maxTokens: 2048,
                         topP: self.config.getDouble(.topP),
                         stream: true
                     )

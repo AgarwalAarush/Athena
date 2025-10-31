@@ -33,6 +33,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         windowManager?.toggleWindowVisibility()
 
         setupGlobalShortcutMonitor()
+
+        Task { @MainActor in
+            await SpeechService.shared.requestAuthorization()
+        }
     }
 
     @objc func toggleWindow() {

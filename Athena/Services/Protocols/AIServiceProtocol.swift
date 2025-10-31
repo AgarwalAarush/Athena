@@ -13,16 +13,14 @@ protocol AIServiceProtocol {
         _ message: String,
         conversationId: Int64,
         provider: AIProvider,
-        model: String,
-        temperature: Double
+        model: String
     ) async throws -> String
     
     func streamMessage(
         _ message: String,
         conversationId: Int64,
         provider: AIProvider,
-        model: String,
-        temperature: Double
+        model: String
     ) -> AnyPublisher<String, Error>
     
     func testConnection(provider: AIProvider, apiKey: String) async throws -> Bool
