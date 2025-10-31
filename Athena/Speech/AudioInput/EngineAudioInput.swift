@@ -12,8 +12,13 @@ import AVFoundation
 final class EngineAudioInput: AudioInput {
     // MARK: - Properties
 
-    private let engine = AVAudioEngine()
+    // Lazy initialization: Create AVAudioEngine only when needed (when start() is called)
+    // This avoids XPC connection errors during early app launch when Core Audio services
+    // may not be fully initialized yet
+    private var engine: AVAudioEngine?
     private var converter: AVAudioConverter?
+    private var outputFormat: AVAudioFormat?
+    private var lastInputFormat: AVAudioFormat?
     private var framesContinuation: AsyncStream<AudioFrame>.Continuation?
     private var framesStream: AsyncStream<AudioFrame>?
     private var isTapInstalled = false
@@ -45,6 +50,16 @@ final class EngineAudioInput: AudioInput {
     // MARK: - AudioInput Protocol
 
     func start() async throws {
+        // Create audio engine lazily on first use
+        // This avoids XPC initialization errors during early app launch
+        if engine == nil {
+            engine = AVAudioEngine()
+        }
+
+        guard let engine = engine else {
+            throw AudioInputError.engineCreationFailed
+        }
+
         guard !engine.isRunning else {
             return
         }
@@ -57,11 +72,8 @@ final class EngineAudioInput: AudioInput {
         // Ensure a fresh stream exists for this run
         _ = frames
 
-        let inputNode = engine.inputNode
-        let inputFormat = inputNode.outputFormat(forBus: 0)
-
-        // Create output format: 16kHz, mono, Float32
-        guard let outputFormat = AVAudioFormat(
+        // Create target output format: 16kHz, mono, Float32
+        guard let targetFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: sampleRate,
             channels: channelCount,
@@ -69,22 +81,21 @@ final class EngineAudioInput: AudioInput {
         ) else {
             throw AudioInputError.formatCreationFailed
         }
+        self.outputFormat = targetFormat
 
-        // Create converter from input format to our target format
-        guard let audioConverter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
-            throw AudioInputError.converterCreationFailed
-        }
-        self.converter = audioConverter
+        let inputNode = engine.inputNode
 
         // Buffer size for tap (1024 samples at input rate)
         let bufferSize: AVAudioFrameCount = 1024
 
         // Install tap to receive audio buffers
-        // Note: Tap must be installed before preparing/starting the engine
+        // IMPORTANT: Use format: nil to let the engine use the hardware's native format
+        // This avoids "kAudioUnitErr_InvalidElement" errors when querying format too early
+        // The actual format will be available in the buffer parameter of the callback
         do {
-            inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: inputFormat) { [weak self] buffer, time in
+            inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: nil) { [weak self] buffer, time in
                 guard let self = self else { return }
-                self.processAudioBuffer(buffer, time: time, converter: audioConverter, outputFormat: outputFormat)
+                self.processAudioBuffer(buffer, time: time)
             }
             isTapInstalled = true
 
@@ -104,6 +115,14 @@ final class EngineAudioInput: AudioInput {
     }
 
     func stop() {
+        guard let engine = engine else {
+            // Engine was never created, just clean up state
+            framesContinuation?.finish()
+            framesContinuation = nil
+            framesStream = nil
+            return
+        }
+
         // Stop the engine if running
         if engine.isRunning {
             engine.stop()
@@ -126,22 +145,40 @@ final class EngineAudioInput: AudioInput {
         framesContinuation = nil
         framesStream = nil
         converter = nil
+        outputFormat = nil
+        lastInputFormat = nil
     }
 
     // MARK: - Private Methods
 
     private func processAudioBuffer(
         _ buffer: AVAudioPCMBuffer,
-        time: AVAudioTime,
-        converter: AVAudioConverter,
-        outputFormat: AVAudioFormat
+        time: AVAudioTime
     ) {
         guard let framesContinuation = framesContinuation else { return }
+        guard let outputFormat = outputFormat else { return }
+
+        // Get the actual hardware format from the buffer
+        let inputFormat = buffer.format
+
+        // Create or recreate converter if input format changed
+        // This handles the case where hardware format is not available until runtime
+        if converter == nil || lastInputFormat != inputFormat {
+            guard let newConverter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
+                // If converter creation fails, log and skip this buffer
+                print("Failed to create audio converter from \(inputFormat) to \(outputFormat)")
+                return
+            }
+            self.converter = newConverter
+            self.lastInputFormat = inputFormat
+        }
+
+        guard let converter = converter else { return }
 
         // Calculate output buffer capacity
         let inputFrameCount = buffer.frameLength
         let outputCapacity = AVAudioFrameCount(
-            Double(inputFrameCount) * outputFormat.sampleRate / buffer.format.sampleRate
+            Double(inputFrameCount) * outputFormat.sampleRate / inputFormat.sampleRate
         )
 
         // Create output buffer
@@ -162,6 +199,7 @@ final class EngineAudioInput: AudioInput {
         converter.convert(to: convertedBuffer, error: &error, withInputFrom: inputBlock)
 
         if error != nil {
+            print("Audio conversion error: \(error!.localizedDescription)")
             return
         }
 
@@ -191,11 +229,14 @@ final class EngineAudioInput: AudioInput {
 // MARK: - Errors
 
 enum AudioInputError: LocalizedError {
+    case engineCreationFailed
     case formatCreationFailed
     case converterCreationFailed
 
     var errorDescription: String? {
         switch self {
+        case .engineCreationFailed:
+            return "Failed to create audio engine"
         case .formatCreationFailed:
             return "Failed to create audio format for recording"
         case .converterCreationFailed:
