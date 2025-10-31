@@ -65,7 +65,7 @@ struct MessageInputView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 4)
                         .padding(.bottom, 4)
-                        .background(Color.gray.opacity(0.30))
+                        .background(Color.white.opacity(0.30))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .disabled(isLoading || isRecording)
                         .onTapGesture {
@@ -160,14 +160,11 @@ struct CustomTextEditor: NSViewRepresentable {
         let textView = NSTextView()
         
         // Configure text view with Apercu font
-        if let apercuFont = NSFont.apercuFontName {
-            textView.font = NSFont(name: apercuFont, size: 14) ?? .systemFont(ofSize: 14)
-        } else {
-            textView.font = .systemFont(ofSize: 14)
-        }
-        // Use labelColor which adapts to light/dark mode
-        textView.textColor = NSColor.labelColor
+        textView.font = NSFont.apercu(size: 14)
+        // Use black text color for visibility on light background
+        textView.textColor = NSColor.black
         textView.backgroundColor = .clear
+        textView.drawsBackground = false
         textView.isRichText = false
         textView.isEditable = true
         textView.isSelectable = true
@@ -187,7 +184,8 @@ struct CustomTextEditor: NSViewRepresentable {
         scrollView.documentView = textView
         scrollView.borderType = .noBorder
         scrollView.backgroundColor = .clear
-        
+        scrollView.drawsBackground = false
+
         // Store coordinator
         context.coordinator.textView = textView
         
@@ -206,8 +204,8 @@ struct CustomTextEditor: NSViewRepresentable {
                     textView.window?.makeFirstResponder(textView)
                 }
             }
-            // Update text color to adapt to appearance
-            textView.textColor = NSColor.labelColor
+            // Keep text color black for visibility on light background
+            textView.textColor = NSColor.black
         }
     }
     

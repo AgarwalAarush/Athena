@@ -11,6 +11,14 @@ import AppKit
 
 @MainActor
 class ChatViewModel: ObservableObject {
+    // MARK: - DEBUG: Voice Transcription Behavior
+    // 🔧 DEBUGGING FLAG: Set this to override config settings during development
+    // - nil: Use config setting (default behavior)
+    // - true: Always auto-send transcription to AI
+    // - false: Only populate input field (don't auto-send)
+    // Location of config setting: ConfigurationKeys.swift line 45 (.autoSendVoiceTranscription)
+    private let DEBUG_OVERRIDE_AUTO_SEND: Bool? = nil
+
     @Published var inputText: String = ""
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
@@ -211,7 +219,8 @@ class ChatViewModel: ObservableObject {
     }
 
     private var shouldAutoSendVoiceTranscript: Bool {
-        configManager.autoSendVoiceTranscription
+        // Allow debug override for testing
+        DEBUG_OVERRIDE_AUTO_SEND ?? configManager.autoSendVoiceTranscription
     }
 
     private func preserveInputForVoiceSessionIfNeeded() {
@@ -230,8 +239,12 @@ class ChatViewModel: ObservableObject {
     }
 
     private func handleFinalTranscript(_ transcript: String) {
+        // ALWAYS populate the input field with the transcription
         inputText = transcript
 
+        // Conditionally auto-send to AI based on config/debug setting
+        // When shouldAutoSendVoiceTranscript is false, the transcript stays in the input field
+        // for manual review/editing before sending
         guard shouldAutoSendVoiceTranscript else { return }
 
         Task {

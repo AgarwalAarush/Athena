@@ -49,14 +49,10 @@ final class EngineAudioInput: AudioInput {
             return
         }
 
-        // Request microphone permission if not already granted
-        let micPermission = await requestMicrophonePermission()
-        guard micPermission else {
-            throw AudioInputError.microphonePermissionDenied
-        }
-
-        // Note: On macOS, AVAudioEngine doesn't require explicit audio session configuration
-        // The system handles audio routing automatically. AVAudioSession is iOS-only.
+        // Note: On macOS with app sandboxing, microphone access is handled automatically
+        // via entitlements (com.apple.security.device.microphone). The system will prompt
+        // the user for permission when the audio engine starts if needed.
+        // AVAudioSession is iOS-only and not needed on macOS.
 
         // Ensure a fresh stream exists for this run
         _ = frames
@@ -84,47 +80,52 @@ final class EngineAudioInput: AudioInput {
         let bufferSize: AVAudioFrameCount = 1024
 
         // Install tap to receive audio buffers
-        inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: inputFormat) { [weak self] buffer, time in
-            guard let self = self else { return }
-            self.processAudioBuffer(buffer, time: time, converter: audioConverter, outputFormat: outputFormat)
-        }
-        isTapInstalled = true
+        // Note: Tap must be installed before preparing/starting the engine
+        do {
+            inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: inputFormat) { [weak self] buffer, time in
+                guard let self = self else { return }
+                self.processAudioBuffer(buffer, time: time, converter: audioConverter, outputFormat: outputFormat)
+            }
+            isTapInstalled = true
 
-        // Start the engine
-        try engine.start()
+            // Prepare the engine to allocate resources
+            engine.prepare()
+
+            // Start the engine
+            try engine.start()
+        } catch {
+            // Clean up on failure
+            if isTapInstalled {
+                inputNode.removeTap(onBus: 0)
+                isTapInstalled = false
+            }
+            throw error
+        }
     }
 
     func stop() {
+        // Stop the engine if running
         if engine.isRunning {
             engine.stop()
         }
 
+        // Remove tap if installed
         if isTapInstalled {
             engine.inputNode.removeTap(onBus: 0)
             isTapInstalled = false
         }
 
+        // Reset the engine to clean up internal state
+        // This ensures a fresh start for the next recording session
+        engine.reset()
+
         // Note: On macOS, no need to deactivate audio session (AVAudioSession is iOS-only)
 
+        // Clean up stream and converter
         framesContinuation?.finish()
         framesContinuation = nil
         framesStream = nil
         converter = nil
-    }
-
-    // MARK: - Permission Handling
-
-    private func requestMicrophonePermission() async -> Bool {
-        switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .authorized:
-            return true
-        case .notDetermined:
-            return await AVCaptureDevice.requestAccess(for: .audio)
-        case .denied, .restricted:
-            return false
-        @unknown default:
-            return false
-        }
     }
 
     // MARK: - Private Methods
@@ -192,7 +193,6 @@ final class EngineAudioInput: AudioInput {
 enum AudioInputError: LocalizedError {
     case formatCreationFailed
     case converterCreationFailed
-    case microphonePermissionDenied
 
     var errorDescription: String? {
         switch self {
@@ -200,8 +200,6 @@ enum AudioInputError: LocalizedError {
             return "Failed to create audio format for recording"
         case .converterCreationFailed:
             return "Failed to create audio converter"
-        case .microphonePermissionDenied:
-            return "Microphone permission denied. Please grant permission in System Settings."
         }
     }
 }
