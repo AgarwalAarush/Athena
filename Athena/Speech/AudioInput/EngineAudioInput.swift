@@ -22,6 +22,8 @@ final class EngineAudioInput: AudioInput {
     private var framesContinuation: AsyncStream<AudioFrame>.Continuation?
     private var framesStream: AsyncStream<AudioFrame>?
     private var isTapInstalled = false
+    private var audioSessionConfigured = false
+    private var isAudioSessionActive = false
 
     /// Target sample rate for output audio (16kHz is standard for speech recognition)
     let sampleRate: Double = 16000.0
@@ -64,10 +66,12 @@ final class EngineAudioInput: AudioInput {
             return
         }
 
-        // Note: On macOS with app sandboxing, microphone access is handled automatically
-        // via entitlements (com.apple.security.device.microphone). The system will prompt
-        // the user for permission when the audio engine starts if needed.
-        // AVAudioSession is iOS-only and not needed on macOS.
+        // Ensure the system audio session is configured and active before installing taps
+        do {
+            try activateAudioSessionIfNeeded()
+        } catch {
+            throw AudioInputError.sessionConfigurationFailed(error.localizedDescription)
+        }
 
         // Ensure a fresh stream exists for this run
         _ = frames
@@ -110,6 +114,7 @@ final class EngineAudioInput: AudioInput {
                 inputNode.removeTap(onBus: 0)
                 isTapInstalled = false
             }
+            deactivateAudioSessionIfNeeded()
             throw error
         }
     }
@@ -138,7 +143,8 @@ final class EngineAudioInput: AudioInput {
         // This ensures a fresh start for the next recording session
         engine.reset()
 
-        // Note: On macOS, no need to deactivate audio session (AVAudioSession is iOS-only)
+        // Deactivate audio session after stopping
+        deactivateAudioSessionIfNeeded()
 
         // Clean up stream and converter
         framesContinuation?.finish()
@@ -150,6 +156,42 @@ final class EngineAudioInput: AudioInput {
     }
 
     // MARK: - Private Methods
+
+    private func activateAudioSessionIfNeeded() throws {
+        #if os(macOS) && !targetEnvironment(macCatalyst)
+        return
+        #elseif os(iOS) || os(tvOS) || os(watchOS) || os(visionOS) || targetEnvironment(macCatalyst)
+        let session = AVAudioSession.sharedInstance()
+
+        if !audioSessionConfigured {
+            try session.setCategory(.record, mode: .measurement, options: [])
+            try session.setPreferredSampleRate(sampleRate)
+            audioSessionConfigured = true
+        }
+
+        if !isAudioSessionActive {
+            try session.setActive(true)
+            isAudioSessionActive = true
+        }
+        #endif
+    }
+
+    private func deactivateAudioSessionIfNeeded() {
+        guard isAudioSessionActive else { return }
+
+        #if os(macOS) && !targetEnvironment(macCatalyst)
+        return
+        #elseif os(iOS) || os(tvOS) || os(watchOS) || os(visionOS) || targetEnvironment(macCatalyst)
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            print("Failed to deactivate audio session: \(error.localizedDescription)")
+        }
+        #endif
+
+        isAudioSessionActive = false
+    }
 
     private func processAudioBuffer(
         _ buffer: AVAudioPCMBuffer,
@@ -232,6 +274,7 @@ enum AudioInputError: LocalizedError {
     case engineCreationFailed
     case formatCreationFailed
     case converterCreationFailed
+    case sessionConfigurationFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -241,6 +284,8 @@ enum AudioInputError: LocalizedError {
             return "Failed to create audio format for recording"
         case .converterCreationFailed:
             return "Failed to create audio converter"
+        case .sessionConfigurationFailed(let message):
+            return "Failed to configure audio session: \(message)"
         }
     }
 }

@@ -196,7 +196,7 @@ class ChatViewModel: ObservableObject {
         Task {
             errorMessage = nil
             await speechService.startListening()
-            if !speechService.isAuthorized {
+            if !speechService.isAuthorized || !speechService.hasMicrophonePermission {
                 errorMessage = speechService.authorizationStatusDescription
             }
         }
