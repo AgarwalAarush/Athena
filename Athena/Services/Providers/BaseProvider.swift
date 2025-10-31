@@ -8,6 +8,48 @@
 import Foundation
 import Combine
 
+// Note: ChatMessage is defined in Models/ChatMessage.swift
+// MessageRole is defined in Database/Models/Message.swift
+// These are imported via module access
+
+// Shared types for provider responses
+struct ChatResponse: Codable {
+    let content: String
+    let role: MessageRole
+    let finishReason: String?
+    let usage: Usage?
+    
+    struct Usage: Codable {
+        let promptTokens: Int?
+        let completionTokens: Int?
+        let totalTokens: Int?
+        
+        enum CodingKeys: String, CodingKey {
+            case promptTokens = "prompt_tokens"
+            case completionTokens = "completion_tokens"
+            case totalTokens = "total_tokens"
+        }
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case content, role
+        case finishReason = "finish_reason"
+        case usage
+    }
+}
+
+struct StreamChunk: Codable {
+    let delta: String
+    let finishReason: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case delta
+        case finishReason = "finish_reason"
+    }
+}
+
+// MessageRole is already defined in Database/Models/Message.swift
+
 /// Abstract base protocol for AI providers
 protocol BaseProvider: AnyObject {
     var apiKey: String { get }

@@ -8,72 +8,49 @@
 import Foundation
 import Combine
 
-struct ChatRequest: Codable {
-    let provider: String
-    let model: String
-    let messages: [ChatMessage]
-    let temperature: Double
-    let maxTokens: Int
-    let topP: Double
-    let stream: Bool
-    
-    enum CodingKeys: String, CodingKey {
-        case provider, model, messages, temperature
-        case maxTokens = "max_tokens"
-        case topP = "top_p"
-        case stream
-    }
-}
-
-struct ChatResponse: Codable {
-    let content: String
-    let role: MessageRole
-    let finishReason: String?
-    let usage: Usage?
-    
-    enum CodingKeys: String, CodingKey {
-        case content, role
-        case finishReason = "finish_reason"
-        case usage
-    }
-    
-    struct Usage: Codable {
-        let promptTokens: Int?
-        let completionTokens: Int?
-        let totalTokens: Int?
-        
-        enum CodingKeys: String, CodingKey {
-            case promptTokens = "prompt_tokens"
-            case completionTokens = "completion_tokens"
-            case totalTokens = "total_tokens"
-        }
-    }
-}
-
-struct StreamChunk: Codable {
-    let delta: String
-    let finishReason: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case delta
-        case finishReason = "finish_reason"
-    }
-}
+// Note: ChatResponse, StreamChunk, ChatMessage, and MessageRole are now defined in BaseProvider.swift
+// to be shared between providers and AIService
 
 class AIService: AIServiceProtocol {
     static let shared = AIService()
     
-    private let networkClient = NetworkClient.shared
     private let config = ConfigurationManager.shared
     private let database = DatabaseManager.shared
     
-    private var baseURL: String {
-        let url = config.getString(.pythonServiceURL)
-        let port = config.getInt(.pythonServicePort)
-        return "\(url):\(port)"
-    }
+    // Provider cache
+    private var providers: [String: BaseProvider] = [:]
     
     private init() {}
+    
+    // MARK: - Provider Management
+    
+    private func getProvider(for provider: AIProvider) throws -> BaseProvider {
+        guard let apiKey = config.getAPIKey(for: provider.rawValue) else {
+            throw NSError(domain: "AIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No API key configured for \(provider.displayName)"])
+        }
+        
+        // Create cache key
+        let cacheKey = "\(provider.rawValue):\(String(apiKey.prefix(8)))"
+        
+        // Return cached provider if available
+        if let cachedProvider = providers[cacheKey] {
+            return cachedProvider
+        }
+        
+        // Create new provider
+        let newProvider: BaseProvider
+        switch provider {
+        case .openai:
+            newProvider = OpenAIProvider(apiKey: apiKey)
+        case .anthropic:
+            newProvider = AnthropicProvider(apiKey: apiKey)
+        }
+        
+        // Cache provider
+        providers[cacheKey] = newProvider
+        
+        return newProvider
+    }
     
     // MARK: - Non-Streaming Chat
     
@@ -94,31 +71,16 @@ class AIService: AIServiceProtocol {
         // Save user message to database
         _ = try database.createMessage(conversationId: conversationId, role: .user, content: message)
         
-        // Get API key
-        guard let apiKey = config.getAPIKey(for: provider.rawValue) else {
-            throw NSError(domain: "AIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No API key configured for \(provider.displayName)"])
-        }
+        // Get provider
+        let aiProvider = try getProvider(for: provider)
         
-        // Create request with hardcoded values (set by developer)
-        let request = ChatRequest(
-            provider: provider.rawValue,
-            model: model,
+        // Make API call directly through provider
+        let response = try await aiProvider.chat(
             messages: allMessages,
+            model: model,
             temperature: 0.7,
             maxTokens: 2048,
-            topP: config.getDouble(.topP),
-            stream: false
-        )
-        
-        // Make API call
-        guard let url = URL(string: "\(baseURL)/chat") else {
-            throw NetworkError.invalidURL
-        }
-        
-        let response: ChatResponse = try await networkClient.post(
-            url: url,
-            body: request,
-            headers: ["X-API-Key": apiKey]
+            topP: config.getDouble(.topP)
         )
         
         // Save assistant response to database
@@ -154,42 +116,22 @@ class AIService: AIServiceProtocol {
                     // Save user message to database
                     _ = try self.database.createMessage(conversationId: conversationId, role: .user, content: message)
                     
-                    // Get API key
-                    guard let apiKey = self.config.getAPIKey(for: provider.rawValue) else {
-                        throw NSError(domain: "AIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No API key configured for \(provider.displayName)"])
-                    }
+                    // Get provider
+                    let aiProvider = try self.getProvider(for: provider)
                     
-                    // Create request with hardcoded values (set by developer)
-                    let request = ChatRequest(
-                        provider: provider.rawValue,
-                        model: model,
-                        messages: allMessages,
-                        temperature: 0.7,
-                        maxTokens: 2048,
-                        topP: self.config.getDouble(.topP),
-                        stream: true
-                    )
-                    
-                    guard let url = URL(string: "\(self.baseURL)/chat/stream") else {
-                        throw NetworkError.invalidURL
-                    }
-                    
-                    let encoder = JSONEncoder()
-                    encoder.keyEncodingStrategy = .convertToSnakeCase
-                    let bodyData = try encoder.encode(request)
-                    
+                    // Stream response directly through provider
                     var fullResponse = ""
                     
-                    try await self.networkClient.streamRequest(
-                        url: url,
-                        method: .post,
-                        headers: ["X-API-Key": apiKey],
-                        body: bodyData
-                    ) { chunkData in
-                        if let data = chunkData.data(using: .utf8),
-                           let chunk = try? JSONDecoder().decode(StreamChunk.self, from: data) {
-                            fullResponse += chunk.delta
-                        }
+                    let stream = aiProvider.stream(
+                        messages: allMessages,
+                        model: model,
+                        temperature: 0.7,
+                        maxTokens: 2048,
+                        topP: self.config.getDouble(.topP)
+                    )
+                    
+                    for try await chunk in stream {
+                        fullResponse += chunk.delta
                     }
                     
                     // Save complete assistant response
@@ -208,21 +150,35 @@ class AIService: AIServiceProtocol {
     // MARK: - Test Connection
     
     func testConnection(provider: AIProvider, apiKey: String) async throws -> Bool {
-        guard let url = URL(string: "\(baseURL)/test-connection?provider=\(provider.rawValue)") else {
-            throw NetworkError.invalidURL
+        // Create a temporary provider with the test API key
+        let testProvider: BaseProvider
+        switch provider {
+        case .openai:
+            testProvider = OpenAIProvider(apiKey: apiKey)
+        case .anthropic:
+            testProvider = AnthropicProvider(apiKey: apiKey)
         }
         
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        // Try a minimal request
+        let testMessages = [
+            ChatMessage(role: .user, content: "Hello")
+        ]
         
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let defaultModel = provider.defaultModel
         
-        guard let httpResponse = response as? HTTPURLResponse else {
+        do {
+            // Make test request with minimal tokens
+            _ = try await testProvider.chat(
+                messages: testMessages,
+                model: defaultModel,
+                temperature: 0.7,
+                maxTokens: 5,
+                topP: 1.0
+            )
+            return true
+        } catch {
             return false
         }
-        
-        return (200...299).contains(httpResponse.statusCode)
     }
     
     // MARK: - Helper Methods

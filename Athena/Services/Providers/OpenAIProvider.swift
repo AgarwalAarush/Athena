@@ -13,7 +13,6 @@ final class OpenAIProvider: BaseProvider {
     let apiKey: String
     let providerName: String = "openai"
     
-    private let networkClient: NetworkClient
     private let baseURL = "https://api.openai.com/v1"
     
     private var models: [String] = [
@@ -25,7 +24,6 @@ final class OpenAIProvider: BaseProvider {
     
     init(apiKey: String) {
         self.apiKey = apiKey
-        self.networkClient = NetworkClient.shared
     }
     
     // MARK: - BaseProvider Implementation
@@ -67,15 +65,8 @@ final class OpenAIProvider: BaseProvider {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = bodyData
         
-        let response: OpenAIResponse = try await networkClient.request(
-            url: url,
-            method: .post,
-            headers: [
-                "Authorization": "Bearer \(apiKey)",
-                "Content-Type": "application/json"
-            ],
-            body: bodyData
-        )
+        let (data, _) = try await URLSession.shared.data(for: request)
+        let response = try JSONDecoder().decode(OpenAIResponse.self, from: data)
         
         guard let choice = response.choices.first,
               let message = choice.message else {
