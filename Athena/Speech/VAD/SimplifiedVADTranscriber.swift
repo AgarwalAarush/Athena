@@ -129,6 +129,12 @@ final class SimplifiedVADTranscriber: NSObject {
         stop()
     }
 
+    /// Update the silence timeout dynamically
+    func setSilenceTimeout(_ timeout: TimeInterval) {
+        print("[SimplifiedVADTranscriber] 🎛️ Updating silence timeout: \(silenceTimeout)s → \(timeout)s")
+        silenceTimeout = timeout
+    }
+
     func appendAudioBuffer(_ buffer: AVAudioPCMBuffer) {
         guard isRunning, recognitionRequest != nil else {
             print("[SimplifiedVADTranscriber] ⚠️ Received audio buffer but not running or no request")
@@ -137,29 +143,48 @@ final class SimplifiedVADTranscriber: NSObject {
 
         recognitionRequest?.append(buffer)
 
-        // Update last speech time whenever we receive audio
-        let now = Date()
-        if let last = lastSpeechTime {
-            let gap = now.timeIntervalSince(last)
-            if gap > 0.5 { // Log if there's a noticeable gap
-                print("[SimplifiedVADTranscriber] 🔊 Audio buffer received after \(String(format: "%.2f", gap))s gap")
-            }
-        } else {
-            print("[SimplifiedVADTranscriber] 🔊 First audio buffer received")
-        }
-        lastSpeechTime = now
+        // NOTE: We do NOT update lastSpeechTime here!
+        // lastSpeechTime should ONLY be updated when we receive actual transcript results
+        // Otherwise, continuous audio buffers will prevent silence detection from ever triggering
     }
 
     // MARK: - Private Methods
 
     private func handleRecognitionResult(result: SFSpeechRecognitionResult?, error: Error?) {
         if let error = error {
-            print("[SimplifiedVADTranscriber] ❌ Recognition error: \(error.localizedDescription)")
+            let nsError = error as NSError
+            print("[SimplifiedVADTranscriber] ❌ Recognition error: \(error.localizedDescription) (code: \(nsError.code), domain: \(nsError.domain))")
+
+            // Check if this is a "No speech detected" error (code 1110)
+            if nsError.code == 1110 && !hasReceivedFirstTranscript {
+                print("[SimplifiedVADTranscriber] 🔄 'No speech detected' error BEFORE first transcript - this is expected after wake word")
+                print("[SimplifiedVADTranscriber] 💡 User likely paused after saying wake word - attempting restart (\(restartAttempts + 1)/\(maxRestartAttempts))")
+
+                // Try to restart if we haven't exceeded max attempts
+                if restartAttempts < maxRestartAttempts {
+                    restartAttempts += 1
+                    isRunning = false // Reset running flag
+
+                    Task { [weak self] in
+                        guard let self = self else { return }
+                        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s delay
+                        print("[SimplifiedVADTranscriber] 🔄 Restarting recognition task (attempt \(self.restartAttempts))")
+                        try? self.start()
+                    }
+                    return
+                } else {
+                    print("[SimplifiedVADTranscriber] ⚠️ Max restart attempts reached, yielding error")
+                }
+            }
+
             eventsContinuation.yield(.error(error))
             return
         }
 
-        guard let result = result else { return }
+        guard let result = result else {
+            print("[SimplifiedVADTranscriber] ⚠️ No result and no error")
+            return
+        }
 
         let transcript = result.bestTranscription.formattedString
 
@@ -167,19 +192,21 @@ final class SimplifiedVADTranscriber: NSObject {
         if !hasReceivedFirstTranscript {
             hasReceivedFirstTranscript = true
             lastSpeechTime = Date()
+            restartAttempts = 0 // Reset restart counter once we get speech
             startSilenceDetectionTimer()
-            print("[SimplifiedVADTranscriber] 🎤 First speech detected! Starting silence timer NOW (2s timeout)")
+            print("[SimplifiedVADTranscriber] 🎤 First speech detected! Starting silence timer NOW (\(silenceTimeout)s timeout)")
+            print("[SimplifiedVADTranscriber] ✅ Recognition stable - restart attempts reset")
         } else {
             // Update last speech time on subsequent results
             lastSpeechTime = Date()
         }
 
         if result.isFinal {
-            print("[SimplifiedVADTranscriber] ✅ Final: '\(transcript)'")
+            print("[SimplifiedVADTranscriber] ✅ Final result: '\(transcript)' (length: \(transcript.count) chars)")
             let confidence = Double(result.bestTranscription.segments.first?.confidence ?? 0.0)
             eventsContinuation.yield(.final(transcript, confidence))
         } else {
-            print("[SimplifiedVADTranscriber] 📝 Partial: '\(transcript)' (resetting silence timer)")
+            print("[SimplifiedVADTranscriber] 📝 Partial result: '\(transcript)' (length: \(transcript.count) chars, resetting silence timer)")
             eventsContinuation.yield(.partial(transcript))
         }
     }

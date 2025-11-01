@@ -39,6 +39,10 @@ class WakeWordTranscriptionManager: ObservableObject {
     private var detectorTask: Task<Void, Never>?
     private var transcriberTask: Task<Void, Never>?
 
+    // Text accumulation across recognition sessions
+    private var accumulatedText: String = ""
+    private var lastSessionTranscript: String = ""
+
     // MARK: - Initialization
 
     init() {
@@ -88,6 +92,8 @@ class WakeWordTranscriptionManager: ObservableObject {
         state = .idle
         partialTranscript = ""
         finalTranscript = nil
+        accumulatedText = ""
+        lastSessionTranscript = ""
 
         print("[WakeWordTranscriptionManager] ✅ Wake word mode stopped - state=\(state)")
     }
@@ -157,7 +163,12 @@ class WakeWordTranscriptionManager: ObservableObject {
             // Send audio to VAD transcriber
             vadTranscriber?.appendAudioBuffer(buffer)
 
-        default:
+        case .idle:
+            // No processing during idle
+            break
+
+        case .cooldown:
+            // No processing during cooldown
             break
         }
     }
@@ -185,18 +196,22 @@ class WakeWordTranscriptionManager: ObservableObject {
     }
 
     private func onWakeWordDetected() async {
-        print("[WakeWordTranscriptionManager] 🎤 Wake word detected! Starting transcription...")
+        print("[WakeWordTranscriptionManager] 🎤 Wake word detected! Transitioning to transcription mode...")
+        print("[WakeWordTranscriptionManager] 📊 Current state: \(state)")
 
         // Stop wake word detection
+        print("[WakeWordTranscriptionManager] 🛑 Stopping wake word detector")
         wakeWordDetector?.stop()
         detectorTask?.cancel()
 
         // Start full transcription with VAD
         do {
+            print("[WakeWordTranscriptionManager] 🎬 Starting VAD transcription")
             try await startTranscription()
         } catch {
-            print("[WakeWordTranscriptionManager] Error starting transcription: \(error)")
+            print("[WakeWordTranscriptionManager] ❌ Error starting transcription: \(error)")
             // Fall back to wake word detection
+            print("[WakeWordTranscriptionManager] 🔄 Falling back to wake word detection")
             try? await startWakeWordDetection()
         }
     }
@@ -204,17 +219,26 @@ class WakeWordTranscriptionManager: ObservableObject {
     // MARK: - Private Methods - Transcription
 
     private func startTranscription() async throws {
-        print("[WakeWordTranscriptionManager] Starting transcription with VAD")
+        print("[WakeWordTranscriptionManager] 📝 Starting transcription with VAD")
 
+        print("[WakeWordTranscriptionManager] 🔄 State transition: \(state) → .transcribing")
         state = .transcribing
         partialTranscript = ""
         finalTranscript = nil
 
+        // Reset text accumulation for this new transcription session
+        accumulatedText = ""
+        lastSessionTranscript = ""
+        print("[WakeWordTranscriptionManager] 🔄 Reset accumulated text - starting fresh transcription session")
+
+        print("[WakeWordTranscriptionManager] 🏗️ Creating SimplifiedVADTranscriber")
         let transcriber = try SimplifiedVADTranscriber()
         self.vadTranscriber = transcriber
 
+        print("[WakeWordTranscriptionManager] ▶️ Starting VAD transcriber")
         try transcriber.start()
 
+        print("[WakeWordTranscriptionManager] 🎧 Starting event listener for transcription")
         // Listen for transcription events
         transcriberTask = Task { [weak self] in
             guard let self = self else { return }
@@ -223,71 +247,145 @@ class WakeWordTranscriptionManager: ObservableObject {
                 await self.handleTranscriptEvent(event)
             }
         }
+
+        print("[WakeWordTranscriptionManager] ✅ Transcription started - audio will now route to VAD")
     }
 
     private func handleTranscriptEvent(_ event: TranscriptEvent) async {
         switch event {
         case .partial(let text):
-            print("[WakeWordTranscriptionManager] Partial: \(text)")
-            partialTranscript = text
+            // Detect if this is a new recognition session by checking if transcript got shorter
+            // or doesn't start with accumulated content
+            let isNewSession = !lastSessionTranscript.isEmpty &&
+                               (text.count < lastSessionTranscript.count ||
+                                !text.hasPrefix(lastSessionTranscript.prefix(min(text.count, lastSessionTranscript.count))))
 
-        case .final(let text, _):
-            print("[WakeWordTranscriptionManager] Final: \(text)")
-            finalTranscript = text
-            partialTranscript = ""
+            if isNewSession {
+                // New recognition session detected - append last session to accumulated
+                if !lastSessionTranscript.isEmpty {
+                    if !accumulatedText.isEmpty {
+                        accumulatedText += " " + lastSessionTranscript
+                    } else {
+                        accumulatedText = lastSessionTranscript
+                    }
+                    print("[WakeWordTranscriptionManager] 🔄 New recognition session detected - accumulated: '\(accumulatedText)'")
+                }
+                lastSessionTranscript = ""
+            }
+
+            // Update current session transcript
+            lastSessionTranscript = text
+
+            // Display accumulated + current partial
+            let displayText = accumulatedText.isEmpty ? text : accumulatedText + " " + text
+            print("[WakeWordTranscriptionManager] 📝 Partial: '\(text)' | Accumulated: '\(accumulatedText)' | Display: '\(displayText)'")
+            partialTranscript = displayText
+
+        case .final(let text, let confidence):
+            let confidenceStr = confidence.map { String(format: "%.2f", $0) } ?? "N/A"
+            print("[WakeWordTranscriptionManager] ✅ Final transcript from current session: '\(text)' (confidence: \(confidenceStr))")
+
+            // Update last session transcript with final text
+            lastSessionTranscript = text
+
+            // Display accumulated + final
+            let displayText = accumulatedText.isEmpty ? text : accumulatedText + " " + text
+            print("[WakeWordTranscriptionManager] 📊 Display text: '\(displayText)'")
+            partialTranscript = displayText
 
             // Note: Don't end transcription on final - wait for VAD silence detection
 
         case .silenceDetected:
-            print("[WakeWordTranscriptionManager] 🔇 Silence detected - ending transcription")
+            // Combine all accumulated text as the final transcript
+            var fullTranscript = accumulatedText
+            if !lastSessionTranscript.isEmpty {
+                if !fullTranscript.isEmpty {
+                    fullTranscript += " " + lastSessionTranscript
+                } else {
+                    fullTranscript = lastSessionTranscript
+                }
+            }
+
+            print("[WakeWordTranscriptionManager] 🔇 Silence detected - ending transcription session")
+            print("[WakeWordTranscriptionManager] 📊 Accumulated: '\(accumulatedText)', LastSession: '\(lastSessionTranscript)'")
+            print("[WakeWordTranscriptionManager] 📊 Full transcript: '\(fullTranscript)'")
+
+            finalTranscript = fullTranscript.isEmpty ? nil : fullTranscript
             await onSilenceDetected()
 
         case .error(let error):
-            print("[WakeWordTranscriptionManager] Transcription error: \(error)")
+            print("[WakeWordTranscriptionManager] ❌ Transcription error: \(error)")
+            print("[WakeWordTranscriptionManager] 📊 State at error: \(state), accumulated: '\(accumulatedText)', lastSession: '\(lastSessionTranscript)'")
             await onTranscriptionEnded()
 
         case .ended:
-            print("[WakeWordTranscriptionManager] Transcription ended")
+            print("[WakeWordTranscriptionManager] 🏁 Transcription ended normally")
+            print("[WakeWordTranscriptionManager] 📊 Accumulated: '\(accumulatedText)', LastSession: '\(lastSessionTranscript)'")
             await onTranscriptionEnded()
         }
     }
 
     private func onSilenceDetected() async {
-        print("[WakeWordTranscriptionManager] Transcription complete, returning to wake word detection")
+        print("[WakeWordTranscriptionManager] 🔄 Transcription complete, returning to wake word detection")
 
         // Stop transcription
+        print("[WakeWordTranscriptionManager] 🛑 Stopping transcription")
         stopTranscription()
 
+        // Clear accumulated text for next session
+        print("[WakeWordTranscriptionManager] 🧹 Clearing accumulated text for next wake word session")
+        accumulatedText = ""
+        lastSessionTranscript = ""
+
         // Small cooldown before restarting wake word detection
+        print("[WakeWordTranscriptionManager] ⏸️ Entering cooldown period (0.5s)")
         state = .cooldown
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
 
         // Return to wake word detection
         do {
+            print("[WakeWordTranscriptionManager] 🔄 Restarting wake word detection after cooldown")
             try await startWakeWordDetection()
         } catch {
-            print("[WakeWordTranscriptionManager] Error restarting wake word detection: \(error)")
+            print("[WakeWordTranscriptionManager] ❌ Error restarting wake word detection: \(error)")
             state = .idle
         }
     }
 
     private func onTranscriptionEnded() async {
-        print("[WakeWordTranscriptionManager] Transcription ended, returning to wake word detection")
+        print("[WakeWordTranscriptionManager] 🔚 Transcription ended (error or completion), returning to wake word detection")
 
+        print("[WakeWordTranscriptionManager] 🛑 Stopping transcription")
         stopTranscription()
 
-        // Return to wake word detection
+        // Clear accumulated text for next session
+        print("[WakeWordTranscriptionManager] 🧹 Clearing accumulated text for next wake word session")
+        accumulatedText = ""
+        lastSessionTranscript = ""
+
+        // Return to wake word detection immediately (no cooldown on error)
         do {
+            print("[WakeWordTranscriptionManager] 🔄 Restarting wake word detection")
             try await startWakeWordDetection()
         } catch {
-            print("[WakeWordTranscriptionManager] Error restarting wake word detection: \(error)")
+            print("[WakeWordTranscriptionManager] ❌ Error restarting wake word detection: \(error)")
             state = .idle
         }
     }
 
     private func stopTranscription() {
+        print("[WakeWordTranscriptionManager] 🧹 Cleaning up transcription resources")
         transcriberTask?.cancel()
         vadTranscriber?.stop()
         vadTranscriber = nil
+    }
+
+    // MARK: - Public Configuration
+
+    /// Update the VAD silence timeout (in seconds)
+    /// - Parameter timeout: Silence duration in seconds before ending transcription (e.g., 2.0 for 2 seconds)
+    func setSilenceTimeout(_ timeout: TimeInterval) {
+        print("[WakeWordTranscriptionManager] 🎛️ Updating VAD silence timeout to \(timeout)s")
+        vadTranscriber?.setSilenceTimeout(timeout)
     }
 }
