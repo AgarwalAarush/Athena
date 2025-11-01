@@ -24,5 +24,12 @@ protocol AIServiceProtocol {
     ) -> AnyPublisher<String, Error>
     
     func testConnection(provider: AIProvider, apiKey: String) async throws -> Bool
+    
+    func getCompletion(
+        prompt: String,
+        systemPrompt: String?,
+        provider: AIProvider,
+        model: String
+    ) async throws -> String
 }
 
