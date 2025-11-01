@@ -8,7 +8,10 @@
 import Foundation
 import Combine
 
-/// OpenAI API provider implementation
+/// A provider for interacting with the OpenAI API.
+///
+/// This class implements the `BaseProvider` protocol and provides methods for making chat completions
+/// and streaming responses from the OpenAI API.
 final class OpenAIProvider: BaseProvider {
     let apiKey: String
     let providerName: String = "openai"
@@ -22,12 +25,24 @@ final class OpenAIProvider: BaseProvider {
         "gpt-3.5-turbo"
     ]
     
+    /// Initializes a new OpenAI provider with the given API key.
+    ///
+    /// - Parameter apiKey: The API key for the OpenAI API.
     init(apiKey: String) {
         self.apiKey = apiKey
     }
     
     // MARK: - BaseProvider Implementation
     
+    /// Sends a chat completion request to the OpenAI API.
+    ///
+    /// - Parameters:
+    ///   - messages: An array of `ChatMessage` objects representing the conversation history.
+    ///   - model: The name of the model to use for the completion.
+    ///   - temperature: The sampling temperature to use, between 0 and 2.
+    ///   - maxTokens: The maximum number of tokens to generate in the completion.
+    ///   - topP: The nucleus sampling probability.
+    /// - Returns: A `ChatResponse` object containing the assistant's reply.
     func chat(
         messages: [ChatMessage],
         model: String,
@@ -39,7 +54,7 @@ final class OpenAIProvider: BaseProvider {
             throw NetworkError.invalidURL
         }
         
-        // Convert messages to OpenAI format
+        // Convert messages to the format expected by the OpenAI API.
         let openaiMessages = messages.map { msg in
             [
                 "role": msg.role.rawValue,
@@ -47,6 +62,7 @@ final class OpenAIProvider: BaseProvider {
             ]
         }
         
+        // Construct the request body.
         let requestBody: [String: Any] = [
             "model": model,
             "messages": openaiMessages,
@@ -56,7 +72,6 @@ final class OpenAIProvider: BaseProvider {
             "stream": false
         ]
         
-        let encoder = JSONEncoder()
         let bodyData = try JSONSerialization.data(withJSONObject: requestBody)
         
         var request = URLRequest(url: url)
@@ -87,6 +102,15 @@ final class OpenAIProvider: BaseProvider {
         )
     }
     
+    /// Streams a chat completion response from the OpenAI API.
+    ///
+    /// - Parameters:
+    ///   - messages: An array of `ChatMessage` objects representing the conversation history.
+    ///   - model: The name of the model to use for the completion.
+    ///   - temperature: The sampling temperature to use, between 0 and 2.
+    ///   - maxTokens: The maximum number of tokens to generate in the completion.
+    ///   - topP: The nucleus sampling probability.
+    /// - Returns: An `AsyncThrowingStream` of `StreamChunk` objects.
     func stream(
         messages: [ChatMessage],
         model: String,
@@ -102,7 +126,7 @@ final class OpenAIProvider: BaseProvider {
                         return
                     }
                     
-                    // Convert messages to OpenAI format
+                    // Convert messages to the format expected by the OpenAI API.
                     let openaiMessages = messages.map { msg in
                         [
                             "role": msg.role.rawValue,
@@ -110,6 +134,7 @@ final class OpenAIProvider: BaseProvider {
                         ]
                     }
                     
+                    // Construct the request body.
                     let requestBody: [String: Any] = [
                         "model": model,
                         "messages": openaiMessages,
@@ -135,12 +160,13 @@ final class OpenAIProvider: BaseProvider {
                         return
                     }
                     
+                    // Process the Server-Sent Events (SSE) stream.
                     var buffer = ""
                     for try await byte in asyncBytes {
                         if let char = String(bytes: [byte], encoding: .utf8) {
                             buffer.append(char)
                             
-                            // Process SSE format
+                            // Process complete lines from the buffer.
                             while let lineRange = buffer.range(of: "\n") {
                                 let line = String(buffer[..<lineRange.lowerBound])
                                 buffer.removeSubrange(buffer.startIndex..<lineRange.upperBound)
@@ -152,6 +178,7 @@ final class OpenAIProvider: BaseProvider {
                                         return
                                     }
                                     
+                                    // Decode the JSON data from the event.
                                     if let jsonData = data.data(using: .utf8),
                                        let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
                                        let choices = json["choices"] as? [[String: Any]],
@@ -176,6 +203,9 @@ final class OpenAIProvider: BaseProvider {
         }
     }
     
+    /// Returns a list of available models for the OpenAI provider.
+    ///
+    /// - Returns: An array of strings representing the model names.
     func getModels() -> [String] {
         return models
     }
@@ -183,19 +213,17 @@ final class OpenAIProvider: BaseProvider {
 
 // MARK: - OpenAI Response Models
 
+/// Represents the top-level response from the OpenAI chat completions API.
 private struct OpenAIResponse: Codable {
     let choices: [OpenAIChoice]
     let usage: OpenAIUsage?
-    
-    enum CodingKeys: String, CodingKey {
-        case choices, usage
-    }
 }
 
+/// Represents a single choice in the OpenAI chat completions response.
 private struct OpenAIChoice: Codable {
     let message: OpenAIMessage?
     let finishReason: String?
-    let delta: OpenAIMessage?
+    let delta: OpenAIMessage? // Used for streaming
     
     enum CodingKeys: String, CodingKey {
         case message, delta
@@ -203,11 +231,13 @@ private struct OpenAIChoice: Codable {
     }
 }
 
+/// Represents a message in the OpenAI chat completions response.
 private struct OpenAIMessage: Codable {
     let content: String?
     let role: String?
 }
 
+/// Represents the token usage for a chat completion request.
 private struct OpenAIUsage: Codable {
     let promptTokens: Int
     let completionTokens: Int

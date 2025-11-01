@@ -18,6 +18,7 @@ struct MessageInputView: View {
     let isProcessingTranscript: Bool
     let onStartVoiceInput: () -> Void
     let onStopVoiceInput: () -> Void
+    let wakewordModeEnabled: Bool
 
     @FocusState private var isFocused: Bool
     @State private var textHeight: CGFloat = 32
@@ -78,8 +79,10 @@ struct MessageInputView: View {
                         }
                 }
 
-                // Microphone button with tap-to-toggle recording
-                microphoneButton
+                // Microphone button with tap-to-toggle recording (hidden in wakeword mode)
+                if !wakewordModeEnabled {
+                    microphoneButton
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -231,7 +234,8 @@ struct CustomTextEditor: NSViewRepresentable {
             isRecording: false,
             isProcessingTranscript: false,
             onStartVoiceInput: {},
-            onStopVoiceInput: {}
+            onStopVoiceInput: {},
+            wakewordModeEnabled: false
         )
     }
     .frame(width: 470)

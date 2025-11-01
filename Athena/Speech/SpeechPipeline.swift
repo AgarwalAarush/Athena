@@ -63,16 +63,17 @@ final class SpeechPipeline: ObservableObject {
         state = .listening
         print("[SpeechPipeline] startListening: State set to listening")
 
-        // Prepare transcript stream before starting recognizer so early events are captured
-        print("[SpeechPipeline] startListening: Getting transcript event stream")
-        let eventStream = transcriber.events()
-        startTranscriptProcessing(with: eventStream)
-
         do {
-            // Start transcriber
+            // Start transcriber FIRST so it cleans up any old state
             print("[SpeechPipeline] startListening: Starting transcriber with sampleRate: \(audioInput.sampleRate)")
             try await transcriber.startStream(sampleRate: audioInput.sampleRate)
             print("[SpeechPipeline] startListening: Transcriber started successfully")
+
+            // NOW get the transcript stream (after cleanup) so we get a fresh continuation
+            print("[SpeechPipeline] startListening: Getting transcript event stream")
+            let eventStream = transcriber.events()
+            startTranscriptProcessing(with: eventStream)
+            print("[SpeechPipeline] startListening: Transcript processing started")
 
             // Start audio input
             print("[SpeechPipeline] startListening: Starting audio input")
@@ -186,15 +187,19 @@ final class SpeechPipeline: ObservableObject {
             }
 
             print("[SpeechPipeline] startTranscriptProcessing: Transcript processing task started")
+            var eventCount = 0
             for await event in stream {
+                eventCount += 1
+                print("[SpeechPipeline] startTranscriptProcessing: Processing event #\(eventCount): \(event)")
                 guard !Task.isCancelled else {
                     print("[SpeechPipeline] startTranscriptProcessing: Task cancelled, stopping transcript processing")
                     break
                 }
 
                 await self.handleTranscriptEvent(event)
+                print("[SpeechPipeline] startTranscriptProcessing: Finished processing event #\(eventCount)")
             }
-            print("[SpeechPipeline] startTranscriptProcessing: Transcript processing task ended")
+            print("[SpeechPipeline] startTranscriptProcessing: Transcript processing task ended after \(eventCount) events")
         }
     }
 
@@ -224,12 +229,19 @@ final class SpeechPipeline: ObservableObject {
             transcriptTask = nil
 
         case .ended:
-            print("[SpeechPipeline] handleTranscriptEvent: Transcription session ended")
+            print("[SpeechPipeline] handleTranscriptEvent: Transcription session ended - RECEIVED .ended EVENT")
             // Transcription complete
             transcriptTask?.cancel()
             transcriptTask = nil
-            print("[SpeechPipeline] handleTranscriptEvent: Setting state to idle")
+            print("[SpeechPipeline] handleTranscriptEvent: Setting state to idle after .ended event")
             state = .idle
+            print("[SpeechPipeline] handleTranscriptEvent: State set to idle, pipeline should notify listeners")
+
+        case .silenceDetected:
+            print("[SpeechPipeline] handleTranscriptEvent: Silence detected by VAD")
+            // Note: This is primarily used by WakeWordTranscriptionManager
+            // For regular pipeline usage, we can treat it similar to .ended
+            // but keep the final transcript if one exists
         }
     }
 

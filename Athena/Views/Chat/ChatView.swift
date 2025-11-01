@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ChatView: View {
-    @StateObject private var viewModel = ChatViewModel()
+    @ObservedObject var viewModel: ChatViewModel
     @ObservedObject var conversationService = ConversationService.shared
 
     var body: some View {
@@ -45,7 +45,8 @@ struct ChatView: View {
                         },
                         onStopVoiceInput: {
                             viewModel.stopVoiceInput()
-                        }
+                        },
+                        wakewordModeEnabled: viewModel.wakewordModeEnabled
                     )
                 }
             }
@@ -115,7 +116,7 @@ struct ErrorBannerView: View {
 }
 
 #Preview {
-    ChatView()
+    ChatView(viewModel: ChatViewModel())
         .frame(width: 470, height: 640)
 }
 

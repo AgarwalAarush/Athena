@@ -19,6 +19,7 @@ class ConfigurationManager: ObservableObject {
     @Published private(set) var selectedModel: String
     @Published private(set) var speechRecognitionLanguage: String
     @Published private(set) var autoSendVoiceTranscription: Bool
+    @Published private(set) var wakewordModeEnabled: Bool
     
     private init() {
         // Initialize published properties with defaults
@@ -26,12 +27,14 @@ class ConfigurationManager: ObservableObject {
         self.selectedModel = ConfigurationKey.selectedModel.defaultValue as! String
         self.speechRecognitionLanguage = ConfigurationKey.speechRecognitionLanguage.defaultValue as! String
         self.autoSendVoiceTranscription = ConfigurationKey.autoSendVoiceTranscription.defaultValue as! Bool
-        
+        self.wakewordModeEnabled = ConfigurationKey.wakewordModeEnabled.defaultValue as! Bool
+
         // Load current values
         self.selectedProvider = getString(.selectedProvider)
         self.selectedModel = getString(.selectedModel)
         self.speechRecognitionLanguage = getString(.speechRecognitionLanguage)
         self.autoSendVoiceTranscription = getBool(.autoSendVoiceTranscription)
+        self.wakewordModeEnabled = getBool(.wakewordModeEnabled)
     }
     
     // MARK: - Generic Getters
@@ -193,7 +196,7 @@ class ConfigurationManager: ObservableObject {
     private func updatePublishedProperties(for key: ConfigurationKey) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            
+
             switch key {
             case .selectedProvider:
                 self.selectedProvider = self.getString(.selectedProvider)
@@ -203,6 +206,8 @@ class ConfigurationManager: ObservableObject {
                 self.speechRecognitionLanguage = self.getString(.speechRecognitionLanguage)
             case .autoSendVoiceTranscription:
                 self.autoSendVoiceTranscription = self.getBool(.autoSendVoiceTranscription)
+            case .wakewordModeEnabled:
+                self.wakewordModeEnabled = self.getBool(.wakewordModeEnabled)
             default:
                 break
             }
@@ -216,6 +221,7 @@ class ConfigurationManager: ObservableObject {
             self.selectedModel = self.getString(.selectedModel)
             self.speechRecognitionLanguage = self.getString(.speechRecognitionLanguage)
             self.autoSendVoiceTranscription = self.getBool(.autoSendVoiceTranscription)
+            self.wakewordModeEnabled = self.getBool(.wakewordModeEnabled)
         }
     }
 }

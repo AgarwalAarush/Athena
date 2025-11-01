@@ -37,11 +37,8 @@ final class AppleSpeechTranscriber: Transcriber {
     // MARK: - Transcriber Protocol
 
     func startStream(sampleRate: Double) async throws {
-        print("[AppleSpeechTranscriber] startStream called with sampleRate: \(sampleRate)")
-
         // Check authorization
         let authStatus = SFSpeechRecognizer.authorizationStatus()
-        print("[AppleSpeechTranscriber] Authorization status: \(authStatus)")
         guard authStatus == .authorized else {
             print("[AppleSpeechTranscriber] ERROR: Not authorized")
             throw TranscriberError.notAuthorized
@@ -55,7 +52,6 @@ final class AppleSpeechTranscriber: Transcriber {
         request.shouldReportPartialResults = true
         request.requiresOnDeviceRecognition = false // Use cloud recognition for better accuracy
         self.recognitionRequest = request
-        print("[AppleSpeechTranscriber] Created recognition request")
 
         // Create audio format for the request (16kHz, mono, Int16 PCM)
         guard let format = AVAudioFormat(
@@ -68,13 +64,10 @@ final class AppleSpeechTranscriber: Transcriber {
             throw TranscriberError.audioFormatCreationFailed
         }
         self.audioFormat = format
-        print("[AppleSpeechTranscriber] Created audio format: \(format)")
 
         // Start recognition task
-        print("[AppleSpeechTranscriber] Starting recognition task")
         recognitionTask = speechRecognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self = self else {
-                print("[AppleSpeechTranscriber] Recognition task callback: self is nil")
                 return
             }
 
@@ -99,35 +92,36 @@ final class AppleSpeechTranscriber: Transcriber {
                     // Generic error
                     self.eventsContinuation?.yield(.error(error))
                 }
+
+                // Yield ended event even on error, continuation will be finished by finish() or cancel()
+                self.eventsContinuation?.yield(.ended)
                 return
             }
 
             guard let result = result else {
-                print("[AppleSpeechTranscriber] Recognition task callback: no result")
+                // This shouldn't happen in normal operation, but yield ended if it does
+                self.eventsContinuation?.yield(.ended)
                 return
             }
 
             let transcription = result.bestTranscription.formattedString
             let confidence = result.bestTranscription.segments.last?.confidence
-            print("[AppleSpeechTranscriber] Recognition result - isFinal: \(result.isFinal), transcription: '\(transcription)', confidence: \(confidence ?? 0)")
 
             if result.isFinal {
                 // Check if final result is empty (no speech detected)
                 if transcription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    print("[AppleSpeechTranscriber] Final result is empty - no speech detected")
                     self.eventsContinuation?.yield(.error(NSError(domain: "SpeechRecognition", code: -1, userInfo: [NSLocalizedDescriptionKey: "No speech detected. Please speak clearly and ensure your microphone is working."])))
+                    self.eventsContinuation?.yield(.ended)
                 } else {
-                    print("[AppleSpeechTranscriber] Yielding final transcript: '\(transcription)'")
                     self.eventsContinuation?.yield(.final(transcription, confidence.map(Double.init)))
+                    self.eventsContinuation?.yield(.ended)
                 }
-                print("[AppleSpeechTranscriber] Yielding ended event")
-                self.eventsContinuation?.yield(.ended)
+
+                // Don't finish continuation here - let it be finished by finish() or cancel()
             } else {
-                print("[AppleSpeechTranscriber] Yielding partial transcript: '\(transcription)'")
                 self.eventsContinuation?.yield(.partial(transcription))
             }
         }
-        print("[AppleSpeechTranscriber] Recognition task started successfully")
     }
 
     func feed(_ frame: AudioFrame) async {
@@ -137,11 +131,8 @@ final class AppleSpeechTranscriber: Transcriber {
             return
         }
 
-        print("[AppleSpeechTranscriber] feed: Received audio frame with \(frame.samples.count) samples")
-
         // Convert Float32 samples to Int16 PCM
         let int16Samples = floatToInt16(frame.samples)
-        print("[AppleSpeechTranscriber] feed: Converted to \(int16Samples.count) Int16 samples")
 
         // Create PCM buffer with Int16 format
         guard let buffer = AVAudioPCMBuffer(
@@ -165,9 +156,7 @@ final class AppleSpeechTranscriber: Transcriber {
         }
 
         // Append to recognition request
-        print("[AppleSpeechTranscriber] feed: Appending buffer to recognition request")
         request.append(buffer)
-        print("[AppleSpeechTranscriber] feed: Buffer appended successfully")
     }
 
     func events() -> AsyncStream<TranscriptEvent> {
@@ -177,31 +166,29 @@ final class AppleSpeechTranscriber: Transcriber {
     }
 
     func finish() async {
-        print("[AppleSpeechTranscriber] finish() called")
         recognitionRequest?.endAudio()
-        print("[AppleSpeechTranscriber] finish: Called endAudio() on recognition request")
 
-        // Wait a bit for final results
-        print("[AppleSpeechTranscriber] finish: Waiting 0.5 seconds for final results")
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-        print("[AppleSpeechTranscriber] finish: Wait complete, cleaning up")
+        // Wait a bit for final results to be processed
+        try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
+
+        // Finish continuation after final events have been processed
+        eventsContinuation?.finish()
+        eventsContinuation = nil
 
         // Clean up
         recognitionRequest = nil
+        recognitionTask?.cancel()
         recognitionTask = nil
-        eventsContinuation?.finish()
-        eventsContinuation = nil
-        print("[AppleSpeechTranscriber] finish: Cleanup complete")
     }
 
     func cancel() {
-        print("[AppleSpeechTranscriber] cancel() called")
         recognitionTask?.cancel()
         recognitionTask = nil
         recognitionRequest = nil
+
+        // Finish continuation if it still exists (for immediate cancellation)
         eventsContinuation?.finish()
         eventsContinuation = nil
-        print("[AppleSpeechTranscriber] cancel: Cleanup complete")
     }
 
     // MARK: - Private Helpers

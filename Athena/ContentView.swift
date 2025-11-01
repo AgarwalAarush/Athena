@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var windowManager: WindowManager
+    @StateObject private var chatViewModel = ChatViewModel()
 
     var body: some View {
         ZStack {
@@ -26,13 +27,13 @@ struct ContentView: View {
             // 2) Content clipped to the shell shape
             VStack(spacing: 0) {
                 // Title Bar
-                TitleBarView()
+                TitleBarView(chatViewModel: chatViewModel)
 
                 Divider()
                     .opacity(0.5)
 
                 // Main Content Area
-                ChatView()
+                ChatView(viewModel: chatViewModel)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .clipShape(shell)
@@ -44,12 +45,40 @@ struct ContentView: View {
 
 struct TitleBarView: View {
     @EnvironmentObject var windowManager: WindowManager
+    @ObservedObject var chatViewModel: ChatViewModel
+    @ObservedObject private var config = ConfigurationManager.shared
+
+    @State private var isPulsing = false
 
     var body: some View {
         HStack {
             Spacer()
 
             HStack(spacing: 12) {
+                // Wakeword Mode Toggle
+                Button(action: {
+                    let newValue = !config.wakewordModeEnabled
+                    config.set(newValue, for: .wakewordModeEnabled)
+                }) {
+                    Image(systemName: "waveform.circle.fill")
+                        .foregroundColor(wakewordModeColor)
+                        .scaleEffect(shouldPulse ? (isPulsing ? 1.15 : 1.0) : 1.0)
+                        .animation(
+                            shouldPulse ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default,
+                            value: isPulsing
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(config.wakewordModeEnabled ? "Wakeword Mode: ON" : "Wakeword Mode: OFF")
+                .onAppear {
+                    if shouldPulse {
+                        isPulsing = true
+                    }
+                }
+                .onChange(of: shouldPulse) { newValue in
+                    isPulsing = newValue
+                }
+
                 Button(action: {}) {
                     Image(systemName: "message")
                         .foregroundColor(.accentColor)
@@ -68,6 +97,18 @@ struct TitleBarView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(Color.clear)
+    }
+
+    private var wakewordModeColor: Color {
+        let isEnabled = config.wakewordModeEnabled
+        if !isEnabled {
+            return .secondary
+        }
+        return chatViewModel.isRecording ? .green : .blue
+    }
+
+    private var shouldPulse: Bool {
+        config.wakewordModeEnabled && chatViewModel.isRecording
     }
 }
 

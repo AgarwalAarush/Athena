@@ -180,6 +180,38 @@ class AIService: AIServiceProtocol {
             return false
         }
     }
+
+    // MARK: - General Purpose Completion
+    
+    func getCompletion(
+        prompt: String,
+        systemPrompt: String?,
+        provider: AIProvider,
+        model: String
+    ) async throws -> String {
+        
+        var messages: [ChatMessage] = []
+        if let systemPrompt = systemPrompt {
+            messages.append(ChatMessage(role: .system, content: systemPrompt))
+        }
+        messages.append(ChatMessage(role: .user, content: prompt))
+        
+        let aiProvider = try getProvider(for: provider)
+        
+        // Note: We are not using the 'chat' method from the provider here.
+        // We are assuming a similar method exists for direct completion,
+        // or that the 'chat' method can be used this way.
+        // This will be fully implemented in the provider next.
+        let response = try await aiProvider.chat(
+            messages: messages,
+            model: model,
+            temperature: 0.0, // Deterministic for classification
+            maxTokens: 50,    // Small response for classification
+            topP: 1.0
+        )
+        
+        return response.content
+    }
     
     // MARK: - Helper Methods
     
