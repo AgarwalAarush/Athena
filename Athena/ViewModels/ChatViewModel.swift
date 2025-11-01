@@ -68,27 +68,51 @@ class ChatViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] (newValue: Bool) in
                 guard let self = self else { return }
-                print("[ChatViewModel] 🔄 Wakeword mode config changed: \(self.wakewordModeEnabled) -> \(newValue)")
-                self.wakewordModeEnabled = newValue
 
-                if newValue {
-                    print("[ChatViewModel] ✅ Switching TO wakeword mode")
-                    // Start listening when wakeword mode is enabled
-                    self.startVoiceInput()
-                } else {
+                // Capture the OLD value before updating
+                let wasInWakewordMode = self.wakewordModeEnabled
+                print("[ChatViewModel] 🔄 Wakeword mode config changed: \(wasInWakewordMode) -> \(newValue)")
+
+                // Handle transition based on OLD and NEW states
+                if wasInWakewordMode && !newValue {
                     print("[ChatViewModel] ❌ Switching FROM wakeword mode to manual mode")
-                    // Stop listening when wakeword mode is disabled
-                    self.stopVoiceInput()
+
+                    // Explicitly stop wake word manager BEFORE updating flag
+                    if let manager = self.wakeWordManager {
+                        print("[ChatViewModel] 🛑 Explicitly stopping wake word manager")
+                        manager.stop()
+                    }
+
+                    // Cancel wake word subscriptions to prevent stale state updates
+                    self.wakeWordCancellables.removeAll()
+                    print("[ChatViewModel] 🧹 Cleared wakeWordCancellables")
 
                     // CRITICAL: Explicitly reset recording state when leaving wakeword mode
-                    // This prevents the button from getting stuck in recording state
                     self.isRecording = false
                     self.isProcessingTranscript = false
                     print("[ChatViewModel] 🔴 Explicitly reset isRecording=false, isProcessingTranscript=false")
 
-                    // Cancel wake word subscriptions to prevent stale state updates
-                    self.wakeWordCancellables.removeAll()
-                    print("[ChatViewModel] 🧹 Cleared wakeWordCancellables - no longer listening to stopped manager")
+                    // Now update the flag
+                    self.wakewordModeEnabled = newValue
+
+                } else if !wasInWakewordMode && newValue {
+                    print("[ChatViewModel] ✅ Switching TO wakeword mode from manual mode")
+
+                    // Stop any manual mode listening first
+                    print("[ChatViewModel] 🛑 Stopping manual mode speech service")
+                    self.speechService.cancelListening()
+
+                    // Update the flag
+                    self.wakewordModeEnabled = newValue
+
+                    // Start wakeword mode
+                    self.startVoiceInput()
+
+                } else {
+                    // No actual mode change (e.g., both true or both false)
+                    // Just update the flag
+                    print("[ChatViewModel] ⚠️ No mode change detected: \(wasInWakewordMode) -> \(newValue)")
+                    self.wakewordModeEnabled = newValue
                 }
             }
             .store(in: &cancellables)

@@ -60,12 +60,15 @@ class WakeWordTranscriptionManager: ObservableObject {
     // MARK: - Public Methods
 
     func start() async throws {
-        print("[WakeWordTranscriptionManager] Starting wake word mode")
+        print("[WakeWordTranscriptionManager] 🎬 start() called - current state: \(state)")
 
         guard state == .idle else {
-            print("[WakeWordTranscriptionManager] Already running (state: \(state))")
+            print("[WakeWordTranscriptionManager] ⚠️ Cannot start - already running (state: \(state))")
+            print("[WakeWordTranscriptionManager] 💡 This usually means stop() wasn't called properly before starting again")
             return
         }
+
+        print("[WakeWordTranscriptionManager] ✅ State is idle, proceeding with start")
 
         // Check authorizations
         try await checkAuthorizations()
@@ -75,6 +78,8 @@ class WakeWordTranscriptionManager: ObservableObject {
 
         // Start listening for wake word
         try await startWakeWordDetection()
+
+        print("[WakeWordTranscriptionManager] 🎉 Wake word mode fully started and listening")
     }
 
     func stop() {
