@@ -11,7 +11,7 @@ import AVFoundation
 import Combine
 
 /// Detects wake word "Athena" using lightweight continuous recognition
-actor WakeWordDetector {
+final class WakeWordDetector {
 
     // MARK: - Properties
 
@@ -27,6 +27,7 @@ actor WakeWordDetector {
     private let wakeWordDetectedStream: AsyncStream<Void>
 
     private var isListening = false
+    private let queue = DispatchQueue(label: "com.athena.wakeword", qos: .userInitiated)
 
     // MARK: - Initialization
 
@@ -56,7 +57,7 @@ actor WakeWordDetector {
         wakeWordDetectedStream
     }
 
-    func start() async throws {
+    func start() throws {
         guard !isListening else {
             print("[WakeWordDetector] Already listening")
             return
@@ -71,7 +72,7 @@ actor WakeWordDetector {
         }
 
         // Cancel any ongoing task
-        await stop()
+        stop()
 
         // Create recognition request optimized for wake word detection
         let request = SFSpeechAudioBufferRecognitionRequest()
@@ -84,15 +85,13 @@ actor WakeWordDetector {
 
         // Start recognition task
         recognitionTask = speechRecognizer.recognitionTask(with: request) { [weak self] result, error in
-            Task { [weak self] in
-                await self?.handleRecognitionResult(result: result, error: error)
-            }
+            self?.handleRecognitionResult(result: result, error: error)
         }
 
         print("[WakeWordDetector] Wake word detection started")
     }
 
-    func stop() async {
+    func stop() {
         print("[WakeWordDetector] Stopping wake word detection")
 
         recognitionTask?.cancel()
@@ -104,25 +103,29 @@ actor WakeWordDetector {
         isListening = false
     }
 
-    func processAudioBuffer(_ buffer: AVAudioPCMBuffer) async {
-        guard isListening, let request = recognitionRequest else {
-            return
-        }
+    func processAudioBuffer(_ buffer: AVAudioPCMBuffer) {
+        queue.async { [weak self] in
+            guard let self = self, self.isListening, let request = self.recognitionRequest else {
+                return
+            }
 
-        request.append(buffer)
+            request.append(buffer)
+        }
     }
 
     // MARK: - Private Methods
 
-    private func handleRecognitionResult(result: SFSpeechRecognitionResult?, error: Error?) async {
+    private func handleRecognitionResult(result: SFSpeechRecognitionResult?, error: Error?) {
         if let error = error {
             print("[WakeWordDetector] Recognition error: \(error.localizedDescription)")
 
             // Restart on certain errors
             let nsError = error as NSError
             if nsError.code != 203 { // Ignore "request ended" errors
-                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s delay before restart
-                try? await start()
+                Task {
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s delay before restart
+                    try? self.start()
+                }
             }
             return
         }
@@ -138,9 +141,11 @@ actor WakeWordDetector {
             wakeWordDetectedContinuation.yield(())
 
             // Stop and restart to reset the buffer
-            await stop()
-            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s pause
-            try? await start()
+            stop()
+            Task {
+                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s pause
+                try? self.start()
+            }
         }
     }
 

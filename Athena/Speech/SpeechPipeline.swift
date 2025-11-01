@@ -236,6 +236,12 @@ final class SpeechPipeline: ObservableObject {
             print("[SpeechPipeline] handleTranscriptEvent: Setting state to idle after .ended event")
             state = .idle
             print("[SpeechPipeline] handleTranscriptEvent: State set to idle, pipeline should notify listeners")
+
+        case .silenceDetected:
+            print("[SpeechPipeline] handleTranscriptEvent: Silence detected by VAD")
+            // Note: This is primarily used by WakeWordTranscriptionManager
+            // For regular pipeline usage, we can treat it similar to .ended
+            // but keep the final transcript if one exists
         }
     }
 

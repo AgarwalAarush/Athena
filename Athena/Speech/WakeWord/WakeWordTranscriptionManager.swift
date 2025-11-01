@@ -31,8 +31,7 @@ class WakeWordTranscriptionManager: ObservableObject {
     // MARK: - Private Properties
 
     private var wakeWordDetector: WakeWordDetector?
-    private var modernTranscriber: Any? // ModernSpeechTranscriber (iOS 26.0+)
-    private var fallbackTranscriber: AppleSpeechTranscriber? // Fallback for older OS
+    private var vadTranscriber: SimplifiedVADTranscriber?
 
     private var audioEngine: AVAudioEngine?
     private var audioInput: AVAudioInputNode?
@@ -40,25 +39,18 @@ class WakeWordTranscriptionManager: ObservableObject {
     private var detectorTask: Task<Void, Never>?
     private var transcriberTask: Task<Void, Never>?
 
-    private let useModernAPI: Bool
-
     // MARK: - Initialization
 
     init() {
-        // Check if modern API is available
-        if #available(macOS 26.0, *) {
-            self.useModernAPI = true
-            print("[WakeWordTranscriptionManager] Using modern Speech API with SpeechDetector")
-        } else {
-            self.useModernAPI = false
-            print("[WakeWordTranscriptionManager] Using fallback API (modern Speech API not available)")
-        }
+        print("[WakeWordTranscriptionManager] Initializing with simplified VAD")
     }
 
     deinit {
         detectorTask?.cancel()
         transcriberTask?.cancel()
-        stopAudioEngine()
+        Task { @MainActor in
+            self.stopAudioEngine()
+        }
     }
 
     // MARK: - Public Methods
@@ -87,21 +79,8 @@ class WakeWordTranscriptionManager: ObservableObject {
         detectorTask?.cancel()
         transcriberTask?.cancel()
 
-        Task {
-            if let detector = wakeWordDetector {
-                await detector.stop()
-            }
-        }
-
-        if useModernAPI {
-            if #available(macOS 26.0, *) {
-                if let transcriber = modernTranscriber as? ModernSpeechTranscriber {
-                    transcriber.stop()
-                }
-            }
-        } else {
-            fallbackTranscriber?.cancel()
-        }
+        wakeWordDetector?.stop()
+        vadTranscriber?.stop()
 
         stopAudioEngine()
 
@@ -169,21 +148,11 @@ class WakeWordTranscriptionManager: ObservableObject {
         switch state {
         case .listeningForWakeWord:
             // Send audio to wake word detector
-            if let detector = wakeWordDetector {
-                await detector.processAudioBuffer(buffer)
-            }
+            wakeWordDetector?.processAudioBuffer(buffer)
 
         case .transcribing:
-            // Send audio to transcriber
-            if useModernAPI {
-                if #available(macOS 26.0, *) {
-                    if let transcriber = modernTranscriber as? ModernSpeechTranscriber {
-                        try? await transcriber.processAudioBuffer(buffer)
-                    }
-                }
-            } else {
-                // Fallback transcriber uses its own audio engine, so we don't need to send buffers
-            }
+            // Send audio to VAD transcriber
+            vadTranscriber?.appendAudioBuffer(buffer)
 
         default:
             break
@@ -198,7 +167,7 @@ class WakeWordTranscriptionManager: ObservableObject {
         let detector = try WakeWordDetector()
         self.wakeWordDetector = detector
 
-        try await detector.start()
+        try detector.start()
 
         state = .listeningForWakeWord
 
@@ -216,9 +185,7 @@ class WakeWordTranscriptionManager: ObservableObject {
         print("[WakeWordTranscriptionManager] 🎤 Wake word detected! Starting transcription...")
 
         // Stop wake word detection
-        if let detector = wakeWordDetector {
-            await detector.stop()
-        }
+        wakeWordDetector?.stop()
         detectorTask?.cancel()
 
         // Start full transcription with VAD
@@ -240,37 +207,10 @@ class WakeWordTranscriptionManager: ObservableObject {
         partialTranscript = ""
         finalTranscript = nil
 
-        if useModernAPI {
-            if #available(macOS 26.0, *) {
-                try await startModernTranscription()
-            }
-        } else {
-            try await startFallbackTranscription()
-        }
-    }
+        let transcriber = try SimplifiedVADTranscriber()
+        self.vadTranscriber = transcriber
 
-    @available(macOS 26.0, *)
-    private func startModernTranscription() async throws {
-        let transcriber = ModernSpeechTranscriber(enableVAD: true, vadSensitivity: .medium)
-        self.modernTranscriber = transcriber
-
-        try await transcriber.start()
-
-        // Listen for transcription events
-        transcriberTask = Task { [weak self] in
-            guard let self = self else { return }
-
-            for await event in transcriber.events {
-                await self.handleTranscriptEvent(event)
-            }
-        }
-    }
-
-    private func startFallbackTranscription() async throws {
-        let transcriber = try AppleSpeechTranscriber()
-        self.fallbackTranscriber = transcriber
-
-        try await transcriber.startStream(sampleRate: 16000)
+        try transcriber.start()
 
         // Listen for transcription events
         transcriberTask = Task { [weak self] in
@@ -344,18 +284,7 @@ class WakeWordTranscriptionManager: ObservableObject {
 
     private func stopTranscription() {
         transcriberTask?.cancel()
-
-        if useModernAPI {
-            if #available(macOS 26.0, *) {
-                if let transcriber = modernTranscriber as? ModernSpeechTranscriber {
-                    transcriber.stop()
-                }
-            }
-        } else {
-            fallbackTranscriber?.cancel()
-        }
-
-        modernTranscriber = nil
-        fallbackTranscriber = nil
+        vadTranscriber?.stop()
+        vadTranscriber = nil
     }
 }
