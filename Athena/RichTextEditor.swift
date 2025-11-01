@@ -6,15 +6,11 @@
 import SwiftUI
 import AppKit
 
-/// A SwiftUI wrapper around NSTextView providing rich text editing with checkbox support.
+/// SwiftUI wrapper around NSTextView with rich text editing and checkbox support.
 ///
-/// Design rationale:
-/// - Uses NSViewRepresentable to bridge AppKit's powerful NSTextView to SwiftUI
-/// - Builds full Cocoa text system (NSTextStorage/NSLayoutManager/NSTextContainer) for complete control
-/// - Implements markdown-style checkbox trigger ("- [ ] ") for natural note-taking UX
-/// - Maintains bidirectional binding sync with content while preventing feedback loops
-/// - Preserves selection across programmatic changes for smooth editing experience
-/// - Groups programmatic changes into undo operations for proper undo/redo support
+/// Bridges AppKit NSTextView to SwiftUI using the full Cocoa text system stack.
+/// Supports markdown-style checkbox triggers ("- [ ] ") and maintains bidirectional
+/// binding synchronization while preventing feedback loops.
 @MainActor
 struct RichTextEditor: NSViewRepresentable {
 
@@ -48,12 +44,12 @@ struct RichTextEditor: NSViewRepresentable {
         textView.allowsUndo = true
         textView.usesFindBar = true
 
-        // Disable smart quotes/dashes for technical writing (notes often contain code/data)
+        // Disable smart quotes/dashes for technical writing
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.smartInsertDeleteEnabled = false
 
-        // Enable spell checking for natural language content
+        // Enable spell checking
         textView.isContinuousSpellCheckingEnabled = true
 
         // Set comfortable padding around text
@@ -70,9 +66,6 @@ struct RichTextEditor: NSViewRepresentable {
 
         // Wire up coordinator as delegate
         textView.delegate = context.coordinator
-
-        // Store coordinator reference in text view for access in delegate methods
-        // (Using associated objects would be more robust but overkill for this use case)
         context.coordinator.textView = textView
 
         // Accessibility support
@@ -104,7 +97,7 @@ struct RichTextEditor: NSViewRepresentable {
 
         let currentText = textStorage.string
 
-        // Only update if content actually changed (avoid feedback loops)
+        // Only update if content actually changed to avoid feedback loops
         guard currentText != content else { return }
 
         // Use programmatic change guard to prevent delegate from updating binding
@@ -139,22 +132,19 @@ struct RichTextEditor: NSViewRepresentable {
 
     /// Coordinator handling NSTextView delegate callbacks and checkbox logic.
     ///
-    /// Design rationale:
-    /// - NSObject subclass to conform to NSTextViewDelegate
-    /// - MainActor ensures all UI operations happen on main thread
-    /// - isProgrammaticChange guard prevents feedback loops in binding updates
-    /// - Checkbox logic uses NSTextList.MarkerFormat.checkBox (macOS 15+)
-    /// - All programmatic mutations grouped into undo operations for clean undo/redo
+    /// Implements NSTextViewDelegate to handle text changes and checkbox behavior.
+    /// Uses isProgrammaticChange guard to prevent binding feedback loops.
+    /// Requires macOS 15+ for NSTextList.MarkerFormat.checkBox support.
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
 
         @Binding var content: String
         weak var textView: NSTextView?
 
-        /// Guard flag preventing infinite loops when syncing content ↔ textStorage
+        /// Guard flag preventing infinite loops when syncing content and textStorage.
         var isProgrammaticChange = false
 
-        /// Markdown trigger for checkbox list items
+        /// Markdown trigger for checkbox list items.
         private let checkboxTrigger = "- [ ] "
 
         init(content: Binding<String>) {
@@ -194,11 +184,8 @@ struct RichTextEditor: NSViewRepresentable {
 
         /// Detects "- [ ] " typed at paragraph start and transforms into checkbox list.
         ///
-        /// Design rationale:
-        /// - Only triggers at true paragraph start (not mid-paragraph or after whitespace)
-        /// - Deletes trigger text after applying style for clean appearance
-        /// - Groups operations into single undo action for atomic undo/redo
-        /// - Preserves caret position after transformation
+        /// Only triggers at paragraph start. Deletes trigger text after applying checkbox style.
+        /// Groups operations into single undo action and preserves caret position.
         private func detectAndTransformCheckboxTrigger(in textView: NSTextView) {
             guard let textStorage = textView.textStorage else { return }
 
@@ -212,10 +199,10 @@ struct RichTextEditor: NSViewRepresentable {
             // Extract paragraph text
             let paragraphText = (textStorage.string as NSString).substring(with: paragraphRange)
 
-            // Check if paragraph starts with trigger (must be at very start, no leading whitespace)
+            // Check if paragraph starts with trigger at the very start
             guard paragraphText.hasPrefix(checkboxTrigger) else { return }
 
-            // Ensure cursor is after the trigger (user just finished typing it)
+            // Ensure cursor is after the trigger
             let triggerRange = NSRange(location: paragraphRange.location, length: checkboxTrigger.count)
             guard selection.location == triggerRange.location + triggerRange.length else { return }
 
@@ -254,10 +241,8 @@ struct RichTextEditor: NSViewRepresentable {
 
         /// Handles Enter key in checkbox paragraphs to propagate checkbox style.
         ///
-        /// Design rationale:
-        /// - Returns false to prevent default behavior (we handle insertion manually)
-        /// - Applies checkbox style to new paragraph for natural list continuation
-        /// - Groups operations into undo action for proper undo behavior
+        /// Returns false to prevent default behavior and manually inserts newline.
+        /// Applies checkbox style to new paragraph and groups operations into undo action.
         private func handleEnterKeyInCheckboxParagraph(
             textView: NSTextView,
             at affectedCharRange: NSRange
@@ -266,7 +251,7 @@ struct RichTextEditor: NSViewRepresentable {
 
             // Check if current paragraph has checkbox style
             guard paragraphHasCheckboxStyle(at: affectedCharRange.location) else {
-                return true // Let default behavior handle it
+                return true
             }
 
             // Manually insert newline with checkbox style
@@ -281,9 +266,9 @@ struct RichTextEditor: NSViewRepresentable {
             // Insert newline
             textStorage.replaceCharacters(in: affectedCharRange, with: "\n")
 
-            // Get the new paragraph range (after the newline we just inserted)
+            // Apply checkbox style to new paragraph
             let newParagraphStart = affectedCharRange.location + 1
-            if newParagraphStart < textStorage.length {
+            if newParagraphStart <= textStorage.length {
                 let newParagraphRange = (textStorage.string as NSString)
                     .paragraphRange(for: NSRange(location: newParagraphStart, length: 0))
 
@@ -299,15 +284,12 @@ struct RichTextEditor: NSViewRepresentable {
             // Sync binding
             content = textStorage.string
 
-            return false // We handled the insertion
+            return false
         }
 
         // MARK: - Helper Methods
 
         /// Returns the paragraph range containing the current selection.
-        ///
-        /// Rationale: NSString's paragraphRange(for:) provides accurate paragraph boundaries
-        /// accounting for newline characters across all platforms.
         private func currentParagraphRange(in textView: NSTextView) -> NSRange {
             guard let textStorage = textView.textStorage else { return NSRange() }
 
@@ -319,9 +301,8 @@ struct RichTextEditor: NSViewRepresentable {
 
         /// Applies checkbox list formatting to the specified paragraph range.
         ///
-        /// Rationale: Creates NSTextList with checkBox marker format (macOS 15+)
-        /// and applies via paragraph style. Must use mutable copy of paragraph style
-        /// to avoid mutating shared default style objects.
+        /// Creates NSTextList with checkBox marker format and applies via paragraph style.
+        /// Uses mutable copy to avoid mutating shared default style objects.
         private func applyCheckboxList(toParagraphRange range: NSRange, in textView: NSTextView) {
             guard let textStorage = textView.textStorage,
                   range.location + range.length <= textStorage.length else { return }
@@ -356,18 +337,18 @@ struct RichTextEditor: NSViewRepresentable {
         }
 
         /// Checks if the paragraph at the given location has checkbox style applied.
-        ///
-        /// Rationale: Examines paragraph style's textLists array for checkbox marker.
-        /// Used to determine whether Enter key should propagate checkbox formatting.
         private func paragraphHasCheckboxStyle(at location: Int) -> Bool {
             guard let textView = textView,
                   let textStorage = textView.textStorage,
-                  location < textStorage.length else { return false }
+                  textStorage.length > 0 else { return false }
+
+            // Check at valid character position (adjust if at end of document)
+            let checkLocation = min(location, textStorage.length - 1)
 
             // Get paragraph style at location
             guard let paragraphStyle = textStorage.attribute(
                 .paragraphStyle,
-                at: location,
+                at: checkLocation,
                 effectiveRange: nil
             ) as? NSParagraphStyle else { return false }
 
