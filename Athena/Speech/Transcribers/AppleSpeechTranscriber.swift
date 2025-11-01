@@ -99,11 +99,17 @@ final class AppleSpeechTranscriber: Transcriber {
                     // Generic error
                     self.eventsContinuation?.yield(.error(error))
                 }
+
+                // Yield ended event even on error, continuation will be finished by finish() or cancel()
+                print("[AppleSpeechTranscriber] Yielding ended event after error")
+                self.eventsContinuation?.yield(.ended)
                 return
             }
 
             guard let result = result else {
                 print("[AppleSpeechTranscriber] Recognition task callback: no result")
+                // This shouldn't happen in normal operation, but yield ended if it does
+                self.eventsContinuation?.yield(.ended)
                 return
             }
 
@@ -116,12 +122,16 @@ final class AppleSpeechTranscriber: Transcriber {
                 if transcription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     print("[AppleSpeechTranscriber] Final result is empty - no speech detected")
                     self.eventsContinuation?.yield(.error(NSError(domain: "SpeechRecognition", code: -1, userInfo: [NSLocalizedDescriptionKey: "No speech detected. Please speak clearly and ensure your microphone is working."])))
+                    print("[AppleSpeechTranscriber] Yielding ended event after empty result")
+                    self.eventsContinuation?.yield(.ended)
                 } else {
                     print("[AppleSpeechTranscriber] Yielding final transcript: '\(transcription)'")
                     self.eventsContinuation?.yield(.final(transcription, confidence.map(Double.init)))
+                    print("[AppleSpeechTranscriber] Yielding ended event")
+                    self.eventsContinuation?.yield(.ended)
                 }
-                print("[AppleSpeechTranscriber] Yielding ended event")
-                self.eventsContinuation?.yield(.ended)
+
+                // Don't finish continuation here - let it be finished by finish() or cancel()
             } else {
                 print("[AppleSpeechTranscriber] Yielding partial transcript: '\(transcription)'")
                 self.eventsContinuation?.yield(.partial(transcription))
@@ -181,16 +191,24 @@ final class AppleSpeechTranscriber: Transcriber {
         recognitionRequest?.endAudio()
         print("[AppleSpeechTranscriber] finish: Called endAudio() on recognition request")
 
-        // Wait a bit for final results
-        print("[AppleSpeechTranscriber] finish: Waiting 0.5 seconds for final results")
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-        print("[AppleSpeechTranscriber] finish: Wait complete, cleaning up")
+        // Wait a bit for final results to be processed
+        print("[AppleSpeechTranscriber] finish: Waiting 1.5 seconds for final results")
+        try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
+        print("[AppleSpeechTranscriber] finish: Wait complete, finishing continuation")
+
+        // Finish continuation after final events have been processed
+        if eventsContinuation != nil {
+            print("[AppleSpeechTranscriber] finish: Finishing events continuation - this should allow any pending .ended events to be processed")
+            eventsContinuation?.finish()
+            eventsContinuation = nil
+        } else {
+            print("[AppleSpeechTranscriber] finish: Events continuation was already nil")
+        }
 
         // Clean up
         recognitionRequest = nil
+        recognitionTask?.cancel()
         recognitionTask = nil
-        eventsContinuation?.finish()
-        eventsContinuation = nil
         print("[AppleSpeechTranscriber] finish: Cleanup complete")
     }
 
@@ -199,8 +217,13 @@ final class AppleSpeechTranscriber: Transcriber {
         recognitionTask?.cancel()
         recognitionTask = nil
         recognitionRequest = nil
-        eventsContinuation?.finish()
-        eventsContinuation = nil
+
+        // Finish continuation if it still exists (for immediate cancellation)
+        if eventsContinuation != nil {
+            print("[AppleSpeechTranscriber] cancel: Finishing events continuation")
+            eventsContinuation?.finish()
+            eventsContinuation = nil
+        }
         print("[AppleSpeechTranscriber] cancel: Cleanup complete")
     }
 
