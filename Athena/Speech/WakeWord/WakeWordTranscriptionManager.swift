@@ -74,7 +74,7 @@ class WakeWordTranscriptionManager: ObservableObject {
     }
 
     func stop() {
-        print("[WakeWordTranscriptionManager] Stopping wake word mode")
+        print("[WakeWordTranscriptionManager] 🛑 Stopping wake word mode (current state: \(state))")
 
         detectorTask?.cancel()
         transcriberTask?.cancel()
@@ -84,9 +84,12 @@ class WakeWordTranscriptionManager: ObservableObject {
 
         stopAudioEngine()
 
+        print("[WakeWordTranscriptionManager] ⚙️ Setting state to .idle and clearing transcripts")
         state = .idle
         partialTranscript = ""
         finalTranscript = nil
+
+        print("[WakeWordTranscriptionManager] ✅ Wake word mode stopped - state=\(state)")
     }
 
     // MARK: - Private Methods - Authorization

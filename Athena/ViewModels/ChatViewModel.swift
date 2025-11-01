@@ -68,14 +68,27 @@ class ChatViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] (newValue: Bool) in
                 guard let self = self else { return }
+                print("[ChatViewModel] 🔄 Wakeword mode config changed: \(self.wakewordModeEnabled) -> \(newValue)")
                 self.wakewordModeEnabled = newValue
 
                 if newValue {
+                    print("[ChatViewModel] ✅ Switching TO wakeword mode")
                     // Start listening when wakeword mode is enabled
                     self.startVoiceInput()
                 } else {
+                    print("[ChatViewModel] ❌ Switching FROM wakeword mode to manual mode")
                     // Stop listening when wakeword mode is disabled
                     self.stopVoiceInput()
+
+                    // CRITICAL: Explicitly reset recording state when leaving wakeword mode
+                    // This prevents the button from getting stuck in recording state
+                    self.isRecording = false
+                    self.isProcessingTranscript = false
+                    print("[ChatViewModel] 🔴 Explicitly reset isRecording=false, isProcessingTranscript=false")
+
+                    // Cancel wake word subscriptions to prevent stale state updates
+                    self.wakeWordCancellables.removeAll()
+                    print("[ChatViewModel] 🧹 Cleared wakeWordCancellables - no longer listening to stopped manager")
                 }
             }
             .store(in: &cancellables)
@@ -89,8 +102,17 @@ class ChatViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] state in
                 guard let self = self else { return }
+
+                // Only update isRecording if we're actually in wakeword mode
+                guard self.wakewordModeEnabled else {
+                    print("[ChatViewModel] ⚠️ Wake word state update ignored - not in wakeword mode (state=\(state))")
+                    return
+                }
+
                 // Map wake word states to isRecording
-                self.isRecording = (state == .transcribing || state == .listeningForWakeWord)
+                let newRecordingState = (state == .transcribing || state == .listeningForWakeWord)
+                print("[ChatViewModel] 🎙️ Wake word state changed: \(state) -> isRecording=\(newRecordingState)")
+                self.isRecording = newRecordingState
             }
             .store(in: &wakeWordCancellables)
 
@@ -286,43 +308,57 @@ class ChatViewModel: ObservableObject {
     }
 
     func startVoiceInput() {
+        print("[ChatViewModel] 🎬 startVoiceInput called - wakewordModeEnabled=\(wakewordModeEnabled)")
+
         Task {
             errorMessage = nil
 
             // Use wake word manager when in wakeword mode
             if wakewordModeEnabled, let manager = wakeWordManager {
+                print("[ChatViewModel] 🎤 Starting WAKE WORD mode")
                 do {
                     try await manager.start()
-                    print("[ChatViewModel] Wake word mode started")
+                    print("[ChatViewModel] ✅ Wake word mode started successfully")
                 } catch {
                     errorMessage = "Failed to start wake word detection: \(error.localizedDescription)"
-                    print("[ChatViewModel] Wake word start error: \(error)")
+                    print("[ChatViewModel] ❌ Wake word start error: \(error)")
                 }
             } else {
+                print("[ChatViewModel] 🎤 Starting MANUAL mode (regular speech service)")
                 // Use regular speech service
                 await speechService.startListening()
                 if !speechService.isAuthorized || !speechService.hasMicrophonePermission {
                     errorMessage = speechService.authorizationStatusDescription
+                    print("[ChatViewModel] ❌ Speech service authorization failed")
+                } else {
+                    print("[ChatViewModel] ✅ Manual mode started successfully")
                 }
             }
         }
     }
 
     func stopVoiceInput() {
+        print("[ChatViewModel] 🛑 stopVoiceInput called - wakewordModeEnabled=\(wakewordModeEnabled), isRecording=\(isRecording)")
+
         Task {
             // Stop wake word manager if in wakeword mode
             if wakewordModeEnabled, let manager = wakeWordManager {
+                print("[ChatViewModel] 🛑 Stopping WAKE WORD mode")
                 manager.stop()
-                print("[ChatViewModel] Wake word mode stopped")
+                print("[ChatViewModel] ✅ Wake word mode stopped")
             } else {
+                print("[ChatViewModel] 🛑 Stopping MANUAL mode")
                 // Use regular speech service
                 // If pipeline is in listening state, stop gracefully
                 // Otherwise, cancel immediately
                 if let pipeline = speechService.pipeline, pipeline.state == .listening {
+                    print("[ChatViewModel] 🛑 Pipeline in listening state - stopping gracefully")
                     await speechService.stopListening()
                 } else {
+                    print("[ChatViewModel] 🛑 Pipeline not listening - canceling")
                     speechService.cancelListening()
                 }
+                print("[ChatViewModel] ✅ Manual mode stopped")
             }
         }
     }
