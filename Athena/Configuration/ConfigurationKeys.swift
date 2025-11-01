@@ -43,6 +43,7 @@ enum ConfigurationKey: String, CaseIterable {
     // Speech Settings (UserDefaults)
     case speechRecognitionLanguage = "speech_recognition_language"
     case autoSendVoiceTranscription = "auto_send_voice_transcription"
+    case wakewordModeEnabled = "wakeword_mode_enabled"
     
     var defaultValue: Any {
         switch self {
@@ -95,6 +96,8 @@ enum ConfigurationKey: String, CaseIterable {
             return "en-US"
         case .autoSendVoiceTranscription:
             return true
+        case .wakewordModeEnabled:
+            return false
 
         // Secure keys have no defaults
         case .openaiAPIKey, .anthropicAPIKey:
@@ -125,7 +128,7 @@ enum ConfigurationKey: String, CaseIterable {
             return .backend
         case .enableVoiceMode, .enableComputerUse, .enableCalendarIntegration:
             return .features
-        case .speechRecognitionLanguage, .autoSendVoiceTranscription:
+        case .speechRecognitionLanguage, .autoSendVoiceTranscription, .wakewordModeEnabled:
             return .speech
         }
     }

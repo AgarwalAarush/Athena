@@ -21,6 +21,9 @@ enum TranscriptEvent {
 
     /// Transcription stream has ended
     case ended
+
+    /// Silence detected (VAD detected no speech for configured duration)
+    case silenceDetected
 }
 
 extension TranscriptEvent {
@@ -29,7 +32,7 @@ extension TranscriptEvent {
         switch self {
         case .partial(let text), .final(let text, _):
             return text
-        case .error, .ended:
+        case .error, .ended, .silenceDetected:
             return nil
         }
     }
