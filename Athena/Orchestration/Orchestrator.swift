@@ -11,10 +11,9 @@ import Foundation
 enum TaskType: String, CaseIterable {
     case notes
     case calendar
-    case windowManagement = "window_management"
-    case openApp = "open_app"
-    case computerUse = "computer_use"
-    case unknown
+    case windowManagement
+    case computerUse
+    case notApplicable = "NA"
 }
 
 /// The Orchestrator is responsible for routing user prompts to the appropriate handler.
@@ -29,14 +28,35 @@ class Orchestrator {
         self.aiService = aiService
     }
 
-    /// Routes a user prompt to a specific task type by classifying the user's intent.
+    /// Routes a user prompt to the appropriate handler.
     /// - Parameter prompt: The user's input prompt.
-    /// - Returns: The classified `TaskType`.
-    func route(prompt: String) async throws -> TaskType {
+    func route(prompt: String) async throws {
+        let lowercasedPrompt = prompt.lowercased()
+
+        if lowercasedPrompt.contains("calendar") {
+            await handleCalendarTask(prompt: prompt)
+        } else if lowercasedPrompt.contains("note") || lowercasedPrompt.contains("notes") {
+            await handleNotesTask(prompt: prompt)
+        } else {
+            let taskType = try await classifyTask(prompt: prompt)
+            switch taskType {
+            case .windowManagement:
+                await handleWindowManagementTask(prompt: prompt)
+            case .computerUse:
+                await handleComputerUseTask(prompt: prompt)
+            case .notApplicable, .notes, .calendar:
+                // Handle 'notApplicable' or cases that should have been caught by keyword search
+                print("Task not applicable or mis-routed: \(taskType)")
+            }
+        }
+    }
+
+    /// Classifies a prompt into windowManagement, computerUse, or notApplicable.
+    private func classifyTask(prompt: String) async throws -> TaskType {
         let systemPrompt = """
-        You are a highly intelligent routing agent. Your task is to classify the user's prompt into one of the following categories: \(TaskType.allCases.map { $0.rawValue }.joined(separator: ", ")).
-        Respond with only the category name, and nothing else. For example, if the user says 'take a note', you should respond with 'notes'.
-        If the user's prompt does not fit into any of the categories, respond with 'unknown'.
+        Given this user query:
+        "\(prompt)"
+        Return a classification for whether it is a windowManagement task, a computerUse task, or neither. Window management tasks may include predefined user configs for how windows look. Respond with exactly one label: 'windowManagement', 'computerUse', or 'NA'.
         """
 
         let classification = try await aiService.getCompletion(
@@ -46,10 +66,24 @@ class Orchestrator {
             model: "gpt-5-nano-2025-08-07"
         )
 
-        if let taskType = TaskType(rawValue: classification.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) {
-            return taskType
-        } else {
-            return .unknown
-        }
+        return TaskType(rawValue: classification.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .notApplicable
+    }
+
+    // MARK: - Task Handlers
+
+    private func handleCalendarTask(prompt: String) async {
+        // Implementation to be added
+    }
+
+    private func handleNotesTask(prompt: String) async {
+        // Implementation to be added
+    }
+
+    private func handleWindowManagementTask(prompt: String) async {
+        // Implementation to be added
+    }
+
+    private func handleComputerUseTask(prompt: String) async {
+        // Implementation to be added
     }
 }
