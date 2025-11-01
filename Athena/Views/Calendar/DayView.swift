@@ -28,37 +28,42 @@ struct DayView: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Navigation header
-            navigationHeader
+        ZStack {
+            VStack(spacing: 0) {
+                // Navigation header
+                navigationHeader
 
-            Divider()
+                Divider()
 
-            // Content area
-            if viewModel.isLoading {
-                Spacer()
-                ProgressView("Loading events...")
-                Spacer()
-            } else if let errorMessage = viewModel.errorMessage {
-                Spacer()
-                errorView(message: errorMessage)
-                Spacer()
-            } else {
-                calendarContent
+                // Content area
+                if viewModel.isLoading {
+                    Spacer()
+                    ProgressView("Loading events...")
+                    Spacer()
+                } else if let errorMessage = viewModel.errorMessage {
+                    Spacer()
+                    errorView(message: errorMessage)
+                    Spacer()
+                } else {
+                    calendarContent
+                }
             }
+
+            // Invisible buttons for keyboard shortcuts
+            VStack {
+                Button("", action: viewModel.previousDay)
+                    .keyboardShortcut(.leftArrow, modifiers: .command)
+                    .hidden()
+
+                Button("", action: viewModel.nextDay)
+                    .keyboardShortcut(.rightArrow, modifiers: .command)
+                    .hidden()
+            }
+            .frame(width: 0, height: 0)
         }
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             startCurrentTimeTimer()
-        }
-        // Keyboard shortcuts using onKeyPress
-        .onKeyPress(.leftArrow, modifiers: .command) { _ in
-            viewModel.previousDay()
-            return .handled
-        }
-        .onKeyPress(.rightArrow, modifiers: .command) { _ in
-            viewModel.nextDay()
-            return .handled
         }
         .sheet(isPresented: $showEventDetail) {
             if let event = selectedEvent {
