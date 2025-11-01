@@ -255,9 +255,8 @@ class ChatViewModel: ObservableObject {
         if preservedInputText == nil {
             preservedInputText = inputText
         }
-        if inputText != "" {
-            inputText = ""
-        }
+        // Don't clear inputText - keep existing text visible during recording
+        // Partial transcripts will temporarily replace it, and it will be restored if cancelled
     }
 
     private func restoreInputAfterVoiceSession() {
