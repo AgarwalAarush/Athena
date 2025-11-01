@@ -13,6 +13,7 @@ enum TaskType: String, CaseIterable {
     case calendar
     case windowManagement
     case computerUse
+    case appCommand
     case notApplicable = "NA"
 }
 
@@ -44,6 +45,8 @@ class Orchestrator {
                 await handleWindowManagementTask(prompt: prompt)
             case .computerUse:
                 await handleComputerUseTask(prompt: prompt)
+            case .appCommand:
+                await handleAppCommandTask(prompt: prompt)
             case .notApplicable, .notes, .calendar:
                 // Handle 'notApplicable' or cases that should have been caught by keyword search
                 print("Task not applicable or mis-routed: \(taskType)")
@@ -51,12 +54,16 @@ class Orchestrator {
         }
     }
 
-    /// Classifies a prompt into windowManagement, computerUse, or notApplicable.
+    /// Classifies a prompt into windowManagement, computerUse, appCommand, or notApplicable.
     private func classifyTask(prompt: String) async throws -> TaskType {
         let systemPrompt = """
         Given this user query:
         "\(prompt)"
-        Return a classification for whether it is a windowManagement task, a computerUse task, or neither. Window management tasks may include predefined user configs for how windows look. Respond with exactly one label: 'windowManagement', 'computerUse', or 'NA'.
+        Return a classification for whether it is a windowManagement task, a computerUse task, an appCommand task, or neither. 
+        - 'windowManagement' tasks may include predefined user configs for how windows look.
+        - 'appCommand' tasks are for making changes and navigating within the app itself (e.g. "go back to the chatview").
+        - 'computerUse' tasks involve general computer operations not covered by the other categories.
+        Respond with exactly one label: 'windowManagement', 'computerUse', 'appCommand', or 'NA'.
         """
 
         let classification = try await aiService.getCompletion(
@@ -84,6 +91,10 @@ class Orchestrator {
     }
 
     private func handleComputerUseTask(prompt: String) async {
+        // Implementation to be added
+    }
+
+    private func handleAppCommandTask(prompt: String) async {
         // Implementation to be added
     }
 }
