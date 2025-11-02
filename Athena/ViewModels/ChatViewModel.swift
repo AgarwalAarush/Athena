@@ -346,6 +346,13 @@ class ChatViewModel: ObservableObject {
     private func handleFinalTranscript(_ transcript: String) {
         print("[ChatViewModel] handleFinalTranscript: RECEIVED FINAL TRANSCRIPT: '\(transcript)'")
 
+        // Validate transcript is not empty before processing
+        let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTranscript.isEmpty else {
+            print("[ChatViewModel] handleFinalTranscript: Ignoring empty transcript")
+            return
+        }
+
         // ALWAYS populate the input field with the transcription
         print("[ChatViewModel] handleFinalTranscript: Setting inputText to transcript")
         inputText = transcript

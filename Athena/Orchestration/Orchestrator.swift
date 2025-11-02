@@ -14,6 +14,7 @@ enum TaskType: String, CaseIterable {
     case windowManagement
     case computerUse
     case appCommand
+    case wakewordControl
     case notApplicable = "NA"
 }
 
@@ -101,6 +102,11 @@ class Orchestrator {
 
         let lowercasedPrompt = prompt.lowercased()
 
+        if let wakewordAction = detectWakewordControlAction(from: prompt) {
+            await handleWakewordControlTask(prompt: prompt, inferredAction: wakewordAction)
+            return
+        }
+
         if lowercasedPrompt.contains("calendar") {
             await handleCalendarTask(prompt: prompt)
         } else if lowercasedPrompt.contains("note") || lowercasedPrompt.contains("notes") {
@@ -114,6 +120,8 @@ class Orchestrator {
                 await handleComputerUseTask(prompt: prompt)
             case .appCommand:
                 await handleAppCommandTask(prompt: prompt)
+            case .wakewordControl:
+                await handleWakewordControlTask(prompt: prompt)
             case .notApplicable, .notes, .calendar:
                 // Handle 'notApplicable' or cases that should have been caught by keyword search
                 print("Task not applicable or mis-routed: \(taskType)")
@@ -126,11 +134,12 @@ class Orchestrator {
         let systemPrompt = """
         Given this user query:
         "\(prompt)"
-        Return a classification for whether it is a windowManagement task, a computerUse task, an appCommand task, or neither. 
+        Return a classification for whether it is a wakewordControl task, a windowManagement task, a computerUse task, an appCommand task, or neither.
+        - 'wakewordControl' tasks cover enabling, disabling, or toggling the wake word listening mode (e.g. "Athena shut down", "stop wakeword mode", "Athena wake up").
         - 'windowManagement' tasks may include predefined user configs for how windows look.
         - 'appCommand' tasks are for making changes and navigating within the app itself (e.g. "go back to the chatview").
         - 'computerUse' tasks involve general computer operations not covered by the other categories.
-        Respond with exactly one label: 'windowManagement', 'computerUse', 'appCommand', or 'NA'.
+        Respond with exactly one label: 'wakewordControl', 'windowManagement', 'computerUse', 'appCommand', or 'NA'.
         """
 
         let classification = try await aiService.getCompletion(
@@ -159,6 +168,116 @@ class Orchestrator {
         case update     // Modify existing event
         case delete     // Delete event
         case query      // Ask about events
+    }
+
+    // MARK: - Wakeword Control
+
+    private enum WakewordControlAction {
+        case disable
+        case enable
+        case toggle
+    }
+
+    /// Handles wakeword control requests, such as disabling the wake word listening loop.
+    private func handleWakewordControlTask(prompt: String, inferredAction: WakewordControlAction? = nil) async {
+        print("[Orchestrator] handleWakewordControlTask: Processing prompt '\(prompt)'")
+
+        let action = inferredAction ?? detectWakewordControlAction(from: prompt)
+
+        guard let action else {
+            print("[Orchestrator] handleWakewordControlTask: No actionable wakeword command detected")
+            return
+        }
+
+        let config = ConfigurationManager.shared
+        await MainActor.run {
+            let currentState = config.wakewordModeEnabled
+
+            switch action {
+            case .disable:
+                guard currentState else {
+                    print("[Orchestrator] handleWakewordControlTask: Wakeword mode already disabled")
+                    return
+                }
+                print("[Orchestrator] handleWakewordControlTask: Disabling wakeword mode via configuration toggle")
+                config.set(false, for: .wakewordModeEnabled)
+            case .enable:
+                guard !currentState else {
+                    print("[Orchestrator] handleWakewordControlTask: Wakeword mode already enabled")
+                    return
+                }
+                print("[Orchestrator] handleWakewordControlTask: Enabling wakeword mode via configuration toggle")
+                config.set(true, for: .wakewordModeEnabled)
+            case .toggle:
+                let newValue = !currentState
+                print("[Orchestrator] handleWakewordControlTask: Toggling wakeword mode to \(newValue ? "enabled" : "disabled")")
+                config.set(newValue, for: .wakewordModeEnabled)
+            }
+        }
+    }
+
+    /// Attempts to infer the wakeword control action (enable/disable/toggle) from a user prompt.
+    private func detectWakewordControlAction(from prompt: String) -> WakewordControlAction? {
+        let lowered = prompt.lowercased()
+        let components = lowered.components(separatedBy: CharacterSet.alphanumerics.inverted)
+        let tokens = components.filter { !$0.isEmpty }
+
+        guard !tokens.isEmpty else { return nil }
+
+        let sanitized = tokens.joined(separator: " ")
+        let tokenSet = Set(tokens)
+
+        let mentionsAthena = tokenSet.contains("athena")
+        let mentionsWakeword = tokenSet.contains("wakeword") || sanitized.contains("wakeword mode")
+
+        let friendlyShutdownPatterns = ["good night", "goodnight", "go to sleep", "sleep now", "time to sleep"]
+        if mentionsAthena && friendlyShutdownPatterns.contains(where: { sanitized.contains($0) }) {
+            return .disable
+        }
+
+        if mentionsAthena && sanitized.contains("athena stop listening") {
+            return .disable
+        }
+
+        if (mentionsAthena || mentionsWakeword) &&
+            (sanitized.contains("stop listening") || sanitized.contains("stop the listening")) {
+            return .disable
+        }
+
+        if mentionsAthena && sanitized.contains("athena shut down") {
+            var suffix = sanitized.replacingOccurrences(of: "athena shut down", with: "")
+            suffix = suffix.trimmingCharacters(in: .whitespaces)
+
+            if suffix.isEmpty {
+                return .disable
+            }
+
+            let suffixTokens = suffix.split(separator: " ")
+            let fillerTokens: Set<String> = ["please", "pls", "plz", "now", "right", "ok", "thanks", "thank", "you", "for", "me"]
+            let containsWakewordOrListening = suffix.contains("wakeword") || suffix.contains("wakeword mode") || suffix.contains("listening")
+            let containsSleepLanguage = suffix.contains("sleep")
+
+            if containsWakewordOrListening || containsSleepLanguage || suffixTokens.allSatisfy({ fillerTokens.contains(String($0)) }) {
+                return .disable
+            }
+        }
+
+        if mentionsWakeword {
+            let shutdownPhrases = [
+                "shut down", "shutdown", "shut off", "turn off", "power down",
+                "power off", "stop", "stop listening", "disable", "deactivate"
+            ]
+
+            for phrase in shutdownPhrases {
+                if sanitized.contains("\(phrase) wakeword") ||
+                    sanitized.contains("\(phrase) wakeword mode") ||
+                    sanitized.contains("\(phrase) the wakeword") {
+                    return .disable
+                }
+            }
+        }
+
+        return nil
     }
 
     // MARK: - Task Handlers
