@@ -13,5 +13,6 @@ struct NotesView: View {
                 .padding()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.clear)
     }
 }

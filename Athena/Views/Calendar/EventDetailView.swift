@@ -70,6 +70,7 @@ struct EventDetailView: View {
         .frame(minHeight: 300)
         .background(Color.white.opacity(0.6))
         .cornerRadius(12)
+        .presentationBackground(.clear)
     }
 
     // MARK: - Header
