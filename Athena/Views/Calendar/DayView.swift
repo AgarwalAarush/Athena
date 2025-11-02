@@ -13,6 +13,7 @@ struct DayView: View {
 
     // MARK: - Properties
 
+    @EnvironmentObject var appViewModel: AppViewModel
     @StateObject private var viewModel = DayViewModel()
     @State private var selectedEvent: CalendarEvent?
     @State private var showEventDetail = false
@@ -76,6 +77,13 @@ struct DayView: View {
 
     private var navigationHeader: some View {
         HStack {
+            // Go Back button
+            Button(action: { appViewModel.showChat() }) {
+                Label("Back", systemImage: "chevron.left")
+            }
+            .buttonStyle(.borderless)
+            .help("Go back to chat")
+
             // Previous Day button
             Button(action: viewModel.previousDay) {
                 Label("Previous", systemImage: "chevron.left")

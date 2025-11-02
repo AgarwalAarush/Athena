@@ -21,6 +21,8 @@ class WindowManager: NSObject, ObservableObject {
     private let minHeight: CGFloat = 250
     private let maxHeight: CGFloat = 600
     
+    private var originalWindowSize: CGSize?
+
     func setupFloatingWindow() {
         // Create borderless floating window
         let window = FloatingWindow(
@@ -50,6 +52,9 @@ class WindowManager: NSObject, ObservableObject {
 
         // Restore saved position if available
         restoreWindowPosition()
+        
+        // Store original size
+        self.originalWindowSize = window.frame.size
     }
 
     func openSettingsWindow() {
@@ -84,6 +89,17 @@ class WindowManager: NSObject, ObservableObject {
 
         // Store window reference
         settingsWindow = window
+    }
+    
+    func resizeForCalendar() {
+        let newSize = CGSize(width: windowSize.width, height: 600)
+        setWindowSize(newSize)
+    }
+
+    func resizeForChat() {
+        if let originalSize = originalWindowSize {
+            setWindowSize(originalSize)
+        }
     }
     
     func setWindowSize(_ size: CGSize, animated: Bool = true) {

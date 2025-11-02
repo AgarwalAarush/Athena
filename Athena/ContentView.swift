@@ -9,7 +9,14 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var windowManager: WindowManager
-    @StateObject private var chatViewModel = ChatViewModel()
+    @StateObject private var appViewModel = AppViewModel()
+    @StateObject private var chatViewModel: ChatViewModel
+
+    init() {
+        let appViewModel = AppViewModel()
+        _appViewModel = StateObject(wrappedValue: appViewModel)
+        _chatViewModel = StateObject(wrappedValue: ChatViewModel(appViewModel: appViewModel))
+    }
 
     var body: some View {
         ZStack {
@@ -33,13 +40,23 @@ struct ContentView: View {
                     .opacity(0.5)
 
                 // Main Content Area
-                ChatView(viewModel: chatViewModel)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                switch appViewModel.currentView {
+                case .chat:
+                    ChatView(viewModel: chatViewModel)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .calendar:
+                    DayView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
             .clipShape(shell)
             .compositingGroup()
         }
         .frame(width: windowManager.windowSize.width, height: windowManager.windowSize.height)
+        .environmentObject(appViewModel)
+        .onAppear {
+            appViewModel.setup(windowManager: windowManager)
+        }
     }
 }
 

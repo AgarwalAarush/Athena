@@ -22,11 +22,15 @@ enum TaskType: String, CaseIterable {
 class Orchestrator {
 
     private let aiService: AIServiceProtocol
+    private weak var appViewModel: AppViewModel?
 
-    /// Initializes the Orchestrator with a given AI service.
-    /// - Parameter aiService: The AI service to use for intent classification.
-    init(aiService: AIServiceProtocol = AIService.shared) {
+    /// Initializes the Orchestrator with a given AI service and optional AppViewModel.
+    /// - Parameters:
+    ///   - aiService: The AI service to use for intent classification.
+    ///   - appViewModel: The view model to control the app's view state.
+    init(aiService: AIServiceProtocol = AIService.shared, appViewModel: AppViewModel? = nil) {
         self.aiService = aiService
+        self.appViewModel = appViewModel
     }
 
     /// Routes a user prompt to the appropriate handler.
@@ -79,7 +83,9 @@ class Orchestrator {
     // MARK: - Task Handlers
 
     private func handleCalendarTask(prompt: String) async {
-        // Implementation to be added
+        DispatchQueue.main.async {
+            self.appViewModel?.showCalendar()
+        }
     }
 
     private func handleNotesTask(prompt: String) async {
