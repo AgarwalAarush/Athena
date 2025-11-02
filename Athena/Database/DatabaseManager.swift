@@ -43,38 +43,8 @@ class DatabaseManager {
         var migrator = DatabaseMigrator()
         
         // Migration v1: Create conversations and messages tables
-        migrator.registerMigration("v1_initial_schema") { db in
-            // Create conversations table
-            try db.create(table: "conversations") { t in
-                t.autoIncrementedPrimaryKey("id")
-                t.column("title", .text).notNull()
-                t.column("createdAt", .datetime).notNull()
-                t.column("updatedAt", .datetime).notNull()
-                t.column("messageCount", .integer).notNull().defaults(to: 0)
-                t.column("isArchived", .boolean).notNull().defaults(to: false)
-            }
-            
-            // Create messages table
-            try db.create(table: "messages") { t in
-                t.autoIncrementedPrimaryKey("id")
-                t.column("conversationId", .integer)
-                    .notNull()
-                    .indexed()
-                    .references("conversations", onDelete: .cascade)
-                t.column("role", .text).notNull()
-                t.column("content", .text).notNull()
-                t.column("createdAt", .datetime).notNull()
-                t.column("tokenCount", .integer)
-                t.column("metadata", .text)
-            }
-            
-            // Create indices for better query performance
-            try db.create(index: "idx_conversations_updated_at", on: "conversations", columns: ["updatedAt"])
-            try db.create(index: "idx_messages_conversation_id", on: "messages", columns: ["conversationId"])
-            try db.create(index: "idx_messages_created_at", on: "messages", columns: ["createdAt"])
-        }
-        
         return migrator
+    }
     }
     
     // MARK: - Database Access

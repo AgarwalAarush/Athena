@@ -18,6 +18,9 @@ class AppViewModel: ObservableObject {
     /// NOTE: Must be @Published (not @StateObject) because AppViewModel is not a View
     @Published var dayViewModel = DayViewModel()
 
+    /// NotesViewModel for notes view - accessible to orchestrator for executing notes actions
+    @Published var notesViewModel = NotesViewModel(store: SwiftDataNotesStore())
+
     /// Note content for notes view - accessible to orchestrator for executing notes actions
     @Published var noteContent: String = ""
 

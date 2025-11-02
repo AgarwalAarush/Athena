@@ -385,10 +385,31 @@ class Orchestrator {
     /// **Access to Notes State:**
     /// - appViewModel.noteContent (String binding for rich text editor)
     private func handleNotesTask(prompt: String) async {
-        // TODO: Implement AI-powered notes action parsing and execution
-        // For now, just switch to notes view
-        DispatchQueue.main.async {
+        print("[Orchestrator] handleNotesTask: Processing query '\(prompt)'")
+
+        // ALWAYS switch to notes view first
+        await MainActor.run {
             self.appViewModel?.showNotes()
+        }
+
+        // Parse the notes query using AI
+        do {
+            let result = try await parseNotesQuery(prompt: prompt)
+            print("[Orchestrator] handleNotesTask: Executing action '\(result.action)' with title '\(result.title ?? "N/A")'")
+
+            switch result.action {
+            case .open:
+                if let title = result.title, !title.isEmpty {
+                    await executeOpenNote(title: title)
+                } else {
+                    // No title specified, just stay in the notes view
+                }
+            case .create:
+                await executeCreateNote(title: result.title)
+            }
+
+        } catch {
+            print("[Orchestrator] handleNotesTask: Error parsing/executing notes query: \(error)")
         }
     }
 
@@ -423,6 +444,107 @@ class Orchestrator {
     private func handleAppCommandTask(prompt: String) async {
         // TODO: Implement app command parsing
         print("[Orchestrator] App command not yet implemented: \(prompt)")
+    }
+
+    // MARK: - Notes Action Helpers
+
+    private enum NotesActionType: String {
+        case open
+        case create
+    }
+
+    private struct NotesActionResult {
+        let action: NotesActionType
+        let title: String?
+    }
+
+    private func parseNotesQuery(prompt: String) async throws -> NotesActionResult {
+        let systemPrompt = """
+        You are a notes action parser. Analyze the user's query and determine if they want to open an existing note or create a new one.
+
+        Actions:
+        - "open": User wants to view or edit an existing note. Extract the title of the note.
+        - "create": User wants to create a new note. Extract the title if they specify one.
+
+        Respond ONLY with valid JSON in this exact format:
+        {
+          "action": "action_name",
+          "title": "note_title"
+        }
+
+        Examples:
+        Query: "open my note about the project proposal"
+        Response: {"action": "open", "title": "project proposal"}
+
+        Query: "create a new note called grocery list"
+        Response: {"action": "create", "title": "grocery list"}
+        
+        Query: "new note"
+        Response: {"action": "create", "title": null}
+
+        Now parse this query: "\(prompt)"
+        """
+
+        let response = try await aiService.getCompletion(
+            prompt: prompt,
+            systemPrompt: systemPrompt,
+            provider: .openai,
+            model: "gpt-5-nano-2025-08-07"
+        )
+
+        guard let jsonData = response.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let actionString = json["action"] as? String,
+              let action = NotesActionType(rawValue: actionString) else {
+            throw NSError(domain: "Orchestrator", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to parse notes query"])
+        }
+
+        let title = json["title"] as? String
+        return NotesActionResult(action: action, title: title)
+    }
+
+    private func executeOpenNote(title: String) async {
+        guard let notesViewModel = appViewModel?.notesViewModel else { return }
+        
+        let searchResults = notesViewModel.searchNotes(query: title)
+
+        if searchResults.count == 1 {
+            notesViewModel.selectNote(searchResults[0])
+        } else if searchResults.count > 1 {
+            // Fuzzy find and decide with LLM
+            let titles = searchResults.map { $0.title }
+            let systemPrompt = """
+            Given the user's query "\(title)" and the following note titles:
+            \(titles.joined(separator: "\n"))
+
+            Which title is the best match? Respond with only the title.
+            """
+            
+            let bestTitle = try? await aiService.getCompletion(
+                prompt: title,
+                systemPrompt: systemPrompt,
+                provider: .openai,
+                model: "gpt-5-nano-2025-08-07"
+            )
+
+            if let bestTitle = bestTitle,
+               let noteToOpen = searchResults.first(where: { $0.title == bestTitle }) {
+                notesViewModel.selectNote(noteToOpen)
+            } else {
+                // Could not decide, do nothing and stay in the notes list view
+            }
+        } else {
+            // No note found, maybe create one?
+            // For now, do nothing and stay in the notes list view
+        }
+    }
+
+    private func executeCreateNote(title: String?) async {
+        guard let notesViewModel = appViewModel?.notesViewModel else { return }
+        notesViewModel.createNewNote()
+        if let title = title {
+            notesViewModel.currentNote?.title = title
+        }
     }
 
     // MARK: - Calendar Action Helpers
