@@ -142,7 +142,7 @@ struct RichTextEditor: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(content: $content)
+        Coordinator(content: $content, onFocusLost: onFocusLost)
     }
 
     // MARK: - Coordinator
@@ -154,11 +154,13 @@ struct RichTextEditor: NSViewRepresentable {
         @Binding var content: String
         weak var textView: NSTextView?
         var isProgrammaticChange = false
+        var onFocusLost: (() -> Void)?
 
         private let checkboxTrigger = "- [ ] "
 
-        init(content: Binding<String>) {
+        init(content: Binding<String>, onFocusLost: (() -> Void)? = nil) {
             self._content = content
+            self.onFocusLost = onFocusLost
         }
         
         // MARK: - Range Safety Helper
@@ -181,6 +183,10 @@ struct RichTextEditor: NSViewRepresentable {
 
             content = textStorage.string
             detectAndTransformCheckboxTrigger(in: textView)
+        }
+        
+        func textDidEndEditing(_ notification: Notification) {
+            onFocusLost?()
         }
 
         func textView(

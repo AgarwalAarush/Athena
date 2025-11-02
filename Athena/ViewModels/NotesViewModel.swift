@@ -60,7 +60,8 @@ final class NotesViewModel: ObservableObject {
         currentNoteID = note.id
         currentNoteSnapshot = note
         isProgrammaticSet = true
-        noteContent = note.body
+        // Reconstruct full content: title (first line) + body (rest)
+        noteContent = note.title + (note.body.isEmpty ? "" : "\n" + note.body)
         isProgrammaticSet = false
     }
     

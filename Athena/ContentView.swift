@@ -49,7 +49,7 @@ struct ContentView: View {
                         DayView(viewModel: appViewModel.dayViewModel)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     case .notes:
-                        NotesView()
+                        NotesSplitView()
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
