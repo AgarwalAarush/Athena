@@ -40,6 +40,7 @@ struct RichTextEditor: NSViewRepresentable {
 
         // Enable rich text editing with modern macOS conventions
         textView.isEditable = true
+        textView.isSelectable = true
         textView.isRichText = true
         textView.allowsUndo = true
         textView.usesFindBar = true
@@ -52,13 +53,18 @@ struct RichTextEditor: NSViewRepresentable {
         // Enable spell checking
         textView.isContinuousSpellCheckingEnabled = true
 
-        // Set comfortable padding around text
+        // Layout so it fills and grows in the scroll view
+        textView.minSize = .zero
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
         textView.textContainerInset = NSSize(width: 10, height: 10)
 
         // Use system font with good readability
         textView.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
         
-        // Set transparent background - styling will be applied at SwiftUI level
+        // Set transparent background for text view
         textView.backgroundColor = .clear
         textView.drawsBackground = false
 
@@ -84,8 +90,12 @@ struct RichTextEditor: NSViewRepresentable {
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
-        scrollView.backgroundColor = .clear
-        scrollView.drawsBackground = false
+
+        // Apply rounded, translucent background at AppKit level to avoid SwiftUI hit-testing issues
+        scrollView.wantsLayer = true
+        scrollView.layer?.cornerRadius = 8
+        scrollView.layer?.masksToBounds = true
+        scrollView.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.6).cgColor
 
         // Initialize content
         if !content.isEmpty {
@@ -93,6 +103,11 @@ struct RichTextEditor: NSViewRepresentable {
                 in: NSRange(location: 0, length: 0),
                 with: content
             )
+        }
+
+        // Make text view first responder after it's in the window hierarchy
+        DispatchQueue.main.async { [weak textView] in
+            textView?.window?.makeFirstResponder(textView)
         }
 
         return scrollView

@@ -51,6 +51,17 @@ class DayViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+        
+        // Observe calendar selection changes to refetch events
+        calendarService.$selectedCalendarIDs
+            .dropFirst() // Skip initial value
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    print("📅 Calendar selection changed - refetching events")
+                    await self?.fetchEvents()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Authorization

@@ -168,8 +168,8 @@ struct SettingsTextFieldStyle: TextFieldStyle {
         configuration
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
-            .background(Color.white.opacity(0.6))
-            .foregroundColor(Color.black)
+            .background(Color(hex: "303030"))
+            .foregroundColor(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
@@ -182,8 +182,8 @@ struct SettingsSecureField: View {
         SecureField(placeholder, text: $text)
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
-            .background(Color.white.opacity(0.6))
-            .foregroundColor(Color.black)
+            .background(Color(hex: "303030"))
+            .foregroundColor(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
@@ -204,6 +204,12 @@ struct SettingsView: View {
 
                 // Permissions Section
                 PermissionsSettingsView()
+                
+                Divider()
+                    .padding(.horizontal, 16)
+                
+                // Calendar Selection Section
+                CalendarSelectionSettingsView()
             }
             .padding(.horizontal, 32)
             .padding(.vertical, 24)
@@ -217,9 +223,7 @@ struct SettingsView: View {
 struct ProviderSettingsView: View {
     @ObservedObject var config = ConfigurationManager.shared
     @State private var openaiKey: String = ""
-    @State private var anthropicKey: String = ""
     @State private var showOpenAIKey: Bool = false
-    @State private var showAnthropicKey: Bool = false
     @State private var saveStatus: SaveStatus = .none
 
     enum SaveStatus {
@@ -233,25 +237,9 @@ struct ProviderSettingsView: View {
                 .fontWeight(.semibold)
                 .foregroundColor(.white)
 
-            // Provider Selection
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Provider")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.white.opacity(0.8))
-
-                Picker("", selection: Binding(
-                    get: { config.selectedProvider },
-                    set: { try? config.set($0, for: .selectedProvider) }
-                )) {
-                    Text("OpenAI").tag("openai")
-                    Text("Anthropic (Claude)").tag("anthropic")
-                }
-                .pickerStyle(.segmented)
-            }
-
             // OpenAI Settings
             VStack(alignment: .leading, spacing: 16) {
+                // Title with status indicator
                 HStack(spacing: 8) {
                     Image(systemName: "brain")
                         .font(.system(size: 16, weight: .semibold))
@@ -260,14 +248,43 @@ struct ProviderSettingsView: View {
                         .font(.headline)
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
+
+                    Spacer()
+
+                    if config.hasAPIKey(for: "openai") {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Key configured")
+                        }
+                        .foregroundColor(.green)
+                        .font(.caption)
+                    } else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text("No key configured")
+                        }
+                        .foregroundColor(.orange)
+                        .font(.caption)
+                    }
                 }
 
+                // Input field with eye button and remove button
                 HStack(spacing: 12) {
                     if showOpenAIKey {
                         TextField("Enter API Key", text: $openaiKey)
                             .textFieldStyle(SettingsTextFieldStyle())
+                            .onChange(of: openaiKey) { newValue in
+                                if !newValue.isEmpty {
+                                    saveOpenAIKey()
+                                }
+                            }
                     } else {
                         SettingsSecureField(placeholder: "Enter API Key", text: $openaiKey)
+                            .onChange(of: openaiKey) { newValue in
+                                if !newValue.isEmpty {
+                                    saveOpenAIKey()
+                                }
+                            }
                     }
 
                     Button(action: { showOpenAIKey.toggle() }) {
@@ -276,100 +293,10 @@ struct ProviderSettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .help(showOpenAIKey ? "Hide key" : "Show key")
-                }
-
-                HStack(spacing: 12) {
-                    if config.hasAPIKey(for: "openai") {
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.circle.fill")
-                            Text("Key configured")
-                        }
-                        .foregroundColor(.green)
-                        .font(.caption)
-                    } else {
-                        HStack(spacing: 6) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                            Text("No key configured")
-                        }
-                        .foregroundColor(.orange)
-                        .font(.caption)
-                    }
-
-                    Spacer()
-
-                    Button("Save Key") {
-                        saveOpenAIKey()
-                    }
-                    .buttonStyle(ModernButton(style: .primary))
-                    .disabled(openaiKey.isEmpty)
-                    .opacity(openaiKey.isEmpty ? 0.5 : 1.0)
 
                     if config.hasAPIKey(for: "openai") {
                         Button("Remove") {
                             removeOpenAIKey()
-                        }
-                        .buttonStyle(ModernButton(style: .danger))
-                    }
-                }
-            }
-
-            // Anthropic Settings
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text("Anthropic (Claude)")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                }
-
-                HStack(spacing: 12) {
-                    if showAnthropicKey {
-                        TextField("Enter API Key", text: $anthropicKey)
-                            .textFieldStyle(SettingsTextFieldStyle())
-                    } else {
-                        SettingsSecureField(placeholder: "Enter API Key", text: $anthropicKey)
-                    }
-
-                    Button(action: { showAnthropicKey.toggle() }) {
-                        Image(systemName: showAnthropicKey ? "eye.slash.fill" : "eye.fill")
-                            .foregroundColor(.white.opacity(0.6))
-                    }
-                    .buttonStyle(.plain)
-                    .help(showAnthropicKey ? "Hide key" : "Show key")
-                }
-
-                HStack(spacing: 12) {
-                    if config.hasAPIKey(for: "anthropic") {
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.circle.fill")
-                            Text("Key configured")
-                        }
-                        .foregroundColor(.green)
-                        .font(.caption)
-                    } else {
-                        HStack(spacing: 6) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                            Text("No key configured")
-                        }
-                        .foregroundColor(.orange)
-                        .font(.caption)
-                    }
-
-                    Spacer()
-
-                    Button("Save Key") {
-                        saveAnthropicKey()
-                    }
-                    .buttonStyle(ModernButton(style: .primary))
-                    .disabled(anthropicKey.isEmpty)
-                    .opacity(anthropicKey.isEmpty ? 0.5 : 1.0)
-
-                    if config.hasAPIKey(for: "anthropic") {
-                        Button("Remove") {
-                            removeAnthropicKey()
                         }
                         .buttonStyle(ModernButton(style: .danger))
                     }
@@ -417,31 +344,6 @@ struct ProviderSettingsView: View {
     private func removeOpenAIKey() {
         do {
             try config.deleteAPIKey(for: "openai")
-            saveStatus = .success
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                saveStatus = .none
-            }
-        } catch {
-            saveStatus = .error("Failed to remove key: \(error.localizedDescription)")
-        }
-    }
-
-    private func saveAnthropicKey() {
-        do {
-            try config.setAPIKey(anthropicKey, for: "anthropic")
-            anthropicKey = ""
-            saveStatus = .success
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                saveStatus = .none
-            }
-        } catch {
-            saveStatus = .error("Failed to save key: \(error.localizedDescription)")
-        }
-    }
-
-    private func removeAnthropicKey() {
-        do {
-            try config.deleteAPIKey(for: "anthropic")
             saveStatus = .success
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                 saveStatus = .none
@@ -533,62 +435,6 @@ struct PermissionsSettingsView: View {
                         }
                     }
                 }
-
-                // macOS 14+ info
-                if #available(macOS 14.0, *) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "info.circle")
-                            .foregroundColor(.blue)
-                        Text("On macOS Sonoma and later, 'Full Access' is required to read calendar events.")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.6))
-                    }
-                    .padding(.top, 8)
-                }
-            }
-
-            // Privacy Section
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "hand.raised")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text("Privacy")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                }
-
-                Text("Athena respects your privacy:")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.white)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Calendar data stays on your device")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("No calendar data is sent to external servers")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("You can revoke access anytime in System Settings")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                }
             }
         }
         .alert("Calendar Access", isPresented: $showAlert) {
@@ -631,6 +477,153 @@ struct PermissionsSettingsView: View {
             } else {
                 alertMessage = "Calendar access was denied. You can grant access later in System Settings > Privacy & Security > Calendars."
                 showAlert = true
+            }
+        }
+    }
+}
+
+// MARK: - Calendar Selection Settings
+
+struct CalendarSelectionSettingsView: View {
+    @ObservedObject var calendarService = CalendarService.shared
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("Calendar Selection")
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+            
+            if !calendarService.hasReadAccess {
+                accessRequiredView
+            } else if calendarService.allEventCalendars.isEmpty {
+                noCalendarsView
+            } else {
+                calendarListView
+            }
+        }
+    }
+    
+    private var accessRequiredView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "calendar.badge.exclamationmark")
+                    .foregroundColor(.orange)
+                Text("Calendar access is required to select calendars")
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            
+            Text("Please grant calendar access in the Permissions section above.")
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.6))
+        }
+    }
+    
+    private var noCalendarsView: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "calendar")
+                .foregroundColor(.gray)
+            Text("No calendars found. Please add calendars in the System Calendar app.")
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.7))
+        }
+    }
+    
+    private var calendarListView: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Selection summary
+            HStack(spacing: 8) {
+                Image(systemName: "calendar.badge.checkmark")
+                    .foregroundColor(.white)
+                Text("\(calendarService.selectedCalendarIDs.count) of \(calendarService.allEventCalendars.count) calendars selected")
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            
+            // Select/Deselect All buttons
+            HStack(spacing: 12) {
+                Button("Select All") {
+                    calendarService.selectAllCalendars()
+                }
+                .buttonStyle(ModernButton(style: .secondary))
+                
+                Button("Deselect All") {
+                    calendarService.deselectAllCalendars()
+                }
+                .buttonStyle(ModernButton(style: .secondary))
+            }
+            
+            // Calendar list in a scrollable container
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(calendarService.allEventCalendars, id: \.calendarIdentifier) { calendar in
+                    CalendarToggleRow(calendar: calendar, calendarService: calendarService)
+                        .padding(.vertical, 8)
+                    
+                    if calendar.calendarIdentifier != calendarService.allEventCalendars.last?.calendarIdentifier {
+                        Divider()
+                            .background(Color.white.opacity(0.1))
+                    }
+                }
+            }
+            .padding(12)
+            .background(Color.black.opacity(0.2))
+            .cornerRadius(8)
+            .frame(maxHeight: 300)
+            
+            // Info text
+            HStack(spacing: 8) {
+                Image(systemName: "info.circle")
+                    .foregroundColor(.blue)
+                Text("Only events from selected calendars will be displayed in the app.")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.6))
+            }
+            .padding(.top, 4)
+        }
+    }
+}
+
+// MARK: - Calendar Toggle Row
+
+struct CalendarToggleRow: View {
+    let calendar: EKCalendar
+    @ObservedObject var calendarService: CalendarService
+    
+    private var isSelected: Bool {
+        calendarService.selectedCalendarIDs.contains(calendar.calendarIdentifier)
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Toggle("", isOn: Binding(
+                get: { isSelected },
+                set: { calendarService.setCalendar(calendar, enabled: $0) }
+            ))
+            .toggleStyle(.checkbox)
+            .labelsHidden()
+            
+            // Calendar color indicator
+            Circle()
+                .fill(Color(nsColor: calendar.color))
+                .frame(width: 12, height: 12)
+            
+            // Calendar title
+            Text(calendar.title)
+                .font(.body)
+                .foregroundColor(.white)
+            
+            Spacer()
+            
+            // Calendar source badge (e.g., iCloud, Google)
+            if let source = calendar.source {
+                Text(source.title)
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.6))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.1))
+                    .cornerRadius(4)
             }
         }
     }

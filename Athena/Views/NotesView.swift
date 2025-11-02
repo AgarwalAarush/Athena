@@ -7,11 +7,9 @@ struct NotesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Rich text editor with white background and rounded corners
+            // Rich text editor (background and rounded corners handled at AppKit level)
             RichTextEditor(content: $noteContent)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.white.opacity(0.6))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
                 .padding()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

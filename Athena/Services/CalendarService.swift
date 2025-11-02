@@ -9,6 +9,7 @@
 import Foundation
 import EventKit
 import AppKit
+import Combine
 
 /// A simple struct to represent a calendar event, decoupled from EKEvent.
 struct CalendarEvent: Identifiable {
@@ -24,17 +25,131 @@ struct CalendarEvent: Identifiable {
 }
 
 /// A service to interact with the user's calendar using EventKit.
-class CalendarService {
+class CalendarService: ObservableObject {
     
     static let shared = CalendarService()
     
     private let eventStore = EKEventStore()
+    
+    // MARK: - Published Properties
+    
+    /// All available event calendars from EventKit
+    @Published private(set) var allEventCalendars: [EKCalendar] = []
+    
+    /// User's selected calendar IDs (persisted in UserDefaults)
+    @Published private(set) var selectedCalendarIDs: Set<String> = []
+    
+    // MARK: - Constants
+    
+    private let selectedCalendarsKey = "CalendarService.selectedCalendarIDs"
+    
+    // MARK: - Initialization
     
     private init() {
         // Debug: Verify Info.plist strings are loaded
         print("📅 CalendarService initialized")
         print("NSCalendarsUsageDescription:", Bundle.main.object(forInfoDictionaryKey: "NSCalendarsUsageDescription") as Any)
         print("NSCalendarsFullAccessUsageDescription:", Bundle.main.object(forInfoDictionaryKey: "NSCalendarsFullAccessUsageDescription") as Any)
+        
+        // Subscribe to EventKit change notifications
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(eventStoreChanged),
+            name: .EKEventStoreChanged,
+            object: eventStore
+        )
+        
+        // Load initial calendar state
+        refreshCalendars()
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    // MARK: - Calendar Management
+    
+    /// Refreshes the list of available calendars and reconciles selections
+    @objc private func eventStoreChanged() {
+        DispatchQueue.main.async {
+            self.refreshCalendars()
+        }
+    }
+    
+    private func refreshCalendars() {
+        // Get all event calendars
+        let calendars = eventStore.calendars(for: .event)
+        
+        // Sort alphabetically for consistent UI
+        allEventCalendars = calendars.sorted { $0.title < $1.title }
+        
+        // Load saved selections from UserDefaults (first time only)
+        if selectedCalendarIDs.isEmpty {
+            loadSelectedCalendars()
+        }
+        
+        // Reconcile selections: remove IDs that no longer exist
+        let validIDs = Set(allEventCalendars.map { $0.calendarIdentifier })
+        let reconciledIDs = selectedCalendarIDs.intersection(validIDs)
+        
+        // If reconciliation removed all selections, default to all calendars
+        if reconciledIDs.isEmpty && !allEventCalendars.isEmpty {
+            selectedCalendarIDs = validIDs
+            saveSelectedCalendars()
+        } else if reconciledIDs != selectedCalendarIDs {
+            selectedCalendarIDs = reconciledIDs
+            saveSelectedCalendars()
+        }
+        
+        print("📅 Refreshed calendars: \(allEventCalendars.count) total, \(selectedCalendarIDs.count) selected")
+    }
+    
+    /// Computed property returning the actual selected calendar objects
+    var selectedCalendars: [EKCalendar] {
+        allEventCalendars.filter { selectedCalendarIDs.contains($0.calendarIdentifier) }
+    }
+    
+    // MARK: - Selection Management
+    
+    /// Enable or disable a specific calendar
+    func setCalendar(_ calendar: EKCalendar, enabled: Bool) {
+        if enabled {
+            selectedCalendarIDs.insert(calendar.calendarIdentifier)
+        } else {
+            selectedCalendarIDs.remove(calendar.calendarIdentifier)
+        }
+        saveSelectedCalendars()
+    }
+    
+    /// Select all available calendars
+    func selectAllCalendars() {
+        selectedCalendarIDs = Set(allEventCalendars.map { $0.calendarIdentifier })
+        saveSelectedCalendars()
+    }
+    
+    /// Deselect all calendars
+    func deselectAllCalendars() {
+        selectedCalendarIDs.removeAll()
+        saveSelectedCalendars()
+    }
+    
+    // MARK: - Persistence
+    
+    private func saveSelectedCalendars() {
+        let array = Array(selectedCalendarIDs)
+        UserDefaults.standard.set(array, forKey: selectedCalendarsKey)
+        print("📅 Saved \(array.count) selected calendars to UserDefaults")
+    }
+    
+    private func loadSelectedCalendars() {
+        if let array = UserDefaults.standard.array(forKey: selectedCalendarsKey) as? [String] {
+            selectedCalendarIDs = Set(array)
+            print("📅 Loaded \(array.count) selected calendars from UserDefaults")
+        } else {
+            // Default to all calendars on first launch
+            selectedCalendarIDs = Set(allEventCalendars.map { $0.calendarIdentifier })
+            print("📅 No saved selections - defaulting to all \(selectedCalendarIDs.count) calendars")
+        }
     }
     
     // MARK: - Authorization
@@ -168,7 +283,7 @@ class CalendarService {
     
     // MARK: - Fetching Events
     
-    /// Fetches events from the user's calendars for a given date range.
+    /// Fetches events from the user's selected calendars for a given date range.
     /// - Parameters:
     ///   - startDate: The start date of the range to fetch events from.
     ///   - endDate: The end date of the range to fetch events from.
@@ -179,7 +294,16 @@ class CalendarService {
             return
         }
         
-        let calendars = eventStore.calendars(for: .event)
+        // Use only selected calendars
+        let calendars = selectedCalendars
+        
+        // If no calendars selected, return empty array
+        guard !calendars.isEmpty else {
+            print("📅 No calendars selected - returning empty event list")
+            completion([], nil)
+            return
+        }
+        
         let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: calendars)
         
         let events = eventStore.events(matching: predicate).map { ekEvent -> CalendarEvent in
@@ -196,6 +320,7 @@ class CalendarService {
             )
         }
         
+        print("📅 Fetched \(events.count) events from \(calendars.count) selected calendar(s)")
         completion(events, nil)
     }
     
