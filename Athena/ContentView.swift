@@ -110,12 +110,26 @@ struct TitleBarView: View {
                     isPulsing = newValue
                 }
 
-                Button(action: {}) {
+                Button(action: { appViewModel.showChat() }) {
                     Image(systemName: "message")
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(appViewModel.currentView == .chat ? .accentColor : .primary)
                 }
                 .buttonStyle(.plain)
                 .help("Chat")
+
+                Button(action: { appViewModel.showCalendar() }) {
+                    Image(systemName: "calendar")
+                        .foregroundColor(appViewModel.currentView == .calendar ? .accentColor : .primary)
+                }
+                .buttonStyle(.plain)
+                .help("Calendar")
+
+                Button(action: { appViewModel.showNotes() }) {
+                    Image(systemName: "note.text")
+                        .foregroundColor(appViewModel.currentView == .notes ? .accentColor : .primary)
+                }
+                .buttonStyle(.plain)
+                .help("Notes")
 
                 Button(action: { windowManager.openSettingsWindow() }) {
                     Image(systemName: "gear")
