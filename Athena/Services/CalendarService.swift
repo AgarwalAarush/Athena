@@ -8,6 +8,7 @@
 
 import Foundation
 import EventKit
+import AppKit
 
 /// A simple struct to represent a calendar event, decoupled from EKEvent.
 struct CalendarEvent: Identifiable {
@@ -27,20 +28,58 @@ class CalendarService {
     
     private let eventStore = EKEventStore()
     
-    private init() {}
+    private init() {
+        // Debug: Verify Info.plist strings are loaded
+        print("📅 CalendarService initialized")
+        print("NSCalendarsUsageDescription:", Bundle.main.object(forInfoDictionaryKey: "NSCalendarsUsageDescription") as Any)
+        print("NSCalendarsFullAccessUsageDescription:", Bundle.main.object(forInfoDictionaryKey: "NSCalendarsFullAccessUsageDescription") as Any)
+    }
     
     // MARK: - Authorization
 
-    /// Requests access to the user's calendar.
+    /// Requests access to the user's calendar with proper activation policy switching for menu-bar apps.
     /// - Parameter completion: A closure that is called with a boolean indicating whether access was granted and an optional error.
-    func requestAccess(completion: @escaping (Bool, Error?) -> Void) {
+    func requestAccessWithActivation(completion: @escaping (Bool, Error?) -> Void) {
+        let currentStatus = authorizationStatus
+        print("📅 Current authorization status:", currentStatus.rawValue)
+        
+        guard currentStatus == .notDetermined else {
+            // Already determined - just call completion with current state
+            completion(hasReadAccess, nil)
+            return
+        }
+        
+        // Make app foreground so the system alert can appear
+        print("📅 Switching to .regular activation policy")
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        
+        // Small delay to ensure activation takes effect
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.requestAccess { granted, error in
+                print("📅 Access granted:", granted)
+                
+                // Revert to accessory/menu-bar style after the prompt resolves
+                DispatchQueue.main.async {
+                    print("📅 Reverting to .accessory activation policy")
+                    NSApp.setActivationPolicy(.accessory)
+                    completion(granted, error)
+                }
+            }
+        }
+    }
+
+    /// Internal method to request access (used by requestAccessWithActivation).
+    private func requestAccess(completion: @escaping (Bool, Error?) -> Void) {
         if #available(macOS 14.0, *) {
+            print("📅 Requesting full access (macOS 14+)")
             eventStore.requestFullAccessToEvents { granted, error in
                 DispatchQueue.main.async {
                     completion(granted, error)
                 }
             }
         } else {
+            print("📅 Requesting access (pre-macOS 14)")
             eventStore.requestAccess(to: .event) { granted, error in
                 DispatchQueue.main.async {
                     completion(granted, error)
@@ -49,21 +88,81 @@ class CalendarService {
         }
     }
 
-    /// A boolean indicating whether the app has been granted access to the user's calendar.
-    var isAuthorized: Bool {
-        let status = EKEventStore.authorizationStatus(for: .event)
+    /// Whether we have read access to calendars (handles macOS 14+ fullAccess/writeOnly).
+    var hasReadAccess: Bool {
         if #available(macOS 14.0, *) {
-            // For reading events, we need fullAccess
-            return status == .fullAccess
+            switch authorizationStatus {
+            case .fullAccess, .authorized:
+                return true
+            case .writeOnly:
+                // Cannot read events with writeOnly
+                return false
+            case .denied, .restricted, .notDetermined:
+                return false
+            @unknown default:
+                return false
+            }
         } else {
-            return status == .authorized
+            return authorizationStatus == .authorized
         }
     }
 
-    /// Returns the current authorization status for calendar access.
-    func authorizationStatus() -> EKAuthorizationStatus {
+    /// Legacy property - prefer hasReadAccess
+    var isAuthorized: Bool {
+        return hasReadAccess
+    }
+
+    /// The raw authorization status for calendar access.
+    var authorizationStatus: EKAuthorizationStatus {
         return EKEventStore.authorizationStatus(for: .event)
     }
+    
+    /// User-friendly description of the current authorization status.
+    var authorizationStatusDescription: String {
+        let status = authorizationStatus
+        
+        if #available(macOS 14.0, *) {
+            switch status {
+            case .notDetermined:
+                return "Not Requested"
+            case .restricted:
+                return "Restricted"
+            case .denied:
+                return "Denied"
+            case .authorized:
+                return "Authorized"
+            case .fullAccess:
+                return "Full Access"
+            case .writeOnly:
+                return "Write Only (Cannot Read)"
+            @unknown default:
+                return "Unknown"
+            }
+        } else {
+            // Pre-macOS 14
+            switch status {
+            case .notDetermined:
+                return "Not Requested"
+            case .restricted:
+                return "Restricted"
+            case .denied:
+                return "Denied"
+            case .authorized:
+                return "Authorized"
+            default:
+                return "Unknown"
+            }
+        }
+    }
+    
+    /// Opens System Preferences to the Calendar privacy pane.
+    func openCalendarPrivacySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+
     
     // MARK: - Fetching Events
     

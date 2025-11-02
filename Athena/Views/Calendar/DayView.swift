@@ -62,7 +62,7 @@ struct DayView: View {
             }
             .frame(width: 0, height: 0)
         }
-        .background(Color.white.opacity(0.85))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             startCurrentTimeTimer()
         }
@@ -82,6 +82,7 @@ struct DayView: View {
                 Label("Previous", systemImage: "chevron.left")
             }
             .buttonStyle(.borderless)
+            .foregroundColor(.black)
             .help("Previous day (⌘←)")
 
             Spacer()
@@ -105,6 +106,7 @@ struct DayView: View {
                 Text("Today")
             }
             .buttonStyle(.borderless)
+            .foregroundColor(.black)
             .disabled(viewModel.isToday)
 
             // Next Day button
@@ -113,6 +115,7 @@ struct DayView: View {
                     .labelStyle(.iconOnly)
             }
             .buttonStyle(.borderless)
+            .foregroundColor(.black)
             .help("Next day (⌘→)")
         }
         .padding()
@@ -297,7 +300,7 @@ struct DayView: View {
 
                 Button("Retry") {
                     viewModel.checkAuthorization()
-                }
+                }.opacity(0.5)
             }
         }
         .padding()

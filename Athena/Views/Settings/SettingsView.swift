@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import EventKit
 
 // MARK: - Color Extensions
 
@@ -170,11 +171,13 @@ struct SettingsView: View {
     enum SettingsTab: String, CaseIterable {
         case provider = "Provider"
         case model = "Model"
+        case permissions = "Permissions"
 
         var icon: String {
             switch self {
             case .provider: return "network"
             case .model: return "brain"
+            case .permissions: return "lock.shield"
             }
         }
     }
@@ -245,6 +248,8 @@ struct SettingsView: View {
                         ProviderSettingsView()
                     case .model:
                         ModelSettingsView()
+                    case .permissions:
+                        PermissionsSettingsView()
                     }
                 }
                 .padding(.horizontal, 32)
@@ -525,6 +530,171 @@ struct ModelSettingsView: View {
     }
 }
 
+// MARK: - Permissions Settings
+
+struct PermissionsSettingsView: View {
+    @State private var calendarStatus: String = CalendarService.shared.authorizationStatusDescription
+    @State private var isRequesting = false
+    @State private var showAlert = false
+    @State private var alertMessage = ""
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("App Permissions")
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(Color(NSColor.labelColor))
+            
+            // Calendar Permission Card
+            ModernCard(title: "Calendar Access", icon: "calendar") {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Athena needs access to your calendar to display and manage events.")
+                        .font(.subheadline)
+                        .foregroundColor(.settingsTextSecondary)
+                    
+                    HStack(spacing: 12) {
+                        // Status indicator
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(statusColor)
+                                .frame(width: 10, height: 10)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Status")
+                                    .font(.caption)
+                                    .foregroundColor(.settingsTextSecondary)
+                                Text(calendarStatus)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        // Action buttons
+                        if CalendarService.shared.authorizationStatus == .notDetermined {
+                            Button(action: requestCalendarAccess) {
+                                if isRequesting {
+                                    ProgressView()
+                                        .scaleEffect(0.7)
+                                        .frame(width: 20, height: 20)
+                                } else {
+                                    Text("Grant Access")
+                                }
+                            }
+                            .buttonStyle(ModernButton(style: .primary))
+                            .disabled(isRequesting)
+                        } else if CalendarService.shared.authorizationStatus == .denied {
+                            Button("Open System Settings") {
+                                CalendarService.shared.openCalendarPrivacySettings()
+                            }
+                            .buttonStyle(ModernButton(style: .primary))
+                        } else if CalendarService.shared.authorizationStatus == .writeOnly {
+                            VStack(alignment: .trailing, spacing: 8) {
+                                Text("Write-only access detected")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                                Button("Upgrade to Full Access") {
+                                    CalendarService.shared.openCalendarPrivacySettings()
+                                }
+                                .buttonStyle(ModernButton(style: .primary))
+                            }
+                        }
+                    }
+                    
+                    // macOS 14+ info
+                    if #available(macOS 14.0, *) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.blue)
+                            Text("On macOS Sonoma and later, 'Full Access' is required to read calendar events.")
+                                .font(.caption)
+                                .foregroundColor(.settingsTextSecondary)
+                        }
+                        .padding(.top, 8)
+                    }
+                }
+            }
+            
+            // Additional Info Card
+            ModernCard(title: "Privacy", icon: "hand.raised") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Athena respects your privacy:")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Calendar data stays on your device")
+                                .font(.subheadline)
+                                .foregroundColor(.settingsTextSecondary)
+                        }
+                        
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("No calendar data is sent to external servers")
+                                .font(.subheadline)
+                                .foregroundColor(.settingsTextSecondary)
+                        }
+                        
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("You can revoke access anytime in System Settings")
+                                .font(.subheadline)
+                                .foregroundColor(.settingsTextSecondary)
+                        }
+                    }
+                }
+            }
+        }
+        .alert("Calendar Access", isPresented: $showAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(alertMessage)
+        }
+    }
+    
+    private var statusColor: Color {
+        switch CalendarService.shared.authorizationStatus {
+        case .fullAccess, .authorized:
+            return .green
+        case .writeOnly:
+            return .orange
+        case .denied, .restricted:
+            return .red
+        case .notDetermined:
+            return .gray
+        @unknown default:
+            return .gray
+        }
+    }
+    
+    private func requestCalendarAccess() {
+        isRequesting = true
+        
+        CalendarService.shared.requestAccessWithActivation { granted, error in
+            isRequesting = false
+            
+            // Update status
+            calendarStatus = CalendarService.shared.authorizationStatusDescription
+            
+            if let error = error {
+                alertMessage = "Failed to request access: \(error.localizedDescription)"
+                showAlert = true
+            } else if granted {
+                alertMessage = "Calendar access granted! You can now view and manage your events."
+                showAlert = true
+            } else {
+                alertMessage = "Calendar access was denied. You can grant access later in System Settings > Privacy & Security > Calendars."
+                showAlert = true
+            }
+        }
+    }
+}
 
 #Preview {
     SettingsView()

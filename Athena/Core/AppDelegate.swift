@@ -17,7 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Create the status bar item (menu bar icon)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "Athena")
+            button.image = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: "Athena")
             button.action = #selector(toggleWindow)
             button.target = self
         }

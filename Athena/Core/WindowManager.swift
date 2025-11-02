@@ -110,10 +110,11 @@ class WindowManager: NSObject, ObservableObject {
         let constrainedHeight = min(max(size.height, minHeight), maxHeight)
         let constrainedSize = CGSize(width: constrainedWidth, height: constrainedHeight)
         
-        // Calculate new frame maintaining top-left position
-        var newFrame = window.frame
-        newFrame.origin.y -= (constrainedHeight - window.frame.height)
-        newFrame.size = constrainedSize
+        // Calculate new frame keeping the top edge fixed so only the bottom moves
+        let currentFrame = window.frame
+        let topLeft = NSPoint(x: currentFrame.minX, y: currentFrame.maxY)
+        let newOrigin = NSPoint(x: topLeft.x, y: topLeft.y - constrainedHeight)
+        let newFrame = NSRect(origin: newOrigin, size: constrainedSize)
         
         if animated {
             NSAnimationContext.runAnimationGroup { context in
@@ -168,4 +169,3 @@ class WindowManager: NSObject, ObservableObject {
         saveWindowPosition()
     }
 }
-

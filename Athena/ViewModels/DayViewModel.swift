@@ -57,6 +57,20 @@ class DayViewModel: ObservableObject {
 
     /// Check if calendar access is authorized
     func checkAuthorization() {
+        let status = calendarService.authorizationStatus
+        switch status {
+        case .notDetermined:
+            print("Calendar access status: Not Determined. Requesting access.")
+        case .restricted:
+            print("Calendar access status: Restricted.")
+        case .denied:
+            print("Calendar access status: Denied. Please grant access in System Settings.")
+        case .authorized:
+            print("Calendar access status: Authorized.")
+        @unknown default:
+            print("Calendar access status: Unknown.")
+        }
+
         isAuthorized = calendarService.isAuthorized
 
         if !isAuthorized {
@@ -68,13 +82,13 @@ class DayViewModel: ObservableObject {
 
     /// Request calendar access from the user
     func requestAuthorization() {
-        calendarService.requestAccess { [weak self] granted, error in
+        calendarService.requestAccessWithActivation { [weak self] granted, error in
             Task { @MainActor in
                 self?.isAuthorized = granted
                 if granted {
                     await self?.fetchEvents()
                 } else {
-                    let status = self?.calendarService.authorizationStatus()
+                    let status = self?.calendarService.authorizationStatus
                     if status == .denied || status == .restricted {
                         self?.errorMessage = "Calendar access is denied. Please enable it in System Settings."
                     } else if let error = error {
