@@ -16,6 +16,7 @@ final class NotesViewModel: ObservableObject {
     @Published var noteContent: String = ""
     @Published var currentNoteID: UUID?
     @Published var lastError: String?
+    @Published var showingEditor: Bool = false
     
     // MARK: - Private Properties
     
@@ -50,27 +51,29 @@ final class NotesViewModel: ObservableObject {
     // MARK: - Note Selection
     
     func selectNote(_ note: NoteModel) {
-        // Save current note before switching
-        if currentNoteID != nil && currentNoteID != note.id {
-            Task {
-                await saveCurrentNoteIfChanged()
-            }
-        }
-        
         currentNoteID = note.id
         currentNoteSnapshot = note
         isProgrammaticSet = true
         // Reconstruct full content: title (first line) + body (rest)
         noteContent = note.title + (note.body.isEmpty ? "" : "\n" + note.body)
         isProgrammaticSet = false
+        showingEditor = true
+    }
+    
+    func closeEditor() async {
+        await saveCurrentNoteIfChanged()
+        await deleteIfEmpty()
+        showingEditor = false
+        currentNoteID = nil
+        currentNoteSnapshot = nil
+        isProgrammaticSet = true
+        noteContent = ""
+        isProgrammaticSet = false
     }
     
     // MARK: - Note Creation
     
     func createNewNote() async {
-        // Save current note first
-        await saveCurrentNoteIfChanged()
-        
         let now = Date()
         let note = NoteModel(
             id: UUID(),
@@ -107,6 +110,25 @@ final class NotesViewModel: ObservableObject {
             }
         } catch {
             lastError = "\(error)"
+        }
+    }
+    
+    private func deleteIfEmpty() async {
+        guard let snap = currentNoteSnapshot else { return }
+        
+        let (title, body) = Self.splitTitleBody(noteContent)
+        
+        // If both title and body are empty or only whitespace, delete the note
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        if (trimmedTitle.isEmpty || trimmedTitle == "Untitled") && trimmedBody.isEmpty {
+            do {
+                try await store.delete(id: snap.id)
+                await fetchNotes()
+            } catch {
+                lastError = "\(error)"
+            }
         }
     }
     

@@ -1,35 +1,51 @@
 //
 //  NotesView.swift
-//  Main notes editor with debounced autosave
+//  Main container for notes - shows list or editor
 //
 
 import SwiftUI
 import Combine
 
 struct NotesView: View {
+    @StateObject private var vm = NotesViewModel(store: SwiftDataNotesStore())
+    
+    var body: some View {
+        ZStack {
+            if vm.showingEditor {
+                NoteEditorView(vm: vm)
+            } else {
+                NoteListView(vm: vm)
+            }
+        }
+        .task {
+            await vm.bootstrap()
+        }
+    }
+}
+
+struct NoteEditorView: View {
     @ObservedObject var vm: NotesViewModel
     @Environment(\.scenePhase) private var scenePhase
     
     var body: some View {
         VStack(spacing: 0) {
-            // Toolbar
+            // Back button
             HStack {
                 Button(action: {
                     Task {
-                        await vm.createNewNote()
+                        await vm.closeEditor()
                     }
                 }) {
-                    Label("New Note", systemImage: "plus")
+                    Image(systemName: "chevron.left")
+                        .foregroundColor(.accentColor)
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .padding(.vertical, 12)
                 
                 Spacer()
             }
             .background(Color.clear)
-            
-            Divider()
             
             // Rich text editor
             RichTextEditor(
@@ -41,7 +57,8 @@ struct NotesView: View {
                 }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding()
+            .padding(.horizontal)
+            .padding(.bottom)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.clear)
