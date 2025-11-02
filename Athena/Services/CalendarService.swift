@@ -18,6 +18,8 @@ struct CalendarEvent: Identifiable {
     let endDate: Date
     let isAllDay: Bool
     let notes: String?
+    let location: String?
+    let url: URL?
     let calendar: EKCalendar
 }
 
@@ -188,6 +190,8 @@ class CalendarService {
                 endDate: ekEvent.endDate,
                 isAllDay: ekEvent.isAllDay,
                 notes: ekEvent.notes,
+                location: ekEvent.location,
+                url: ekEvent.url,
                 calendar: ekEvent.calendar
             )
         }
@@ -227,6 +231,8 @@ class CalendarService {
                 endDate: newEvent.endDate,
                 isAllDay: newEvent.isAllDay,
                 notes: newEvent.notes,
+                location: newEvent.location,
+                url: newEvent.url,
                 calendar: newEvent.calendar
             )
             completion(calendarEvent, nil)
@@ -257,6 +263,8 @@ class CalendarService {
         ekEvent.endDate = event.endDate
         ekEvent.isAllDay = event.isAllDay
         ekEvent.notes = event.notes
+        ekEvent.location = event.location
+        ekEvent.url = event.url
         ekEvent.calendar = event.calendar
         
         do {
@@ -268,6 +276,8 @@ class CalendarService {
                 endDate: ekEvent.endDate,
                 isAllDay: ekEvent.isAllDay,
                 notes: ekEvent.notes,
+                location: ekEvent.location,
+                url: ekEvent.url,
                 calendar: ekEvent.calendar
             )
             completion(updatedEvent, nil)

@@ -57,6 +57,10 @@ struct RichTextEditor: NSViewRepresentable {
 
         // Use system font with good readability
         textView.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        
+        // Set transparent background - styling will be applied at SwiftUI level
+        textView.backgroundColor = .clear
+        textView.drawsBackground = false
 
         // Set default paragraph style with reasonable spacing
         let paragraphStyle = NSMutableParagraphStyle()
@@ -79,6 +83,9 @@ struct RichTextEditor: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
+        scrollView.borderType = .noBorder
+        scrollView.backgroundColor = .clear
+        scrollView.drawsBackground = false
 
         // Initialize content
         if !content.isEmpty {

@@ -41,6 +41,20 @@ struct EventDetailView: View {
                     // Calendar section
                     calendarSection
 
+                    if hasSupplementaryDetails {
+                        Divider()
+
+                        // Location section
+                        if let location = event.location, !location.isEmpty {
+                            locationSection(location)
+                        }
+
+                        // URL section
+                        if let url = event.url {
+                            urlSection(url)
+                        }
+                    }
+
                     // Notes section (if available)
                     if let notes = event.notes, !notes.isEmpty {
                         Divider()
@@ -53,6 +67,8 @@ struct EventDetailView: View {
             }
         }
         .frame(minWidth: 400, minHeight: 300)
+        .background(Color.white.opacity(0.7))
+        .cornerRadius(12)
     }
 
     // MARK: - Header
@@ -176,6 +192,33 @@ struct EventDetailView: View {
         }
     }
 
+    private func locationSection(_ location: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Location", systemImage: "mappin.and.ellipse")
+                .font(.headline)
+                .foregroundColor(.black)
+
+            Text(location)
+                .font(.body)
+                .foregroundColor(.black)
+        }
+    }
+
+    private func urlSection(_ url: URL) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Link", systemImage: "link")
+                .font(.headline)
+                .foregroundColor(.black)
+
+            Link(destination: url) {
+                Text(url.absoluteString)
+                    .font(.body)
+                    .foregroundColor(.blue)
+                    .underline()
+            }
+        }
+    }
+
     // MARK: - Helper Methods
 
     /// Format date and time for display
@@ -200,6 +243,12 @@ struct EventDetailView: View {
             return "\(minutes)m"
         }
     }
+
+    private var hasSupplementaryDetails: Bool {
+        let hasLocation = (event.location?.isEmpty == false)
+        let hasURL = (event.url != nil)
+        return hasLocation || hasURL
+    }
 }
 
 // MARK: - Preview
@@ -219,6 +268,8 @@ struct EventDetailView: View {
         endDate: Date().addingTimeInterval(1800),
         isAllDay: false,
         notes: "Daily standup to discuss progress and blockers. Join via Zoom link in calendar invite.",
+        location: "Conference Room A",
+        url: URL(string: "https://zoom.us/j/123456789"),
         calendar: mockCalendar
     )
 

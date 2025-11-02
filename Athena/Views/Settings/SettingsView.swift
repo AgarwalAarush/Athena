@@ -162,101 +162,53 @@ struct ModernSecureField: View {
     }
 }
 
+// Settings-specific text field styles similar to ChatView input
+struct SettingsTextFieldStyle: TextFieldStyle {
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .background(Color.white.opacity(0.6))
+            .foregroundColor(Color.black)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+struct SettingsSecureField: View {
+    let placeholder: String
+    @Binding var text: String
+
+    var body: some View {
+        SecureField(placeholder, text: $text)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .background(Color.white.opacity(0.6))
+            .foregroundColor(Color.black)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
 // MARK: - Main Settings View
 
 struct SettingsView: View {
     @ObservedObject var config = ConfigurationManager.shared
-    @State private var selectedTab: SettingsTab = .provider
-
-    enum SettingsTab: String, CaseIterable {
-        case provider = "Provider"
-        case model = "Model"
-        case permissions = "Permissions"
-
-        var icon: String {
-            switch self {
-            case .provider: return "network"
-            case .model: return "brain"
-            case .permissions: return "lock.shield"
-            }
-        }
-    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Modern Header
-            HStack {
-                Text("Settings")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(Color(NSColor.labelColor))
-                Spacer()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 32) {
+                // AI Provider Configuration Section
+                ProviderSettingsView()
+
+                Divider()
+                    .padding(.horizontal, 16)
+
+                // Permissions Section
+                PermissionsSettingsView()
             }
             .padding(.horizontal, 32)
-            .padding(.top, 32)
-            .padding(.bottom, 24)
-
-            // Modern Tab Bar
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(SettingsTab.allCases, id: \.self) { tab in
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                selectedTab = tab
-                            }
-                        }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: tab.icon)
-                                    .font(.system(size: 14, weight: .medium))
-                                Text(tab.rawValue)
-                                    .font(.system(size: 14, weight: .medium))
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                            .background(
-                                selectedTab == tab
-                                    ? Color.accentColor
-                                    : Color.settingsCard
-                            )
-                            .foregroundColor(
-                                selectedTab == tab
-                                    ? .white
-                                    : .settingsTextSecondary
-                            )
-                            .cornerRadius(20)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .stroke(
-                                        selectedTab == tab
-                                            ? Color.clear
-                                            : Color.settingsBorder,
-                                        lineWidth: 1
-                                    )
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 32)
-            }
-            .padding(.bottom, 24)
-
-            // Content Area
-            ScrollView {
-                Group {
-                    switch selectedTab {
-                    case .provider:
-                        ProviderSettingsView()
-                    case .model:
-                        ModelSettingsView()
-                    case .permissions:
-                        PermissionsSettingsView()
-                    }
-                }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 32)
-            }
+            .padding(.vertical, 24)
         }
-        .background(Color.settingsBackground)
+        .background(Color(hex: "1E1E1E"))
     }
 }
 
@@ -279,114 +231,147 @@ struct ProviderSettingsView: View {
             Text("AI Provider Configuration")
                 .font(.title3)
                 .fontWeight(.semibold)
-                .foregroundColor(Color(NSColor.labelColor))
+                .foregroundColor(.white)
+
+            // Provider Selection
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Provider")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white.opacity(0.8))
+
+                Picker("", selection: Binding(
+                    get: { config.selectedProvider },
+                    set: { try? config.set($0, for: .selectedProvider) }
+                )) {
+                    Text("OpenAI").tag("openai")
+                    Text("Anthropic (Claude)").tag("anthropic")
+                }
+                .pickerStyle(.segmented)
+            }
 
             // OpenAI Settings
-            ModernCard(title: "OpenAI", icon: "brain") {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 12) {
-                        if showOpenAIKey {
-                            TextField("Enter API Key", text: $openaiKey)
-                                .textFieldStyle(ModernTextField())
-                        } else {
-                            ModernSecureField(placeholder: "Enter API Key", text: $openaiKey)
-                        }
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "brain")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("OpenAI")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                }
 
-                        Button(action: { showOpenAIKey.toggle() }) {
-                            Image(systemName: showOpenAIKey ? "eye.slash.fill" : "eye.fill")
-                                .foregroundColor(.settingsTextSecondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help(showOpenAIKey ? "Hide key" : "Show key")
+                HStack(spacing: 12) {
+                    if showOpenAIKey {
+                        TextField("Enter API Key", text: $openaiKey)
+                            .textFieldStyle(SettingsTextFieldStyle())
+                    } else {
+                        SettingsSecureField(placeholder: "Enter API Key", text: $openaiKey)
                     }
 
-                    HStack(spacing: 12) {
-                        if config.hasAPIKey(for: "openai") {
-                            HStack(spacing: 6) {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("Key configured")
-                            }
-                            .foregroundColor(.green)
-                            .font(.caption)
-                        } else {
-                            HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                Text("No key configured")
-                            }
-                            .foregroundColor(.orange)
-                            .font(.caption)
-                        }
+                    Button(action: { showOpenAIKey.toggle() }) {
+                        Image(systemName: showOpenAIKey ? "eye.slash.fill" : "eye.fill")
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                    .help(showOpenAIKey ? "Hide key" : "Show key")
+                }
 
-                        Spacer()
-
-                        Button("Save Key") {
-                            saveOpenAIKey()
+                HStack(spacing: 12) {
+                    if config.hasAPIKey(for: "openai") {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Key configured")
                         }
-                        .buttonStyle(ModernButton(style: .primary))
-                        .disabled(openaiKey.isEmpty)
-                        .opacity(openaiKey.isEmpty ? 0.5 : 1.0)
-
-                        if config.hasAPIKey(for: "openai") {
-                            Button("Remove") {
-                                removeOpenAIKey()
-                            }
-                            .buttonStyle(ModernButton(style: .danger))
+                        .foregroundColor(.green)
+                        .font(.caption)
+                    } else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text("No key configured")
                         }
+                        .foregroundColor(.orange)
+                        .font(.caption)
+                    }
+
+                    Spacer()
+
+                    Button("Save Key") {
+                        saveOpenAIKey()
+                    }
+                    .buttonStyle(ModernButton(style: .primary))
+                    .disabled(openaiKey.isEmpty)
+                    .opacity(openaiKey.isEmpty ? 0.5 : 1.0)
+
+                    if config.hasAPIKey(for: "openai") {
+                        Button("Remove") {
+                            removeOpenAIKey()
+                        }
+                        .buttonStyle(ModernButton(style: .danger))
                     }
                 }
             }
 
             // Anthropic Settings
-            ModernCard(title: "Anthropic (Claude)", icon: "sparkles") {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 12) {
-                        if showAnthropicKey {
-                            TextField("Enter API Key", text: $anthropicKey)
-                                .textFieldStyle(ModernTextField())
-                        } else {
-                            ModernSecureField(placeholder: "Enter API Key", text: $anthropicKey)
-                        }
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("Anthropic (Claude)")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                }
 
-                        Button(action: { showAnthropicKey.toggle() }) {
-                            Image(systemName: showAnthropicKey ? "eye.slash.fill" : "eye.fill")
-                                .foregroundColor(.settingsTextSecondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help(showAnthropicKey ? "Hide key" : "Show key")
+                HStack(spacing: 12) {
+                    if showAnthropicKey {
+                        TextField("Enter API Key", text: $anthropicKey)
+                            .textFieldStyle(SettingsTextFieldStyle())
+                    } else {
+                        SettingsSecureField(placeholder: "Enter API Key", text: $anthropicKey)
                     }
 
-                    HStack(spacing: 12) {
-                        if config.hasAPIKey(for: "anthropic") {
-                            HStack(spacing: 6) {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("Key configured")
-                            }
-                            .foregroundColor(.green)
-                            .font(.caption)
-                        } else {
-                            HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                Text("No key configured")
-                            }
-                            .foregroundColor(.orange)
-                            .font(.caption)
-                        }
+                    Button(action: { showAnthropicKey.toggle() }) {
+                        Image(systemName: showAnthropicKey ? "eye.slash.fill" : "eye.fill")
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                    .help(showAnthropicKey ? "Hide key" : "Show key")
+                }
 
-                        Spacer()
-
-                        Button("Save Key") {
-                            saveAnthropicKey()
+                HStack(spacing: 12) {
+                    if config.hasAPIKey(for: "anthropic") {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Key configured")
                         }
-                        .buttonStyle(ModernButton(style: .primary))
-                        .disabled(anthropicKey.isEmpty)
-                        .opacity(anthropicKey.isEmpty ? 0.5 : 1.0)
-
-                        if config.hasAPIKey(for: "anthropic") {
-                            Button("Remove") {
-                                removeAnthropicKey()
-                            }
-                            .buttonStyle(ModernButton(style: .danger))
+                        .foregroundColor(.green)
+                        .font(.caption)
+                    } else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text("No key configured")
                         }
+                        .foregroundColor(.orange)
+                        .font(.caption)
+                    }
+
+                    Spacer()
+
+                    Button("Save Key") {
+                        saveAnthropicKey()
+                    }
+                    .buttonStyle(ModernButton(style: .primary))
+                    .disabled(anthropicKey.isEmpty)
+                    .opacity(anthropicKey.isEmpty ? 0.5 : 1.0)
+
+                    if config.hasAPIKey(for: "anthropic") {
+                        Button("Remove") {
+                            removeAnthropicKey()
+                        }
+                        .buttonStyle(ModernButton(style: .danger))
                     }
                 }
             }
@@ -400,7 +385,7 @@ struct ProviderSettingsView: View {
                 .foregroundColor(.green)
                 .font(.subheadline)
                 .padding(12)
-                .background(Color.green.opacity(0.1))
+                .background(Color.green.opacity(0.2))
                 .cornerRadius(8)
             } else if case .error(let message) = saveStatus {
                 HStack(spacing: 8) {
@@ -410,7 +395,7 @@ struct ProviderSettingsView: View {
                 .foregroundColor(.red)
                 .font(.subheadline)
                 .padding(12)
-                .background(Color.red.opacity(0.1))
+                .background(Color.red.opacity(0.2))
                 .cornerRadius(8)
             }
         }
@@ -467,69 +452,6 @@ struct ProviderSettingsView: View {
     }
 }
 
-// MARK: - Model Settings
-
-struct ModelSettingsView: View {
-    @ObservedObject var config = ConfigurationManager.shared
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            Text("Model Parameters")
-                .font(.title3)
-                .fontWeight(.semibold)
-                .foregroundColor(Color(NSColor.labelColor))
-
-            ModernCard {
-                VStack(alignment: .leading, spacing: 24) {
-                    // Provider Selection
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Provider")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(Color(NSColor.labelColor))
-
-                        Picker("", selection: Binding(
-                            get: { config.selectedProvider },
-                            set: { try? config.set($0, for: .selectedProvider) }
-                        )) {
-                            Text("OpenAI").tag("openai")
-                            Text("Anthropic (Claude)").tag("anthropic")
-                        }
-                        .pickerStyle(.segmented)
-                    }
-
-                    // Model Selection
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Model")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(Color(NSColor.labelColor))
-
-                        if config.selectedProvider == "openai" {
-                            Picker("", selection: Binding(
-                                get: { config.selectedModel },
-                                set: { try? config.set($0, for: .selectedModel) }
-                            )) {
-                                Text("GPT-5 Nano").tag("gpt-5-nano-2025-08-07")
-                            }
-                            .pickerStyle(.menu)
-                        } else {
-                            Picker("", selection: Binding(
-                                get: { config.selectedModel },
-                                set: { try? config.set($0, for: .selectedModel) }
-                            )) {
-                                Text("Claude Haiku 4.5").tag("claude-haiku-4-5-20251001")
-                            }
-                            .pickerStyle(.menu)
-                        }
-                    }
-
-                }
-            }
-        }
-    }
-}
-
 // MARK: - Permissions Settings
 
 struct PermissionsSettingsView: View {
@@ -537,116 +459,134 @@ struct PermissionsSettingsView: View {
     @State private var isRequesting = false
     @State private var showAlert = false
     @State private var alertMessage = ""
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             Text("App Permissions")
                 .font(.title3)
                 .fontWeight(.semibold)
-                .foregroundColor(Color(NSColor.labelColor))
-            
-            // Calendar Permission Card
-            ModernCard(title: "Calendar Access", icon: "calendar") {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Athena needs access to your calendar to display and manage events.")
-                        .font(.subheadline)
-                        .foregroundColor(.settingsTextSecondary)
-                    
-                    HStack(spacing: 12) {
-                        // Status indicator
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(statusColor)
-                                .frame(width: 10, height: 10)
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Status")
-                                    .font(.caption)
-                                    .foregroundColor(.settingsTextSecondary)
-                                Text(calendarStatus)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
+                .foregroundColor(.white)
+
+            // Calendar Permission Section
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("Calendar Access")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                }
+
+                Text("Athena needs access to your calendar to display and manage events.")
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.7))
+
+                HStack(spacing: 12) {
+                    // Status indicator
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 10, height: 10)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Status")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.6))
+                            Text(calendarStatus)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                        }
+                    }
+
+                    Spacer()
+
+                    // Action buttons
+                    if CalendarService.shared.authorizationStatus == .notDetermined {
+                        Button(action: requestCalendarAccess) {
+                            if isRequesting {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .frame(width: 20, height: 20)
+                            } else {
+                                Text("Grant Access")
                             }
                         }
-                        
-                        Spacer()
-                        
-                        // Action buttons
-                        if CalendarService.shared.authorizationStatus == .notDetermined {
-                            Button(action: requestCalendarAccess) {
-                                if isRequesting {
-                                    ProgressView()
-                                        .scaleEffect(0.7)
-                                        .frame(width: 20, height: 20)
-                                } else {
-                                    Text("Grant Access")
-                                }
-                            }
-                            .buttonStyle(ModernButton(style: .primary))
-                            .disabled(isRequesting)
-                        } else if CalendarService.shared.authorizationStatus == .denied {
-                            Button("Open System Settings") {
+                        .buttonStyle(ModernButton(style: .primary))
+                        .disabled(isRequesting)
+                    } else if CalendarService.shared.authorizationStatus == .denied {
+                        Button("Open System Settings") {
+                            CalendarService.shared.openCalendarPrivacySettings()
+                        }
+                        .buttonStyle(ModernButton(style: .primary))
+                    } else if CalendarService.shared.authorizationStatus == .writeOnly {
+                        VStack(alignment: .trailing, spacing: 8) {
+                            Text("Write-only access detected")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Button("Upgrade to Full Access") {
                                 CalendarService.shared.openCalendarPrivacySettings()
                             }
                             .buttonStyle(ModernButton(style: .primary))
-                        } else if CalendarService.shared.authorizationStatus == .writeOnly {
-                            VStack(alignment: .trailing, spacing: 8) {
-                                Text("Write-only access detected")
-                                    .font(.caption)
-                                    .foregroundColor(.orange)
-                                Button("Upgrade to Full Access") {
-                                    CalendarService.shared.openCalendarPrivacySettings()
-                                }
-                                .buttonStyle(ModernButton(style: .primary))
-                            }
                         }
-                    }
-                    
-                    // macOS 14+ info
-                    if #available(macOS 14.0, *) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "info.circle")
-                                .foregroundColor(.blue)
-                            Text("On macOS Sonoma and later, 'Full Access' is required to read calendar events.")
-                                .font(.caption)
-                                .foregroundColor(.settingsTextSecondary)
-                        }
-                        .padding(.top, 8)
                     }
                 }
+
+                // macOS 14+ info
+                if #available(macOS 14.0, *) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "info.circle")
+                            .foregroundColor(.blue)
+                        Text("On macOS Sonoma and later, 'Full Access' is required to read calendar events.")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    .padding(.top, 8)
+                }
             }
-            
-            // Additional Info Card
-            ModernCard(title: "Privacy", icon: "hand.raised") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Athena respects your privacy:")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("Calendar data stays on your device")
-                                .font(.subheadline)
-                                .foregroundColor(.settingsTextSecondary)
-                        }
-                        
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("No calendar data is sent to external servers")
-                                .font(.subheadline)
-                                .foregroundColor(.settingsTextSecondary)
-                        }
-                        
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("You can revoke access anytime in System Settings")
-                                .font(.subheadline)
-                                .foregroundColor(.settingsTextSecondary)
-                        }
+
+            // Privacy Section
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "hand.raised")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("Privacy")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                }
+
+                Text("Athena respects your privacy:")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Calendar data stays on your device")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("No calendar data is sent to external servers")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("You can revoke access anytime in System Settings")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.7))
                     }
                 }
             }

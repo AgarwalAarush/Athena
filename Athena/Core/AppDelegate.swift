@@ -12,6 +12,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var windowManager: WindowManager?
     var statusItem: NSStatusItem?
     private var eventMonitor: Any?
+    private var settingsShortcutMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Create the status bar item (menu bar icon)
@@ -33,6 +34,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         windowManager?.toggleWindowVisibility()
 
         setupGlobalShortcutMonitor()
+        setupSettingsShortcutMonitor()
 
         Task { @MainActor in
             await SpeechService.shared.requestAuthorization()
@@ -77,11 +79,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
     }
+
+    private func setupSettingsShortcutMonitor() {
+        // Listen for Command+, to open settings
+        settingsShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self else { return event }
+
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            // Key code 43 is for comma (,)
+            if flags == .command && event.keyCode == 43 {
+                DispatchQueue.main.async {
+                    self.windowManager?.openSettingsWindow()
+                }
+                return nil // Consume the event
+            }
+
+            return event
+        }
+    }
     
     func applicationWillTerminate(_ notification: Notification) {
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil
+        }
+        if let monitor = settingsShortcutMonitor {
+            NSEvent.removeMonitor(monitor)
+            settingsShortcutMonitor = nil
         }
     }
     

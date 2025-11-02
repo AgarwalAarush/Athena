@@ -79,6 +79,14 @@ class WindowManager: NSObject, ObservableObject {
         window.isReleasedWhenClosed = false
         window.minSize = CGSize(width: 500, height: 600)
 
+        // Set title bar background color to #1E1E1E
+        window.titlebarAppearsTransparent = false
+        window.backgroundColor = NSColor(red: 30/255, green: 30/255, blue: 30/255, alpha: 1.0)
+        if let titlebar = window.standardWindowButton(.closeButton)?.superview {
+            titlebar.wantsLayer = true
+            titlebar.layer?.backgroundColor = NSColor(red: 30/255, green: 30/255, blue: 30/255, alpha: 1.0).cgColor
+        }
+
         // Set content view with SwiftUI
         let settingsView = SettingsView()
         window.contentView = NSHostingView(rootView: settingsView)

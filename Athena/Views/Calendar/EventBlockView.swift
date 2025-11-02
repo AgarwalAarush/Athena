@@ -89,6 +89,8 @@ struct EventBlockView: View {
         endDate: Date().addingTimeInterval(3600),
         isAllDay: false,
         notes: "Discuss project updates",
+        location: "Conference Room B",
+        url: URL(string: "https://zoom.us/j/987654321"),
         calendar: mockCalendar
     )
 

@@ -19,17 +19,29 @@ class AppViewModel: ObservableObject {
     }
 
     func showCalendar() {
-        currentView = .calendar
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            currentView = .calendar
+        }
         windowManager?.resizeForCalendar()
     }
 
     func showChat() {
-        currentView = .chat
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            currentView = .chat
+        }
         windowManager?.resizeForChat()
     }
 
     func showNotes() {
-        currentView = .notes
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            currentView = .notes
+        }
         windowManager?.resizeForCalendar()
     }
 }

@@ -40,17 +40,21 @@ struct ContentView: View {
                     .opacity(0.5)
 
                 // Main Content Area
-                switch appViewModel.currentView {
-                case .chat:
-                    ChatView(viewModel: chatViewModel)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .calendar:
-                    DayView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .notes:
-                    NotesView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Group {
+                    switch appViewModel.currentView {
+                    case .chat:
+                        ChatView(viewModel: chatViewModel)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .calendar:
+                        DayView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .notes:
+                        NotesView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
                 }
+                .animation(nil, value: appViewModel.currentView)
+                .transition(.identity)
             }
             .clipShape(shell)
             .compositingGroup()
