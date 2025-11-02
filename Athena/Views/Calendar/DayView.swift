@@ -74,6 +74,8 @@ struct DayView: View {
         .sheet(isPresented: $showEventDetail) {
             if let event = selectedEvent {
                 EventDetailView(event: event)
+                    .presentationBackground(.clear)
+                    .background(.clear)
             }
         }
     }

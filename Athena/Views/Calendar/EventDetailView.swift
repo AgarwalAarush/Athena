@@ -19,58 +19,65 @@ struct EventDetailView: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            header
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white.opacity(0.6))
+                .shadow(radius: 20, y: 10)
+                .compositingGroup()
+            
+            VStack(spacing: 0) {
+                // Header
+                header
 
-            Divider()
+                Divider()
 
-            // Content
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Title section
-                    titleSection
+                // Content
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Title section
+                        titleSection
 
-                    Divider()
-
-                    // Time section
-                    timeSection
-
-                    Divider()
-
-                    // Calendar section
-                    calendarSection
-
-                    if hasSupplementaryDetails {
                         Divider()
 
-                        // Location section
-                        if let location = event.location, !location.isEmpty {
-                            locationSection(location)
-                        }
+                        // Time section
+                        timeSection
 
-                        // URL section
-                        if let url = event.url {
-                            urlSection(url)
-                        }
-                    }
-
-                    // Notes section (if available)
-                    if let notes = event.notes, !notes.isEmpty {
                         Divider()
-                        notesSection(notes)
-                    }
 
-                    Spacer()
+                        // Calendar section
+                        calendarSection
+
+                        if hasSupplementaryDetails {
+                            Divider()
+
+                            // Location section
+                            if let location = event.location, !location.isEmpty {
+                                locationSection(location)
+                            }
+
+                            // URL section
+                            if let url = event.url {
+                                urlSection(url)
+                            }
+                        }
+
+                        // Notes section (if available)
+                        if let notes = event.notes, !notes.isEmpty {
+                            Divider()
+                            notesSection(notes)
+                        }
+
+                        Spacer()
+                    }
+                    .padding()
                 }
-                .padding()
             }
+            .padding(12)
         }
         .frame(width: 375)
         .frame(minHeight: 300)
-        .background(Color.white.opacity(0.6))
-        .cornerRadius(12)
-        .presentationBackground(.clear)
+        .background(.clear)
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     // MARK: - Header

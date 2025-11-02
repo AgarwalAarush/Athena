@@ -454,7 +454,7 @@ class Orchestrator {
                     print("[Orchestrator] Delete: Successfully deleted event '\(eventToDelete.title)'")
                     // Refresh the view
                     Task { @MainActor in
-                        self.appViewModel?.dayViewModel.fetchEvents()
+                        await self.appViewModel?.dayViewModel.fetchEvents()
                     }
                 }
             }
