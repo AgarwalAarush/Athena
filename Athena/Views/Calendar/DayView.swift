@@ -71,12 +71,13 @@ struct DayView: View {
         .onAppear {
             startCurrentTimeTimer()
         }
-        .sheet(isPresented: $showEventDetail) {
-            if let event = selectedEvent {
-                EventDetailView(event: event)
-                    .presentationBackground(.clear)
-                    .background(.clear)
+        .onChange(of: showEventDetail) { isPresented in
+            if !isPresented {
+                selectedEvent = nil
             }
+        }
+        .eventDetailOverlay(event: selectedEvent, isPresented: $showEventDetail) {
+            selectedEvent = nil
         }
     }
 
@@ -440,4 +441,39 @@ struct AllDayEventRow: View {
     DayView(viewModel: DayViewModel())
         .environmentObject(AppViewModel())
         .frame(width: 800, height: 600)
+}
+
+// MARK: - Event Detail Overlay
+
+extension View {
+    func eventDetailOverlay(event: CalendarEvent?, isPresented: Binding<Bool>, onDismiss: (() -> Void)? = nil) -> some View {
+        overlay(alignment: .center) {
+            if isPresented.wrappedValue, let event {
+                ZStack {
+                    Color.black.opacity(0.1)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            isPresented.wrappedValue = false
+                            onDismiss?()
+                        }
+                    
+                    EventDetailView(event: event) {
+                        isPresented.wrappedValue = false
+                        onDismiss?()
+                    }
+                    .frame(width: 400, height: 500)
+                    .background(Color.white.opacity(1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.black.opacity(0.08), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.15), radius: 30, y: 10)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isPresented.wrappedValue)
+            }
+        }
+    }
 }

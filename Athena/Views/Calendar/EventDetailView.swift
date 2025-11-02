@@ -14,70 +14,54 @@ struct EventDetailView: View {
     // MARK: - Properties
 
     let event: CalendarEvent
-    @Environment(\.dismiss) private var dismiss
+    let onClose: () -> Void
 
     // MARK: - Body
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.white.opacity(0.6))
-                .shadow(radius: 20, y: 10)
-                .compositingGroup()
-            
-            VStack(spacing: 0) {
-                // Header
-                header
+        VStack(spacing: 0) {
 
-                Divider()
+            // Content
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Title section
+                    titleSection
 
-                // Content
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        // Title section
-                        titleSection
+                    Divider()
 
+                    // Time section
+                    timeSection
+
+                    Divider()
+
+                    // Calendar section
+                    calendarSection
+
+                    if hasSupplementaryDetails {
                         Divider()
 
-                        // Time section
-                        timeSection
-
-                        Divider()
-
-                        // Calendar section
-                        calendarSection
-
-                        if hasSupplementaryDetails {
-                            Divider()
-
-                            // Location section
-                            if let location = event.location, !location.isEmpty {
-                                locationSection(location)
-                            }
-
-                            // URL section
-                            if let url = event.url {
-                                urlSection(url)
-                            }
+                        // Location section
+                        if let location = event.location, !location.isEmpty {
+                            locationSection(location)
                         }
 
-                        // Notes section (if available)
-                        if let notes = event.notes, !notes.isEmpty {
-                            Divider()
-                            notesSection(notes)
+                        // URL section
+                        if let url = event.url {
+                            urlSection(url)
                         }
-
-                        Spacer()
                     }
-                    .padding()
+
+                    // Notes section (if available)
+                    if let notes = event.notes, !notes.isEmpty {
+                        Divider()
+                        notesSection(notes)
+                    }
+
+                    Spacer()
                 }
+                .padding()
             }
-            .padding(12)
         }
-        .frame(width: 375)
-        .frame(minHeight: 300)
-        .background(.clear)
-        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     // MARK: - Header
@@ -90,7 +74,7 @@ struct EventDetailView: View {
 
             Spacer()
 
-            Button(action: { dismiss() }) {
+            Button(action: onClose) {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundColor(.black) // Changed from .secondary
                     .imageScale(.large)
@@ -282,5 +266,5 @@ struct EventDetailView: View {
         calendar: mockCalendar
     )
 
-    return EventDetailView(event: mockEvent)
+    return EventDetailView(event: mockEvent, onClose: {})
 }
