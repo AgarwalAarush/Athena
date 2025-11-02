@@ -61,21 +61,16 @@ struct MessageInputView: View {
                         .opacity(0)
 
                     // Actual TextEditor with rounded style
-                    CustomTextEditor(text: $text, isFocused: isFocused)
+                    CustomTextEditor(text: $text, isFocused: isFocused, onSend: onSend)
                         .frame(height: textHeight)
                         .padding(.horizontal, 20)
                         .padding(.top, 4)
                         .padding(.bottom, 4)
-                        .background(Color.white.opacity(0.30))
+                        .background(Color.white.opacity(0.6))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .disabled(isLoading || isRecording)
                         .onTapGesture {
                             isFocused = true
-                        }
-                        .onSubmit {
-                            if canSend {
-                                onSend()
-                            }
                         }
                 }
 
@@ -148,6 +143,7 @@ struct MessageInputView: View {
 struct CustomTextEditor: NSViewRepresentable {
     @Binding var text: String
     var isFocused: Bool
+    let onSend: () -> Void
     
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -220,6 +216,21 @@ struct CustomTextEditor: NSViewRepresentable {
                 parent.text = textView.string
             }
         }
+        
+        func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                // Disallow newline characters, and instead trigger the send action
+                // But if shift is held, allow it
+                if let event = NSApp.currentEvent, event.modifierFlags.contains(.shift) {
+                    return false
+                }
+                
+                // Trigger send
+                parent.onSend()
+                return true
+            }
+            return false
+        }
     }
 }
 
@@ -240,4 +251,3 @@ struct CustomTextEditor: NSViewRepresentable {
     }
     .frame(width: 470)
 }
-

@@ -21,6 +21,8 @@ class WindowManager: NSObject, ObservableObject {
     private let minHeight: CGFloat = 250
     private let maxHeight: CGFloat = 600
     
+    private var originalWindowSize: CGSize?
+
     func setupFloatingWindow() {
         // Create borderless floating window
         let window = FloatingWindow(
@@ -50,6 +52,9 @@ class WindowManager: NSObject, ObservableObject {
 
         // Restore saved position if available
         restoreWindowPosition()
+        
+        // Store original size
+        self.originalWindowSize = window.frame.size
     }
 
     func openSettingsWindow() {
@@ -74,6 +79,14 @@ class WindowManager: NSObject, ObservableObject {
         window.isReleasedWhenClosed = false
         window.minSize = CGSize(width: 500, height: 600)
 
+        // Set title bar background color to #1E1E1E
+        window.titlebarAppearsTransparent = false
+        window.backgroundColor = NSColor(red: 30/255, green: 30/255, blue: 30/255, alpha: 1.0)
+        if let titlebar = window.standardWindowButton(.closeButton)?.superview {
+            titlebar.wantsLayer = true
+            titlebar.layer?.backgroundColor = NSColor(red: 30/255, green: 30/255, blue: 30/255, alpha: 1.0).cgColor
+        }
+
         // Set content view with SwiftUI
         let settingsView = SettingsView()
         window.contentView = NSHostingView(rootView: settingsView)
@@ -86,6 +99,17 @@ class WindowManager: NSObject, ObservableObject {
         settingsWindow = window
     }
     
+    func resizeForCalendar() {
+        let newSize = CGSize(width: windowSize.width, height: 600)
+        setWindowSize(newSize)
+    }
+
+    func resizeForChat() {
+        if let originalSize = originalWindowSize {
+            setWindowSize(originalSize)
+        }
+    }
+    
     func setWindowSize(_ size: CGSize, animated: Bool = true) {
         guard let window = window else { return }
         
@@ -94,10 +118,11 @@ class WindowManager: NSObject, ObservableObject {
         let constrainedHeight = min(max(size.height, minHeight), maxHeight)
         let constrainedSize = CGSize(width: constrainedWidth, height: constrainedHeight)
         
-        // Calculate new frame maintaining top-left position
-        var newFrame = window.frame
-        newFrame.origin.y -= (constrainedHeight - window.frame.height)
-        newFrame.size = constrainedSize
+        // Calculate new frame keeping the top edge fixed so only the bottom moves
+        let currentFrame = window.frame
+        let topLeft = NSPoint(x: currentFrame.minX, y: currentFrame.maxY)
+        let newOrigin = NSPoint(x: topLeft.x, y: topLeft.y - constrainedHeight)
+        let newFrame = NSRect(origin: newOrigin, size: constrainedSize)
         
         if animated {
             NSAnimationContext.runAnimationGroup { context in
@@ -152,4 +177,3 @@ class WindowManager: NSObject, ObservableObject {
         saveWindowPosition()
     }
 }
-

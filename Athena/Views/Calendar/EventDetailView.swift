@@ -14,16 +14,12 @@ struct EventDetailView: View {
     // MARK: - Properties
 
     let event: CalendarEvent
-    @Environment(\.dismiss) private var dismiss
+    let onClose: () -> Void
 
     // MARK: - Body
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            header
-
-            Divider()
 
             // Content
             ScrollView {
@@ -41,6 +37,20 @@ struct EventDetailView: View {
                     // Calendar section
                     calendarSection
 
+                    if hasSupplementaryDetails {
+                        Divider()
+
+                        // Location section
+                        if let location = event.location, !location.isEmpty {
+                            locationSection(location)
+                        }
+
+                        // URL section
+                        if let url = event.url {
+                            urlSection(url)
+                        }
+                    }
+
                     // Notes section (if available)
                     if let notes = event.notes, !notes.isEmpty {
                         Divider()
@@ -52,7 +62,6 @@ struct EventDetailView: View {
                 .padding()
             }
         }
-        .frame(minWidth: 400, minHeight: 300)
     }
 
     // MARK: - Header
@@ -61,12 +70,13 @@ struct EventDetailView: View {
         HStack {
             Text("Event Details")
                 .font(.headline)
+                .foregroundColor(.black)
 
             Spacer()
 
-            Button(action: { dismiss() }) {
+            Button(action: onClose) {
                 Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.black) // Changed from .secondary
                     .imageScale(.large)
             }
             .buttonStyle(.plain)
@@ -88,6 +98,7 @@ struct EventDetailView: View {
                 Text(event.title)
                     .font(.title2)
                     .fontWeight(.semibold)
+                    .foregroundColor(.black)
             }
         }
     }
@@ -98,7 +109,7 @@ struct EventDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Time", systemImage: "clock")
                 .font(.headline)
-                .foregroundColor(.secondary)
+                .foregroundColor(.black) // Changed from .secondary
 
             if event.isAllDay {
                 HStack {
@@ -106,28 +117,32 @@ struct EventDetailView: View {
                         .foregroundColor(.orange)
                     Text("All Day")
                         .font(.body)
+                        .foregroundColor(.black)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("Start:")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.black) // Changed from .secondary
                             .frame(width: 60, alignment: .leading)
                         Text(formatDateTime(event.startDate))
+                            .foregroundColor(.black) // Explicitly set to black
                     }
 
                     HStack {
                         Text("End:")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.black) // Changed from .secondary
                             .frame(width: 60, alignment: .leading)
                         Text(formatDateTime(event.endDate))
+                            .foregroundColor(.black) // Explicitly set to black
                     }
 
                     HStack {
                         Text("Duration:")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.black) // Changed from .secondary
                             .frame(width: 60, alignment: .leading)
                         Text(formatDuration())
+                            .foregroundColor(.black) // Explicitly set to black
                     }
                 }
                 .font(.body)
@@ -141,7 +156,7 @@ struct EventDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Calendar", systemImage: "calendar")
                 .font(.headline)
-                .foregroundColor(.secondary)
+                .foregroundColor(.black) // Changed from .secondary
 
             HStack(spacing: 8) {
                 Circle()
@@ -150,6 +165,7 @@ struct EventDetailView: View {
 
                 Text(event.calendar.title)
                     .font(.body)
+                    .foregroundColor(.black)
             }
         }
     }
@@ -160,12 +176,39 @@ struct EventDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Notes", systemImage: "note.text")
                 .font(.headline)
-                .foregroundColor(.secondary)
+                .foregroundColor(.black) // Changed from .secondary
 
             Text(notes)
                 .font(.body)
-                .foregroundColor(.primary)
+                .foregroundColor(.black) // Changed from .primary
                 .textSelection(.enabled)
+        }
+    }
+
+    private func locationSection(_ location: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Location", systemImage: "mappin.and.ellipse")
+                .font(.headline)
+                .foregroundColor(.black)
+
+            Text(location)
+                .font(.body)
+                .foregroundColor(.black)
+        }
+    }
+
+    private func urlSection(_ url: URL) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Link", systemImage: "link")
+                .font(.headline)
+                .foregroundColor(.black)
+
+            Link(destination: url) {
+                Text(url.absoluteString)
+                    .font(.body)
+                    .foregroundColor(.blue)
+                    .underline()
+            }
         }
     }
 
@@ -193,6 +236,12 @@ struct EventDetailView: View {
             return "\(minutes)m"
         }
     }
+
+    private var hasSupplementaryDetails: Bool {
+        let hasLocation = (event.location?.isEmpty == false)
+        let hasURL = (event.url != nil)
+        return hasLocation || hasURL
+    }
 }
 
 // MARK: - Preview
@@ -212,8 +261,10 @@ struct EventDetailView: View {
         endDate: Date().addingTimeInterval(1800),
         isAllDay: false,
         notes: "Daily standup to discuss progress and blockers. Join via Zoom link in calendar invite.",
+        location: "Conference Room A",
+        url: URL(string: "https://zoom.us/j/123456789"),
         calendar: mockCalendar
     )
 
-    return EventDetailView(event: mockEvent)
+    return EventDetailView(event: mockEvent, onClose: {})
 }

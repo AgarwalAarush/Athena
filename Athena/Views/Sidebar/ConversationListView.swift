@@ -9,8 +9,12 @@ import SwiftUI
 
 struct ConversationListView: View {
     @StateObject private var viewModel = ConversationListViewModel()
-    @StateObject private var chatViewModel = ChatViewModel()
+    @StateObject private var chatViewModel: ChatViewModel
     @State private var showingSidebar = true
+
+    init(appViewModel: AppViewModel = AppViewModel()) {
+        _chatViewModel = StateObject(wrappedValue: ChatViewModel(appViewModel: appViewModel))
+    }
 
     var body: some View {
         HSplitView {
@@ -101,4 +105,3 @@ struct SearchBar: View {
     ConversationListView()
         .frame(width: 700, height: 640)
 }
-

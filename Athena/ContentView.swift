@@ -9,7 +9,14 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var windowManager: WindowManager
-    @StateObject private var chatViewModel = ChatViewModel()
+    @StateObject private var appViewModel = AppViewModel()
+    @StateObject private var chatViewModel: ChatViewModel
+
+    init() {
+        let appViewModel = AppViewModel()
+        _appViewModel = StateObject(wrappedValue: appViewModel)
+        _chatViewModel = StateObject(wrappedValue: ChatViewModel(appViewModel: appViewModel))
+    }
 
     var body: some View {
         ZStack {
@@ -29,22 +36,40 @@ struct ContentView: View {
                 // Title Bar
                 TitleBarView(chatViewModel: chatViewModel)
 
-                Divider()
-                    .opacity(0.5)
+//                Divider()
+//                    .opacity(0.5)
 
                 // Main Content Area
-                ChatView(viewModel: chatViewModel)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Group {
+                    switch appViewModel.currentView {
+                    case .chat:
+                        ChatView(viewModel: chatViewModel)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .calendar:
+                        DayView(viewModel: appViewModel.dayViewModel)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .notes:
+                        NotesView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+                .animation(nil, value: appViewModel.currentView)
+                .transition(.identity)
             }
             .clipShape(shell)
             .compositingGroup()
         }
         .frame(width: windowManager.windowSize.width, height: windowManager.windowSize.height)
+        .environmentObject(appViewModel)
+        .onAppear {
+            appViewModel.setup(windowManager: windowManager)
+        }
     }
 }
 
 struct TitleBarView: View {
     @EnvironmentObject var windowManager: WindowManager
+    @EnvironmentObject var appViewModel: AppViewModel
     @ObservedObject var chatViewModel: ChatViewModel
     @ObservedObject private var config = ConfigurationManager.shared
 
@@ -52,6 +77,16 @@ struct TitleBarView: View {
 
     var body: some View {
         HStack {
+            // Back button (visible in notes and calendar views)
+            if appViewModel.currentView == .notes || appViewModel.currentView == .calendar {
+                Button(action: { appViewModel.showChat() }) {
+                    Image(systemName: "chevron.left")
+                        .foregroundColor(.accentColor)
+                }
+                .buttonStyle(.plain)
+                .help("Back to Chat")
+            }
+
             Spacer()
 
             HStack(spacing: 12) {
@@ -79,12 +114,26 @@ struct TitleBarView: View {
                     isPulsing = newValue
                 }
 
-                Button(action: {}) {
+                Button(action: { appViewModel.showChat() }) {
                     Image(systemName: "message")
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(appViewModel.currentView == .chat ? .accentColor : .primary)
                 }
                 .buttonStyle(.plain)
                 .help("Chat")
+
+                Button(action: { appViewModel.showCalendar() }) {
+                    Image(systemName: "calendar")
+                        .foregroundColor(appViewModel.currentView == .calendar ? .accentColor : .primary)
+                }
+                .buttonStyle(.plain)
+                .help("Calendar")
+
+                Button(action: { appViewModel.showNotes() }) {
+                    Image(systemName: "square.and.pencil")
+                        .foregroundColor(appViewModel.currentView == .notes ? .accentColor : .primary)
+                }
+                .buttonStyle(.plain)
+                .help("Notes")
 
                 Button(action: { windowManager.openSettingsWindow() }) {
                     Image(systemName: "gear")

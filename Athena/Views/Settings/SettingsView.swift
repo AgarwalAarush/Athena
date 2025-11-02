@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import EventKit
 
 // MARK: - Color Extensions
 
@@ -39,6 +40,41 @@ extension Color {
     static let settingsCard = Color(NSColor.windowBackgroundColor)
     static let settingsBorder = Color(NSColor.separatorColor)
     static let settingsTextSecondary = Color(NSColor.secondaryLabelColor)
+}
+
+// MARK: - Window Styling
+
+struct WindowStyler: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(TitlebarConfigurator())
+    }
+
+    private struct TitlebarConfigurator: NSViewRepresentable {
+        func makeNSView(context: Context) -> NSView {
+            let view = NSView()
+            DispatchQueue.main.async {
+                if let window = view.window {
+                    window.titleVisibility = .hidden
+                    window.titlebarAppearsTransparent = true
+                    window.isMovableByWindowBackground = true
+                    window.styleMask.insert(.fullSizeContentView)
+                    window.toolbarStyle = .unifiedCompact
+                    window.isOpaque = false
+                    window.backgroundColor = .clear
+                }
+            }
+            return view
+        }
+
+        func updateNSView(_ nsView: NSView, context: Context) {}
+    }
+}
+
+extension View {
+    func unifiedTitlebar() -> some View {
+        modifier(WindowStyler())
+    }
 }
 
 // MARK: - Custom Components
@@ -85,6 +121,7 @@ struct ModernButton: ButtonStyle {
         case primary
         case secondary
         case danger
+        case neutral
     }
 
     let style: Style
@@ -112,12 +149,15 @@ struct ModernButton: ButtonStyle {
             return isPressed ? Color.settingsBorder : Color.clear
         case .danger:
             return isPressed ? Color.red.opacity(0.8) : Color.red
+        case .neutral:
+            let base = Color(hex: "3A3A3A")
+            return isPressed ? base.opacity(0.8) : base
         }
     }
 
     private var foregroundColor: Color {
         switch style {
-        case .primary, .danger:
+        case .primary, .danger, .neutral:
             return .white
         case .secondary:
             return .white
@@ -131,6 +171,8 @@ struct ModernButton: ButtonStyle {
         case .secondary:
             return Color.settingsBorder
         case .danger:
+            return Color.clear
+        case .neutral:
             return Color.clear
         }
     }
@@ -161,97 +203,153 @@ struct ModernSecureField: View {
     }
 }
 
+// Settings-specific text field components similar to ChatView input
+struct SettingsTextField: NSViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+    let onChange: (String) -> Void
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        let textView = NSTextView()
+
+        textView.font = NSFont.systemFont(ofSize: 14)
+        textView.textColor = NSColor.white
+        textView.backgroundColor = .clear
+        textView.drawsBackground = false
+        textView.isRichText = false
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.string = text
+        textView.delegate = context.coordinator
+
+        // Remove extra padding
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainerInset = NSSize(width: 4, height: 4)
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.heightTracksTextView = false
+
+        // Configure scroll view
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.documentView = textView
+        scrollView.borderType = .noBorder
+        scrollView.backgroundColor = .clear
+        scrollView.drawsBackground = false
+
+        context.coordinator.textView = textView
+
+        return scrollView
+    }
+
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        if let textView = nsView.documentView as? NSTextView {
+            if textView.string != text {
+                textView.string = text
+            }
+            textView.textColor = NSColor.white
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: SettingsTextField
+        var textView: NSTextView?
+
+        init(_ parent: SettingsTextField) {
+            self.parent = parent
+        }
+
+        func textDidChange(_ notification: Notification) {
+            if let textView = textView {
+                parent.text = textView.string
+                parent.onChange(textView.string)
+            }
+        }
+    }
+}
+
+struct SettingsSecureField: NSViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+    let onChange: (String) -> Void
+
+    func makeNSView(context: Context) -> NSSecureTextField {
+        let textField = NSSecureTextField()
+
+        textField.font = NSFont.systemFont(ofSize: 14)
+        textField.textColor = NSColor.white
+        textField.backgroundColor = .clear
+        textField.isBordered = false
+        textField.focusRingType = .none
+        textField.placeholderString = placeholder
+        textField.stringValue = text
+        textField.delegate = context.coordinator
+
+        return textField
+    }
+
+    func updateNSView(_ nsView: NSSecureTextField, context: Context) {
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: SettingsSecureField
+
+        init(_ parent: SettingsSecureField) {
+            self.parent = parent
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            if let textField = notification.object as? NSSecureTextField {
+                parent.text = textField.stringValue
+                parent.onChange(textField.stringValue)
+            }
+        }
+    }
+}
+
 // MARK: - Main Settings View
 
 struct SettingsView: View {
     @ObservedObject var config = ConfigurationManager.shared
-    @State private var selectedTab: SettingsTab = .provider
-
-    enum SettingsTab: String, CaseIterable {
-        case provider = "Provider"
-        case model = "Model"
-
-        var icon: String {
-            switch self {
-            case .provider: return "network"
-            case .model: return "brain"
-            }
-        }
-    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Modern Header
-            HStack {
-                Text("Settings")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(Color(NSColor.labelColor))
-                Spacer()
-            }
-            .padding(.horizontal, 32)
-            .padding(.top, 32)
-            .padding(.bottom, 24)
-
-            // Modern Tab Bar
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(SettingsTab.allCases, id: \.self) { tab in
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                selectedTab = tab
-                            }
-                        }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: tab.icon)
-                                    .font(.system(size: 14, weight: .medium))
-                                Text(tab.rawValue)
-                                    .font(.system(size: 14, weight: .medium))
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                            .background(
-                                selectedTab == tab
-                                    ? Color.accentColor
-                                    : Color.settingsCard
-                            )
-                            .foregroundColor(
-                                selectedTab == tab
-                                    ? .white
-                                    : .settingsTextSecondary
-                            )
-                            .cornerRadius(20)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .stroke(
-                                        selectedTab == tab
-                                            ? Color.clear
-                                            : Color.settingsBorder,
-                                        lineWidth: 1
-                                    )
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 32)
-            }
-            .padding(.bottom, 24)
-
-            // Content Area
+        ZStack {
+            Color(hex: "1E1E1E")
+                .ignoresSafeArea(.container, edges: .top)
+            
             ScrollView {
-                Group {
-                    switch selectedTab {
-                    case .provider:
-                        ProviderSettingsView()
-                    case .model:
-                        ModelSettingsView()
-                    }
+                VStack(alignment: .leading, spacing: 32) {
+                    // AI Provider Configuration Section
+                    ProviderSettingsView()
+
+                    Divider()
+                        .padding(.horizontal, 16)
+
+                    // Permissions Section
+                    PermissionsSettingsView()
+                    
+                    Divider()
+                        .padding(.horizontal, 16)
+                    
+                    // Calendar Selection Section
+                    CalendarSelectionSettingsView()
                 }
                 .padding(.horizontal, 32)
-                .padding(.bottom, 32)
+                .padding(.vertical, 24)
             }
         }
-        .background(Color.settingsBackground)
+        .unifiedTitlebar()
     }
 }
 
@@ -260,9 +358,6 @@ struct SettingsView: View {
 struct ProviderSettingsView: View {
     @ObservedObject var config = ConfigurationManager.shared
     @State private var openaiKey: String = ""
-    @State private var anthropicKey: String = ""
-    @State private var showOpenAIKey: Bool = false
-    @State private var showAnthropicKey: Bool = false
     @State private var saveStatus: SaveStatus = .none
 
     enum SaveStatus {
@@ -274,114 +369,61 @@ struct ProviderSettingsView: View {
             Text("AI Provider Configuration")
                 .font(.title3)
                 .fontWeight(.semibold)
-                .foregroundColor(Color(NSColor.labelColor))
+                .foregroundColor(.white)
 
             // OpenAI Settings
-            ModernCard(title: "OpenAI", icon: "brain") {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 12) {
-                        if showOpenAIKey {
-                            TextField("Enter API Key", text: $openaiKey)
-                                .textFieldStyle(ModernTextField())
-                        } else {
-                            ModernSecureField(placeholder: "Enter API Key", text: $openaiKey)
-                        }
+            VStack(alignment: .leading, spacing: 16) {
+                // Title with status indicator
+                HStack(spacing: 8) {
+                    Image(systemName: "brain")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("OpenAI")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
 
-                        Button(action: { showOpenAIKey.toggle() }) {
-                            Image(systemName: showOpenAIKey ? "eye.slash.fill" : "eye.fill")
-                                .foregroundColor(.settingsTextSecondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help(showOpenAIKey ? "Hide key" : "Show key")
-                    }
+                    Spacer()
 
-                    HStack(spacing: 12) {
-                        if config.hasAPIKey(for: "openai") {
-                            HStack(spacing: 6) {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("Key configured")
-                            }
-                            .foregroundColor(.green)
-                            .font(.caption)
-                        } else {
-                            HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                Text("No key configured")
-                            }
-                            .foregroundColor(.orange)
-                            .font(.caption)
+                    if config.hasAPIKey(for: "openai") {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Key configured")
                         }
-
-                        Spacer()
-
-                        Button("Save Key") {
-                            saveOpenAIKey()
+                        .foregroundColor(.green)
+                        .font(.caption)
+                    } else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text("No key configured")
                         }
-                        .buttonStyle(ModernButton(style: .primary))
-                        .disabled(openaiKey.isEmpty)
-                        .opacity(openaiKey.isEmpty ? 0.5 : 1.0)
-
-                        if config.hasAPIKey(for: "openai") {
-                            Button("Remove") {
-                                removeOpenAIKey()
-                            }
-                            .buttonStyle(ModernButton(style: .danger))
-                        }
+                        .foregroundColor(.orange)
+                        .font(.caption)
                     }
                 }
-            }
 
-            // Anthropic Settings
-            ModernCard(title: "Anthropic (Claude)", icon: "sparkles") {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 12) {
-                        if showAnthropicKey {
-                            TextField("Enter API Key", text: $anthropicKey)
-                                .textFieldStyle(ModernTextField())
-                        } else {
-                            ModernSecureField(placeholder: "Enter API Key", text: $anthropicKey)
-                        }
-
-                        Button(action: { showAnthropicKey.toggle() }) {
-                            Image(systemName: showAnthropicKey ? "eye.slash.fill" : "eye.fill")
-                                .foregroundColor(.settingsTextSecondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help(showAnthropicKey ? "Hide key" : "Show key")
-                    }
-
-                    HStack(spacing: 12) {
-                        if config.hasAPIKey(for: "anthropic") {
-                            HStack(spacing: 6) {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("Key configured")
+                // Input field with remove button
+                HStack(alignment: .center, spacing: 12) {
+                    SettingsSecureField(
+                        text: $openaiKey,
+                        placeholder: "Enter API Key",
+                        onChange: { newValue in
+                            if !newValue.isEmpty {
+                                saveOpenAIKey()
                             }
-                            .foregroundColor(.green)
-                            .font(.caption)
-                        } else {
-                            HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                Text("No key configured")
-                            }
-                            .foregroundColor(.orange)
-                            .font(.caption)
                         }
+                    )
+                    .frame(height: 32)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 4)
+                    .background(Color(hex: "303030"))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
 
-                        Spacer()
-
-                        Button("Save Key") {
-                            saveAnthropicKey()
+                    if config.hasAPIKey(for: "openai") {
+                        Button("Remove") {
+                            removeOpenAIKey()
                         }
-                        .buttonStyle(ModernButton(style: .primary))
-                        .disabled(anthropicKey.isEmpty)
-                        .opacity(anthropicKey.isEmpty ? 0.5 : 1.0)
-
-                        if config.hasAPIKey(for: "anthropic") {
-                            Button("Remove") {
-                                removeAnthropicKey()
-                            }
-                            .buttonStyle(ModernButton(style: .danger))
-                        }
+                        .buttonStyle(ModernButton(style: .neutral))
                     }
                 }
             }
@@ -395,7 +437,7 @@ struct ProviderSettingsView: View {
                 .foregroundColor(.green)
                 .font(.subheadline)
                 .padding(12)
-                .background(Color.green.opacity(0.1))
+                .background(Color.green.opacity(0.2))
                 .cornerRadius(8)
             } else if case .error(let message) = saveStatus {
                 HStack(spacing: 8) {
@@ -405,7 +447,7 @@ struct ProviderSettingsView: View {
                 .foregroundColor(.red)
                 .font(.subheadline)
                 .padding(12)
-                .background(Color.red.opacity(0.1))
+                .background(Color.red.opacity(0.2))
                 .cornerRadius(8)
             }
         }
@@ -435,96 +477,266 @@ struct ProviderSettingsView: View {
             saveStatus = .error("Failed to remove key: \(error.localizedDescription)")
         }
     }
-
-    private func saveAnthropicKey() {
-        do {
-            try config.setAPIKey(anthropicKey, for: "anthropic")
-            anthropicKey = ""
-            saveStatus = .success
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                saveStatus = .none
-            }
-        } catch {
-            saveStatus = .error("Failed to save key: \(error.localizedDescription)")
-        }
-    }
-
-    private func removeAnthropicKey() {
-        do {
-            try config.deleteAPIKey(for: "anthropic")
-            saveStatus = .success
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                saveStatus = .none
-            }
-        } catch {
-            saveStatus = .error("Failed to remove key: \(error.localizedDescription)")
-        }
-    }
 }
 
-// MARK: - Model Settings
+// MARK: - Permissions Settings
 
-struct ModelSettingsView: View {
-    @ObservedObject var config = ConfigurationManager.shared
+struct PermissionsSettingsView: View {
+    @State private var calendarStatus: String = CalendarService.shared.authorizationStatusDescription
+    @State private var isRequesting = false
+    @State private var showAlert = false
+    @State private var alertMessage = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("Model Parameters")
+            Text("App Permissions")
                 .font(.title3)
                 .fontWeight(.semibold)
-                .foregroundColor(Color(NSColor.labelColor))
+                .foregroundColor(.white)
 
-            ModernCard {
-                VStack(alignment: .leading, spacing: 24) {
-                    // Provider Selection
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Provider")
+            // Calendar Permission Section
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("Calendar Access")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 10, height: 10)
+                        Text(calendarStatus)
                             .font(.subheadline)
                             .fontWeight(.medium)
-                            .foregroundColor(Color(NSColor.labelColor))
-
-                        Picker("", selection: Binding(
-                            get: { config.selectedProvider },
-                            set: { try? config.set($0, for: .selectedProvider) }
-                        )) {
-                            Text("OpenAI").tag("openai")
-                            Text("Anthropic (Claude)").tag("anthropic")
-                        }
-                        .pickerStyle(.segmented)
+                            .foregroundColor(.white)
                     }
-
-                    // Model Selection
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Model")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(Color(NSColor.labelColor))
-
-                        if config.selectedProvider == "openai" {
-                            Picker("", selection: Binding(
-                                get: { config.selectedModel },
-                                set: { try? config.set($0, for: .selectedModel) }
-                            )) {
-                                Text("GPT-5 Nano").tag("gpt-5-nano-2025-08-07")
-                            }
-                            .pickerStyle(.menu)
-                        } else {
-                            Picker("", selection: Binding(
-                                get: { config.selectedModel },
-                                set: { try? config.set($0, for: .selectedModel) }
-                            )) {
-                                Text("Claude Haiku 4.5").tag("claude-haiku-4-5-20251001")
-                            }
-                            .pickerStyle(.menu)
-                        }
-                    }
-
                 }
+                
+                if CalendarService.shared.authorizationStatus == .notDetermined {
+                    HStack(spacing: 12) {
+                        Spacer()
+                        Button(action: requestCalendarAccess) {
+                            if isRequesting {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .frame(width: 20, height: 20)
+                            } else {
+                                Text("Grant Access")
+                            }
+                        }
+                        .buttonStyle(ModernButton(style: .primary))
+                        .disabled(isRequesting)
+                    }
+                } else if CalendarService.shared.authorizationStatus == .denied {
+                    HStack(spacing: 12) {
+                        Spacer()
+                        Button("Open System Settings") {
+                            CalendarService.shared.openCalendarPrivacySettings()
+                        }
+                        .buttonStyle(ModernButton(style: .primary))
+                    }
+                } else if CalendarService.shared.authorizationStatus == .writeOnly {
+                    HStack(spacing: 12) {
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 8) {
+                            Text("Write-only access detected")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Button("Upgrade to Full Access") {
+                                CalendarService.shared.openCalendarPrivacySettings()
+                            }
+                            .buttonStyle(ModernButton(style: .primary))
+                        }
+                    }
+                }
+            }
+        }
+        .alert("Calendar Access", isPresented: $showAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(alertMessage)
+        }
+    }
+    
+    private var statusColor: Color {
+        switch CalendarService.shared.authorizationStatus {
+        case .fullAccess, .authorized:
+            return .green
+        case .writeOnly:
+            return .orange
+        case .denied, .restricted:
+            return .red
+        case .notDetermined:
+            return .gray
+        @unknown default:
+            return .gray
+        }
+    }
+    
+    private func requestCalendarAccess() {
+        isRequesting = true
+        
+        CalendarService.shared.requestAccessWithActivation { granted, error in
+            isRequesting = false
+            
+            // Update status
+            calendarStatus = CalendarService.shared.authorizationStatusDescription
+            
+            if let error = error {
+                alertMessage = "Failed to request access: \(error.localizedDescription)"
+                showAlert = true
+            } else if granted {
+                alertMessage = "Calendar access granted! You can now view and manage your events."
+                showAlert = true
+            } else {
+                alertMessage = "Calendar access was denied. You can grant access later in System Settings > Privacy & Security > Calendars."
+                showAlert = true
             }
         }
     }
 }
 
+// MARK: - Calendar Selection Settings
+
+struct CalendarSelectionSettingsView: View {
+    @ObservedObject var calendarService = CalendarService.shared
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("Calendar Selection")
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+            
+            if !calendarService.hasReadAccess {
+                accessRequiredView
+            } else if calendarService.allEventCalendars.isEmpty {
+                noCalendarsView
+            } else {
+                calendarListView
+            }
+        }
+    }
+    
+    private var accessRequiredView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "calendar.badge.exclamationmark")
+                    .foregroundColor(.orange)
+                Text("Calendar access is required to select calendars")
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            
+            Text("Please grant calendar access in the Permissions section above.")
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.6))
+        }
+    }
+    
+    private var noCalendarsView: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "calendar")
+                .foregroundColor(.gray)
+            Text("No calendars found. Please add calendars in the System Calendar app.")
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.7))
+        }
+    }
+    
+    private var calendarListView: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Selection summary with bulk actions
+            HStack(spacing: 12) {
+                Image(systemName: "calendar.badge.checkmark")
+                    .foregroundColor(.white)
+                Text("\(calendarService.selectedCalendarIDs.count) of \(calendarService.allEventCalendars.count) calendars selected")
+                    .foregroundColor(.white)
+                    .fontWeight(.medium)
+                
+                Spacer()
+                
+                Button("Select All") {
+                    calendarService.selectAllCalendars()
+                }
+                .buttonStyle(ModernButton(style: .secondary))
+                
+                Button("Deselect All") {
+                    calendarService.deselectAllCalendars()
+                }
+                .buttonStyle(ModernButton(style: .secondary))
+            }
+            .font(.body)
+            
+            // Calendar list in a scrollable container
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(calendarService.allEventCalendars, id: \.calendarIdentifier) { calendar in
+                    CalendarToggleRow(calendar: calendar, calendarService: calendarService)
+                        .padding(.vertical, 8)
+                    
+                    if calendar.calendarIdentifier != calendarService.allEventCalendars.last?.calendarIdentifier {
+                        Divider()
+                            .background(Color.white.opacity(0.1))
+                    }
+                }
+            }
+            .padding(12)
+            .background(Color.black.opacity(0.2))
+            .cornerRadius(8)
+        }
+    }
+}
+
+// MARK: - Calendar Toggle Row
+
+struct CalendarToggleRow: View {
+    let calendar: EKCalendar
+    @ObservedObject var calendarService: CalendarService
+    
+    private var isSelected: Bool {
+        calendarService.selectedCalendarIDs.contains(calendar.calendarIdentifier)
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Toggle("", isOn: Binding(
+                get: { isSelected },
+                set: { calendarService.setCalendar(calendar, enabled: $0) }
+            ))
+            .toggleStyle(.checkbox)
+            .labelsHidden()
+            
+            // Calendar color indicator
+            Circle()
+                .fill(Color(nsColor: calendar.color))
+                .frame(width: 12, height: 12)
+            
+            // Calendar title
+            Text(calendar.title)
+                .font(.body)
+                .foregroundColor(.white)
+            
+            Spacer()
+            
+            // Calendar source badge (e.g., iCloud, Google)
+            if let source = calendar.source {
+                Text(source.title)
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.6))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.1))
+                    .cornerRadius(4)
+            }
+        }
+    }
+}
 
 #Preview {
     SettingsView()

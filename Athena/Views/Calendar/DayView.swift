@@ -13,7 +13,8 @@ struct DayView: View {
 
     // MARK: - Properties
 
-    @StateObject private var viewModel = DayViewModel()
+    @EnvironmentObject var appViewModel: AppViewModel
+    @ObservedObject var viewModel: DayViewModel
     @State private var selectedEvent: CalendarEvent?
     @State private var showEventDetail = false
     @State private var currentTimeOffset: CGFloat = 0
@@ -29,6 +30,7 @@ struct DayView: View {
 
     var body: some View {
         ZStack {
+            // Rounded container for calendar content
             VStack(spacing: 0) {
                 // Navigation header
                 navigationHeader
@@ -48,6 +50,9 @@ struct DayView: View {
                     calendarContent
                 }
             }
+            .background(Color.white.opacity(0.6))
+            .cornerRadius(8)
+            .padding()
 
             // Invisible buttons for keyboard shortcuts
             VStack {
@@ -61,14 +66,18 @@ struct DayView: View {
             }
             .frame(width: 0, height: 0)
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.clear)
         .onAppear {
             startCurrentTimeTimer()
         }
-        .sheet(isPresented: $showEventDetail) {
-            if let event = selectedEvent {
-                EventDetailView(event: event)
+        .onChange(of: showEventDetail) { isPresented in
+            if !isPresented {
+                selectedEvent = nil
             }
+        }
+        .eventDetailOverlay(event: selectedEvent, isPresented: $showEventDetail) {
+            selectedEvent = nil
         }
     }
 
@@ -81,6 +90,7 @@ struct DayView: View {
                 Label("Previous", systemImage: "chevron.left")
             }
             .buttonStyle(.borderless)
+            .foregroundColor(.black)
             .help("Previous day (⌘←)")
 
             Spacer()
@@ -89,10 +99,11 @@ struct DayView: View {
             VStack(spacing: 2) {
                 Text(viewModel.formattedDate)
                     .font(.headline)
+                    .foregroundColor(.black) // Explicitly set to black
                 if viewModel.isToday {
                     Text("Today")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.black) // Explicitly set to black
                 }
             }
 
@@ -103,6 +114,7 @@ struct DayView: View {
                 Text("Today")
             }
             .buttonStyle(.borderless)
+            .foregroundColor(.black)
             .disabled(viewModel.isToday)
 
             // Next Day button
@@ -111,6 +123,7 @@ struct DayView: View {
                     .labelStyle(.iconOnly)
             }
             .buttonStyle(.borderless)
+            .foregroundColor(.black)
             .help("Next day (⌘→)")
         }
         .padding()
@@ -150,7 +163,7 @@ struct DayView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("All-Day Events")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(.black) // Explicitly set to black
                 .padding(.horizontal, 4)
 
             VStack(spacing: 4) {
@@ -194,7 +207,7 @@ struct DayView: View {
                     // Hour label
                     Text(formatHour(hour))
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.black) // Explicitly set to black
                         .frame(width: hourLabelWidth, alignment: .trailing)
                         .padding(.trailing, 8)
 
@@ -282,11 +295,20 @@ struct DayView: View {
                 .font(.largeTitle)
                 .foregroundColor(.orange)
             Text(message)
-                .foregroundColor(.secondary)
-            Button("Retry") {
-                Task {
-                    await viewModel.fetchEvents()
+                .foregroundColor(.black) // Explicitly set to black
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+
+            HStack(spacing: 12) {
+                if message.contains("denied") || message.contains("not authorized") {
+                    Button("Open Privacy Settings") {
+                        viewModel.openCalendarSettings()
+                    }
                 }
+
+                Button("Retry") {
+                    viewModel.checkAuthorization()
+                }.opacity(0.5)
             }
         }
         .padding()
@@ -398,6 +420,7 @@ struct AllDayEventRow: View {
             Text(event.title)
                 .font(.body)
                 .lineLimit(1)
+                .foregroundColor(.black)
 
             Spacer()
         }
@@ -415,6 +438,42 @@ struct AllDayEventRow: View {
 // MARK: - Preview
 
 #Preview {
-    DayView()
+    DayView(viewModel: DayViewModel())
+        .environmentObject(AppViewModel())
         .frame(width: 800, height: 600)
+}
+
+// MARK: - Event Detail Overlay
+
+extension View {
+    func eventDetailOverlay(event: CalendarEvent?, isPresented: Binding<Bool>, onDismiss: (() -> Void)? = nil) -> some View {
+        overlay(alignment: .center) {
+            if isPresented.wrappedValue, let event {
+                ZStack {
+                    Color.black.opacity(0.1)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            isPresented.wrappedValue = false
+                            onDismiss?()
+                        }
+                    
+                    EventDetailView(event: event) {
+                        isPresented.wrappedValue = false
+                        onDismiss?()
+                    }
+                    .frame(width: 400, height: 500)
+                    .background(Color.white.opacity(1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.black.opacity(0.08), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.15), radius: 30, y: 10)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isPresented.wrappedValue)
+            }
+        }
+    }
 }

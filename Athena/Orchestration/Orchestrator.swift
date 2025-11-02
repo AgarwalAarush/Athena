@@ -11,10 +11,10 @@ import Foundation
 enum TaskType: String, CaseIterable {
     case notes
     case calendar
-    case windowManagement = "window_management"
-    case openApp = "open_app"
-    case computerUse = "computer_use"
-    case unknown
+    case windowManagement
+    case computerUse
+    case appCommand
+    case notApplicable = "NA"
 }
 
 /// The Orchestrator is responsible for routing user prompts to the appropriate handler.
@@ -22,21 +22,115 @@ enum TaskType: String, CaseIterable {
 class Orchestrator {
 
     private let aiService: AIServiceProtocol
+    private weak var appViewModel: AppViewModel?
 
-    /// Initializes the Orchestrator with a given AI service.
-    /// - Parameter aiService: The AI service to use for intent classification.
-    init(aiService: AIServiceProtocol = AIService.shared) {
+    /// Initializes the Orchestrator with a given AI service and optional AppViewModel.
+    /// - Parameters:
+    ///   - aiService: The AI service to use for intent classification.
+    ///   - appViewModel: The view model to control the app's view state.
+    init(aiService: AIServiceProtocol = AIService.shared, appViewModel: AppViewModel? = nil) {
         self.aiService = aiService
+        self.appViewModel = appViewModel
     }
 
-    /// Routes a user prompt to a specific task type by classifying the user's intent.
-    /// - Parameter prompt: The user's input prompt.
-    /// - Returns: The classified `TaskType`.
-    func route(prompt: String) async throws -> TaskType {
+    /// Routes a user prompt to the appropriate handler.
+    ///
+    /// - Parameters:
+    ///   - prompt: The user's input prompt.
+    ///   - context: Optional current view context. When provided, indicates the user is already in that view
+    ///              and the prompt should be processed IN CONTEXT of that view (e.g., "show tomorrow's events"
+    ///              while in calendar view should navigate calendar, not just switch to it).
+    ///
+    /// - Note: **TODO - Context-Aware Routing Implementation Required**
+    ///
+    ///   When `context` is provided, the routing behavior should change:
+    ///
+    ///   **Calendar Context (context == .calendar):**
+    ///   - User is already viewing the calendar
+    ///   - Parse prompt for calendar-specific actions:
+    ///     * Navigation: "show tomorrow", "next week", "go to Friday", "today"
+    ///       → Call appViewModel.dayViewModel.nextDay() / previousDay() / today()
+    ///       → Or set appViewModel.dayViewModel.selectedDate directly
+    ///     * Event queries: "what's on my calendar", "show me morning events"
+    ///       → Use CalendarService to fetch and potentially display results
+    ///     * Event creation: "create meeting at 3pm", "schedule dentist appointment tomorrow"
+    ///       → Parse with AI, call CalendarService.createEvent()
+    ///     * Event modification: "move my 2pm meeting to 3pm", "delete lunch meeting"
+    ///       → Parse with AI, call CalendarService.updateEvent() / deleteEvent()
+    ///
+    ///   **Notes Context (context == .notes):**
+    ///   - User is already viewing notes
+    ///   - Parse prompt for notes-specific actions:
+    ///     * Create: "create note about X", "new note: ..."
+    ///       → Set appViewModel.noteContent = [AI-generated content]
+    ///     * Append: "add to note: ...", "also include ..."
+    ///       → Append to appViewModel.noteContent
+    ///     * Replace: "change note to ...", "rewrite as ..."
+    ///       → Replace appViewModel.noteContent
+    ///     * Format: "make this a bullet list", "add heading ..."
+    ///       → Use AI to transform appViewModel.noteContent
+    ///
+    ///   **Chat Context (context == .chat or nil):**
+    ///   - Use existing keyword/classification logic to determine if we should:
+    ///     * Switch to calendar view (prompt contains "calendar")
+    ///     * Switch to notes view (prompt contains "note"/"notes")
+    ///     * Handle window management, computer use, or app commands
+    ///
+    ///   **Implementation Approach:**
+    ///   ```swift
+    ///   if let context = context {
+    ///       switch context {
+    ///       case .calendar:
+    ///           // Already in calendar - execute calendar actions
+    ///           let action = try await parseCalendarAction(prompt: prompt)
+    ///           await executeCalendarAction(action)
+    ///       case .notes:
+    ///           // Already in notes - execute notes actions
+    ///           let action = try await parseNotesAction(prompt: prompt)
+    ///           await executeNotesAction(action)
+    ///       case .chat:
+    ///           // Use existing routing logic below
+    ///           break
+    ///       }
+    ///       return
+    ///   }
+    ///   ```
+    func route(prompt: String, context: AppView? = nil) async throws {
+        // TODO: Implement context-aware routing (see documentation above)
+        // For now, use existing keyword-based routing
+
+        let lowercasedPrompt = prompt.lowercased()
+
+        if lowercasedPrompt.contains("calendar") {
+            await handleCalendarTask(prompt: prompt)
+        } else if lowercasedPrompt.contains("note") || lowercasedPrompt.contains("notes") {
+            await handleNotesTask(prompt: prompt)
+        } else {
+            let taskType = try await classifyTask(prompt: prompt)
+            switch taskType {
+            case .windowManagement:
+                await handleWindowManagementTask(prompt: prompt)
+            case .computerUse:
+                await handleComputerUseTask(prompt: prompt)
+            case .appCommand:
+                await handleAppCommandTask(prompt: prompt)
+            case .notApplicable, .notes, .calendar:
+                // Handle 'notApplicable' or cases that should have been caught by keyword search
+                print("Task not applicable or mis-routed: \(taskType)")
+            }
+        }
+    }
+
+    /// Classifies a prompt into windowManagement, computerUse, appCommand, or notApplicable.
+    private func classifyTask(prompt: String) async throws -> TaskType {
         let systemPrompt = """
-        You are a highly intelligent routing agent. Your task is to classify the user's prompt into one of the following categories: \(TaskType.allCases.map { $0.rawValue }.joined(separator: ", ")).
-        Respond with only the category name, and nothing else. For example, if the user says 'take a note', you should respond with 'notes'.
-        If the user's prompt does not fit into any of the categories, respond with 'unknown'.
+        Given this user query:
+        "\(prompt)"
+        Return a classification for whether it is a windowManagement task, a computerUse task, an appCommand task, or neither. 
+        - 'windowManagement' tasks may include predefined user configs for how windows look.
+        - 'appCommand' tasks are for making changes and navigating within the app itself (e.g. "go back to the chatview").
+        - 'computerUse' tasks involve general computer operations not covered by the other categories.
+        Respond with exactly one label: 'windowManagement', 'computerUse', 'appCommand', or 'NA'.
         """
 
         let classification = try await aiService.getCompletion(
@@ -46,10 +140,564 @@ class Orchestrator {
             model: "gpt-5-nano-2025-08-07"
         )
 
-        if let taskType = TaskType(rawValue: classification.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) {
-            return taskType
-        } else {
-            return .unknown
+        return TaskType(rawValue: classification.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .notApplicable
+    }
+
+    // MARK: - Calendar Action Types
+
+    /// Result of parsing a calendar query
+    private struct CalendarActionResult {
+        let action: CalendarActionType
+        let params: [String: String]
+    }
+
+    /// Types of calendar actions that can be performed
+    private enum CalendarActionType: String {
+        case view       // Just open calendar
+        case navigate   // Change visible date
+        case create     // Create new event
+        case update     // Modify existing event
+        case delete     // Delete event
+        case query      // Ask about events
+    }
+
+    // MARK: - Task Handlers
+
+    /// Handles calendar-related tasks by switching to calendar view and executing calendar actions.
+    ///
+    /// This method:
+    /// 1. ALWAYS switches to calendar view first
+    /// 2. Parses the prompt using AI to determine action type (navigate, create, update, delete, query, or view)
+    /// 3. Executes the appropriate calendar action via CalendarService and DayViewModel
+    ///
+    /// Supported actions:
+    /// - **view**: Just open calendar
+    /// - **navigate**: Change visible date (e.g., "show tomorrow", "go to Friday")
+    /// - **create**: Create new event (e.g., "create meeting at 3pm called Team Sync")
+    /// - **update**: Modify existing event (e.g., "move my dentist appointment to Thursday")
+    /// - **delete**: Remove event (e.g., "delete my 2pm meeting")
+    /// - **query**: Ask about events (e.g., "what's on my calendar today")
+    private func handleCalendarTask(prompt: String) async {
+        print("[Orchestrator] handleCalendarTask: Processing query '\(prompt)'")
+
+        // ALWAYS switch to calendar view first
+        await MainActor.run {
+            self.appViewModel?.showCalendar()
         }
+
+        // Parse the calendar query using AI
+        do {
+            let result = try await parseCalendarQuery(prompt: prompt)
+            print("[Orchestrator] handleCalendarTask: Executing action '\(result.action)'")
+
+            // Execute the appropriate action
+            switch result.action {
+            case .view:
+                // Already switched to calendar, nothing more to do
+                print("[Orchestrator] handleCalendarTask: View action - calendar opened")
+
+            case .navigate:
+                await executeNavigate(params: result.params)
+
+            case .create:
+                await executeCreateEvent(params: result.params)
+
+            case .update:
+                await executeUpdateEvent(params: result.params)
+
+            case .delete:
+                await executeDeleteEvent(params: result.params)
+
+            case .query:
+                await executeQuery(params: result.params)
+            }
+
+            print("[Orchestrator] handleCalendarTask: Action completed")
+
+        } catch {
+            print("[Orchestrator] handleCalendarTask: Error parsing/executing calendar query: \(error)")
+            // Calendar view is still opened even if action fails
+        }
+    }
+
+    /// Handles notes-related tasks by switching to notes view or executing notes actions.
+    ///
+    /// **TODO - Current Implementation:** Only switches to notes view
+    ///
+    /// **Required Implementation:**
+    /// This method is called when the user's prompt is notes-related. It should:
+    ///
+    /// 1. **Switch to notes view** (if not already there):
+    ///    ```swift
+    ///    await MainActor.run {
+    ///        self.appViewModel?.showNotes()
+    ///    }
+    ///    ```
+    ///
+    /// 2. **Parse the prompt** to extract notes action intent:
+    ///    - Use AI (via aiService) to determine action type and content
+    ///    - Action types: create, append, replace, format, summarize
+    ///
+    /// 3. **Execute the action** via appViewModel.noteContent:
+    ///    ```swift
+    ///    // Example: Create new note
+    ///    if action == "create" {
+    ///        let content = await generateNoteContent(prompt: prompt)
+    ///        await MainActor.run {
+    ///            self.appViewModel?.noteContent = content
+    ///        }
+    ///    }
+    ///
+    ///    // Example: Append to existing note
+    ///    if action == "append" {
+    ///        let addition = await generateAddition(prompt: prompt)
+    ///        await MainActor.run {
+    ///            let current = self.appViewModel?.noteContent ?? ""
+    ///            self.appViewModel?.noteContent = current + "\n\n" + addition
+    ///        }
+    ///    }
+    ///
+    ///    // Example: Format transformation
+    ///    if action == "format" {
+    ///        let current = self.appViewModel?.noteContent ?? ""
+    ///        let transformed = await transformContent(current, instruction: prompt)
+    ///        await MainActor.run {
+    ///            self.appViewModel?.noteContent = transformed
+    ///        }
+    ///    }
+    ///    ```
+    ///
+    /// **Access to Notes State:**
+    /// - appViewModel.noteContent (String binding for rich text editor)
+    private func handleNotesTask(prompt: String) async {
+        // TODO: Implement AI-powered notes action parsing and execution
+        // For now, just switch to notes view
+        DispatchQueue.main.async {
+            self.appViewModel?.showNotes()
+        }
+    }
+
+    /// Handles window management tasks (e.g., "arrange windows side by side").
+    ///
+    /// **TODO - Not Yet Implemented**
+    ///
+    /// This should handle system-level window arrangement and management tasks.
+    private func handleWindowManagementTask(prompt: String) async {
+        // TODO: Implement window management
+        print("[Orchestrator] Window management not yet implemented: \(prompt)")
+    }
+
+    /// Handles general computer use tasks (e.g., "open Safari", "take a screenshot").
+    ///
+    /// **TODO - Not Yet Implemented**
+    ///
+    /// This should handle general computer operations using system APIs.
+    private func handleComputerUseTask(prompt: String) async {
+        // TODO: Implement computer use actions
+        print("[Orchestrator] Computer use not yet implemented: \(prompt)")
+    }
+
+    /// Handles app-level commands (e.g., "go back to chat", "show settings").
+    ///
+    /// **TODO - Not Yet Implemented**
+    ///
+    /// This should handle navigation and commands within the app itself.
+    /// Examples:
+    /// - "go back" → appViewModel.showChat()
+    /// - "show settings" → windowManager.openSettingsWindow()
+    private func handleAppCommandTask(prompt: String) async {
+        // TODO: Implement app command parsing
+        print("[Orchestrator] App command not yet implemented: \(prompt)")
+    }
+
+    // MARK: - Calendar Action Helpers
+
+    // MARK: Action Executors
+
+    /// Executes a calendar navigation action (change visible date)
+    private func executeNavigate(params: [String: String]) async {
+        guard let targetDateString = params["targetDate"] else {
+            print("[Orchestrator] Navigate: Missing targetDate parameter")
+            return
+        }
+
+        guard let targetDate = parseDate(dateString: targetDateString) else {
+            print("[Orchestrator] Navigate: Failed to parse date '\(targetDateString)'")
+            return
+        }
+
+        print("[Orchestrator] Navigate: Moving to date \(targetDate)")
+        await MainActor.run {
+            self.appViewModel?.dayViewModel.selectedDate = targetDate
+        }
+    }
+
+    /// Executes create event action
+    private func executeCreateEvent(params: [String: String]) async {
+        guard let title = params["title"] else {
+            print("[Orchestrator] Create: Missing title parameter")
+            return
+        }
+
+        // Parse date (default to today)
+        let dateString = params["date"] ?? "today"
+        guard let eventDate = parseDate(dateString: dateString) else {
+            print("[Orchestrator] Create: Failed to parse date '\(dateString)'")
+            return
+        }
+
+        // Parse start time
+        guard let startTimeString = params["startTime"],
+              let startTimeComponents = parseTime(startTimeString) else {
+            print("[Orchestrator] Create: Missing or invalid startTime parameter")
+            return
+        }
+
+        // Combine date and time
+        let calendar = Calendar.current
+        var startComponents = calendar.dateComponents([.year, .month, .day], from: eventDate)
+        startComponents.hour = startTimeComponents.hour
+        startComponents.minute = startTimeComponents.minute
+
+        guard let startDate = calendar.date(from: startComponents) else {
+            print("[Orchestrator] Create: Failed to create start date")
+            return
+        }
+
+        // Calculate end date
+        let endDate: Date
+        if let endTimeString = params["endTime"],
+           let endTimeComponents = parseTime(endTimeString) {
+            var endComponents = calendar.dateComponents([.year, .month, .day], from: eventDate)
+            endComponents.hour = endTimeComponents.hour
+            endComponents.minute = endTimeComponents.minute
+            endDate = calendar.date(from: endComponents) ?? calendar.date(byAdding: .hour, value: 1, to: startDate)!
+        } else if let durationString = params["duration"],
+                  let durationMinutes = Int(durationString) {
+            endDate = calendar.date(byAdding: .minute, value: durationMinutes, to: startDate)!
+        } else {
+            // Default to 1 hour
+            endDate = calendar.date(byAdding: .hour, value: 1, to: startDate)!
+        }
+
+        let notes = params["notes"]
+
+        print("[Orchestrator] Create: Creating event '\(title)' from \(startDate) to \(endDate)")
+
+        // Create the event
+        CalendarService.shared.createEvent(
+            title: title,
+            startDate: startDate,
+            endDate: endDate,
+            notes: notes
+        ) { event, error in
+            if let error = error {
+                print("[Orchestrator] Create: Error creating event: \(error.localizedDescription)")
+            } else if let event = event {
+                print("[Orchestrator] Create: Successfully created event '\(event.title)'")
+                // Navigate to the event's date
+                Task { @MainActor in
+                    self.appViewModel?.dayViewModel.selectedDate = startDate
+                }
+            }
+        }
+    }
+
+    /// Executes delete event action
+    private func executeDeleteEvent(params: [String: String]) async {
+        guard let eventIdentifier = params["eventIdentifier"] else {
+            print("[Orchestrator] Delete: Missing eventIdentifier parameter")
+            return
+        }
+
+        print("[Orchestrator] Delete: Searching for event matching '\(eventIdentifier)'")
+
+        // Get current visible date and fetch events for that day
+        let selectedDate = await MainActor.run {
+            self.appViewModel?.dayViewModel.selectedDate ?? Date()
+        }
+
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: selectedDate)
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
+            print("[Orchestrator] Delete: Failed to calculate end of day")
+            return
+        }
+
+        // Fetch events for the selected day
+        CalendarService.shared.fetchEvents(from: startOfDay, to: endOfDay) { events, error in
+            if let error = error {
+                print("[Orchestrator] Delete: Error fetching events: \(error.localizedDescription)")
+                return
+            }
+
+            guard let events = events else {
+                print("[Orchestrator] Delete: No events found")
+                return
+            }
+
+            // Find event matching identifier (case-insensitive search in title)
+            let lowercasedIdentifier = eventIdentifier.lowercased()
+            guard let eventToDelete = events.first(where: { event in
+                event.title.lowercased().contains(lowercasedIdentifier)
+            }) else {
+                print("[Orchestrator] Delete: No event found matching '\(eventIdentifier)'")
+                return
+            }
+
+            print("[Orchestrator] Delete: Found event '\(eventToDelete.title)', deleting...")
+
+            CalendarService.shared.deleteEvent(eventToDelete) { error in
+                if let error = error {
+                    print("[Orchestrator] Delete: Error deleting event: \(error.localizedDescription)")
+                } else {
+                    print("[Orchestrator] Delete: Successfully deleted event '\(eventToDelete.title)'")
+                    // Refresh the view
+                    Task { @MainActor in
+                        await self.appViewModel?.dayViewModel.fetchEvents()
+                    }
+                }
+            }
+        }
+    }
+
+    /// Executes update event action
+    private func executeUpdateEvent(params: [String: String]) async {
+        guard let eventIdentifier = params["eventIdentifier"] else {
+            print("[Orchestrator] Update: Missing eventIdentifier parameter")
+            return
+        }
+
+        print("[Orchestrator] Update: Searching for event matching '\(eventIdentifier)'")
+
+        // Get current visible date and fetch events for that day
+        let selectedDate = await MainActor.run {
+            self.appViewModel?.dayViewModel.selectedDate ?? Date()
+        }
+
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: selectedDate)
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
+            print("[Orchestrator] Update: Failed to calculate end of day")
+            return
+        }
+
+        // Fetch events for the selected day
+        CalendarService.shared.fetchEvents(from: startOfDay, to: endOfDay) { events, error in
+            if let error = error {
+                print("[Orchestrator] Update: Error fetching events: \(error.localizedDescription)")
+                return
+            }
+
+            guard let events = events else {
+                print("[Orchestrator] Update: No events found")
+                return
+            }
+
+            // Find event matching identifier
+            let lowercasedIdentifier = eventIdentifier.lowercased()
+            guard let eventToUpdate = events.first(where: { event in
+                event.title.lowercased().contains(lowercasedIdentifier)
+            }) else {
+                print("[Orchestrator] Update: No event found matching '\(eventIdentifier)'")
+                return
+            }
+
+            print("[Orchestrator] Update: Found event '\(eventToUpdate.title)', updating...")
+
+            // For now, just log that we would update it
+            // Full implementation would parse the 'changes' parameter and apply them
+            print("[Orchestrator] Update: Would update event with params: \(params)")
+            print("[Orchestrator] Update: TODO - Implement parameter parsing and event update")
+
+            // TODO: Parse changes parameter and call CalendarService.updateEvent()
+        }
+    }
+
+    /// Executes query action (ask about events)
+    private func executeQuery(params: [String: String]) async {
+        guard let dateRangeString = params["dateRange"] else {
+            print("[Orchestrator] Query: Missing dateRange parameter")
+            return
+        }
+
+        guard let targetDate = parseDate(dateString: dateRangeString) else {
+            print("[Orchestrator] Query: Failed to parse date range '\(dateRangeString)'")
+            return
+        }
+
+        print("[Orchestrator] Query: Fetching events for \(dateRangeString)")
+
+        // Navigate to the date
+        await MainActor.run {
+            self.appViewModel?.dayViewModel.selectedDate = targetDate
+        }
+
+        // The calendar view will automatically show the events for that date
+        // In the future, we could also display a summary or speak the events
+    }
+
+    // MARK: Parsing Helpers
+
+    /// Parses a calendar query using AI to determine action type and extract parameters
+    private func parseCalendarQuery(prompt: String) async throws -> CalendarActionResult {
+        let currentDate = Date()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .full
+        dateFormatter.timeStyle = .short
+
+        let systemPrompt = """
+        You are a calendar action parser. Analyze the user's query and determine what calendar action they want.
+
+        Current date and time: \(dateFormatter.string(from: currentDate))
+
+        Available actions:
+        1. "view" - Just open/show calendar (no specific action)
+        2. "navigate" - Change visible date
+           Required params: targetDate (e.g., "tomorrow", "next week", "friday", "2024-03-15")
+        3. "create" - Create new event
+           Required params: title, date (default "today"), startTime (HH:mm format)
+           Optional params: endTime (HH:mm) OR duration (minutes), notes
+        4. "update" - Modify existing event
+           Required params: eventIdentifier (description of event), changes (what to modify)
+        5. "delete" - Delete event
+           Required params: eventIdentifier (description of event to delete)
+        6. "query" - Ask about events
+           Required params: dateRange (e.g., "today", "this week", "tomorrow")
+           Optional params: filters (e.g., "morning", "afternoon")
+
+        Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
+        {
+          "action": "action_name",
+          "params": {
+            "param1": "value1",
+            "param2": "value2"
+          }
+        }
+
+        Examples:
+        Query: "show me tomorrow"
+        Response: {"action": "navigate", "params": {"targetDate": "tomorrow"}}
+
+        Query: "create a meeting at 3pm called Team Sync"
+        Response: {"action": "create", "params": {"title": "Team Sync", "date": "today", "startTime": "15:00", "duration": "60"}}
+
+        Query: "delete my dentist appointment"
+        Response: {"action": "delete", "params": {"eventIdentifier": "dentist appointment"}}
+
+        Query: "what's on my calendar today"
+        Response: {"action": "query", "params": {"dateRange": "today"}}
+
+        Query: "open calendar"
+        Response: {"action": "view", "params": {}}
+
+        Now parse this query: "\(prompt)"
+        Respond with ONLY the JSON, no other text.
+        """
+
+        print("[Orchestrator] Parsing calendar query: \(prompt)")
+        let response = try await aiService.getCompletion(
+            prompt: prompt,
+            systemPrompt: systemPrompt,
+            provider: .openai,
+            model: "gpt-5-nano-2025-08-07"
+        )
+
+        print("[Orchestrator] AI response: \(response)")
+
+        // Parse JSON response
+        guard let jsonData = response.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let actionString = json["action"] as? String,
+              let action = CalendarActionType(rawValue: actionString) else {
+            print("[Orchestrator] Failed to parse JSON response, defaulting to 'view' action")
+            return CalendarActionResult(action: .view, params: [:])
+        }
+
+        let params = (json["params"] as? [String: String]) ?? [:]
+        print("[Orchestrator] Parsed action: \(action), params: \(params)")
+
+        return CalendarActionResult(action: action, params: params)
+    }
+
+    /// Parses a relative or absolute date string into a Date
+    private func parseDate(dateString: String, relativeTo baseDate: Date = Date()) -> Date? {
+        let calendar = Calendar.current
+        let lowercased = dateString.lowercased().trimmingCharacters(in: .whitespaces)
+
+        // Handle relative dates
+        switch lowercased {
+        case "today":
+            return calendar.startOfDay(for: baseDate)
+        case "tomorrow":
+            return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: baseDate))
+        case "yesterday":
+            return calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: baseDate))
+        case "next week":
+            return calendar.date(byAdding: .weekOfYear, value: 1, to: calendar.startOfDay(for: baseDate))
+        case "next month":
+            return calendar.date(byAdding: .month, value: 1, to: calendar.startOfDay(for: baseDate))
+        default:
+            break
+        }
+
+        // Handle weekday names (e.g., "friday", "next friday")
+        let weekdayFormatter = DateFormatter()
+        weekdayFormatter.dateFormat = "EEEE"
+        for i in 0..<7 {
+            if let futureDate = calendar.date(byAdding: .day, value: i, to: baseDate),
+               weekdayFormatter.string(from: futureDate).lowercased() == lowercased {
+                return calendar.startOfDay(for: futureDate)
+            }
+        }
+
+        // Handle absolute dates (ISO format YYYY-MM-DD)
+        let isoFormatter = DateFormatter()
+        isoFormatter.dateFormat = "yyyy-MM-dd"
+        if let date = isoFormatter.date(from: dateString) {
+            return date
+        }
+
+        // Handle common date formats
+        let commonFormatter = DateFormatter()
+        commonFormatter.dateStyle = .medium
+        if let date = commonFormatter.date(from: dateString) {
+            return date
+        }
+
+        return nil
+    }
+
+    /// Parses a time string (e.g., "3pm", "15:00", "2:30pm") into Date components
+    private func parseTime(_ timeString: String) -> DateComponents? {
+        var cleaned = timeString.lowercased().trimmingCharacters(in: .whitespaces)
+
+        // Handle "am/pm" format
+        var isPM = false
+        if cleaned.hasSuffix("pm") {
+            isPM = true
+            cleaned = cleaned.replacingOccurrences(of: "pm", with: "").trimmingCharacters(in: .whitespaces)
+        } else if cleaned.hasSuffix("am") {
+            cleaned = cleaned.replacingOccurrences(of: "am", with: "").trimmingCharacters(in: .whitespaces)
+        }
+
+        // Parse hour and minute
+        let parts = cleaned.split(separator: ":").map(String.init)
+        guard let hour = Int(parts[0]) else { return nil }
+
+        let minute = parts.count > 1 ? (Int(parts[1]) ?? 0) : 0
+
+        // Adjust for PM
+        var finalHour = hour
+        if isPM && hour < 12 {
+            finalHour += 12
+        } else if !isPM && hour == 12 {
+            finalHour = 0
+        }
+
+        var components = DateComponents()
+        components.hour = finalHour
+        components.minute = minute
+        return components
     }
 }

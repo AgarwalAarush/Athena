@@ -69,7 +69,7 @@ struct EventBlockView: View {
     /// Text color that contrasts with background
     private var textColor: Color {
         // Use a darker text color for better readability
-        .primary
+        .black // Changed from .primary
     }
 }
 
@@ -89,6 +89,8 @@ struct EventBlockView: View {
         endDate: Date().addingTimeInterval(3600),
         isAllDay: false,
         notes: "Discuss project updates",
+        location: "Conference Room B",
+        url: URL(string: "https://zoom.us/j/987654321"),
         calendar: mockCalendar
     )
 

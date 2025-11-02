@@ -8,6 +8,8 @@
 
 import Foundation
 import EventKit
+import AppKit
+import Combine
 
 /// A simple struct to represent a calendar event, decoupled from EKEvent.
 struct CalendarEvent: Identifiable {
@@ -17,36 +19,271 @@ struct CalendarEvent: Identifiable {
     let endDate: Date
     let isAllDay: Bool
     let notes: String?
+    let location: String?
+    let url: URL?
     let calendar: EKCalendar
 }
 
 /// A service to interact with the user's calendar using EventKit.
-class CalendarService {
+class CalendarService: ObservableObject {
     
     static let shared = CalendarService()
     
     private let eventStore = EKEventStore()
     
-    private init() {}
+    // MARK: - Published Properties
     
-    // MARK: - Authorization
+    /// All available event calendars from EventKit
+    @Published private(set) var allEventCalendars: [EKCalendar] = []
     
-    /// Requests access to the user's calendar.
-    /// - Parameter completion: A closure that is called with a boolean indicating whether access was granted and an optional error.
-    func requestAccess(completion: @escaping (Bool, Error?) -> Void) {
-        eventStore.requestAccess(to: .event) { granted, error in
-            completion(granted, error)
+    /// User's selected calendar IDs (persisted in UserDefaults)
+    @Published private(set) var selectedCalendarIDs: Set<String> = []
+    
+    // MARK: - Constants
+    
+    private let selectedCalendarsKey = "CalendarService.selectedCalendarIDs"
+    
+    // MARK: - Initialization
+    
+    private init() {
+        // Debug: Verify Info.plist strings are loaded
+        print("📅 CalendarService initialized")
+        print("NSCalendarsUsageDescription:", Bundle.main.object(forInfoDictionaryKey: "NSCalendarsUsageDescription") as Any)
+        print("NSCalendarsFullAccessUsageDescription:", Bundle.main.object(forInfoDictionaryKey: "NSCalendarsFullAccessUsageDescription") as Any)
+        
+        // Subscribe to EventKit change notifications
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(eventStoreChanged),
+            name: .EKEventStoreChanged,
+            object: eventStore
+        )
+        
+        // Load initial calendar state
+        refreshCalendars()
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    // MARK: - Calendar Management
+    
+    /// Refreshes the list of available calendars and reconciles selections
+    @objc private func eventStoreChanged() {
+        DispatchQueue.main.async {
+            self.refreshCalendars()
         }
     }
     
-    /// A boolean indicating whether the app has been granted access to the user's calendar.
-    var isAuthorized: Bool {
-        return EKEventStore.authorizationStatus(for: .event) == .authorized
+    private func refreshCalendars() {
+        // Get all event calendars
+        let calendars = eventStore.calendars(for: .event)
+        
+        // Sort alphabetically for consistent UI
+        allEventCalendars = calendars.sorted { $0.title < $1.title }
+        
+        // Load saved selections from UserDefaults (first time only)
+        if selectedCalendarIDs.isEmpty {
+            loadSelectedCalendars()
+        }
+        
+        // Reconcile selections: remove IDs that no longer exist
+        let validIDs = Set(allEventCalendars.map { $0.calendarIdentifier })
+        let reconciledIDs = selectedCalendarIDs.intersection(validIDs)
+        
+        // If reconciliation removed all selections, default to all calendars
+        if reconciledIDs.isEmpty && !allEventCalendars.isEmpty {
+            selectedCalendarIDs = validIDs
+            saveSelectedCalendars()
+        } else if reconciledIDs != selectedCalendarIDs {
+            selectedCalendarIDs = reconciledIDs
+            saveSelectedCalendars()
+        }
+        
+        print("📅 Refreshed calendars: \(allEventCalendars.count) total, \(selectedCalendarIDs.count) selected")
     }
+    
+    /// Computed property returning the actual selected calendar objects
+    var selectedCalendars: [EKCalendar] {
+        allEventCalendars.filter { selectedCalendarIDs.contains($0.calendarIdentifier) }
+    }
+    
+    // MARK: - Selection Management
+    
+    /// Enable or disable a specific calendar
+    func setCalendar(_ calendar: EKCalendar, enabled: Bool) {
+        if enabled {
+            selectedCalendarIDs.insert(calendar.calendarIdentifier)
+        } else {
+            selectedCalendarIDs.remove(calendar.calendarIdentifier)
+        }
+        saveSelectedCalendars()
+    }
+    
+    /// Select all available calendars
+    func selectAllCalendars() {
+        selectedCalendarIDs = Set(allEventCalendars.map { $0.calendarIdentifier })
+        saveSelectedCalendars()
+    }
+    
+    /// Deselect all calendars
+    func deselectAllCalendars() {
+        selectedCalendarIDs.removeAll()
+        saveSelectedCalendars()
+    }
+    
+    // MARK: - Persistence
+    
+    private func saveSelectedCalendars() {
+        let array = Array(selectedCalendarIDs)
+        UserDefaults.standard.set(array, forKey: selectedCalendarsKey)
+        print("📅 Saved \(array.count) selected calendars to UserDefaults")
+    }
+    
+    private func loadSelectedCalendars() {
+        if let array = UserDefaults.standard.array(forKey: selectedCalendarsKey) as? [String] {
+            selectedCalendarIDs = Set(array)
+            print("📅 Loaded \(array.count) selected calendars from UserDefaults")
+        } else {
+            // Default to all calendars on first launch
+            selectedCalendarIDs = Set(allEventCalendars.map { $0.calendarIdentifier })
+            print("📅 No saved selections - defaulting to all \(selectedCalendarIDs.count) calendars")
+        }
+    }
+    
+    // MARK: - Authorization
+
+    /// Requests access to the user's calendar with proper activation policy switching for menu-bar apps.
+    /// - Parameter completion: A closure that is called with a boolean indicating whether access was granted and an optional error.
+    func requestAccessWithActivation(completion: @escaping (Bool, Error?) -> Void) {
+        let currentStatus = authorizationStatus
+        print("📅 Current authorization status:", currentStatus.rawValue)
+        
+        guard currentStatus == .notDetermined else {
+            // Already determined - just call completion with current state
+            completion(hasReadAccess, nil)
+            return
+        }
+        
+        // Make app foreground so the system alert can appear
+        print("📅 Switching to .regular activation policy")
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        
+        // Small delay to ensure activation takes effect
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.requestAccess { granted, error in
+                print("📅 Access granted:", granted)
+                
+                // Revert to accessory/menu-bar style after the prompt resolves
+                DispatchQueue.main.async {
+                    print("📅 Reverting to .accessory activation policy")
+                    NSApp.setActivationPolicy(.accessory)
+                    completion(granted, error)
+                }
+            }
+        }
+    }
+
+    /// Internal method to request access (used by requestAccessWithActivation).
+    private func requestAccess(completion: @escaping (Bool, Error?) -> Void) {
+        if #available(macOS 14.0, *) {
+            print("📅 Requesting full access (macOS 14+)")
+            eventStore.requestFullAccessToEvents { granted, error in
+                DispatchQueue.main.async {
+                    completion(granted, error)
+                }
+            }
+        } else {
+            print("📅 Requesting access (pre-macOS 14)")
+            eventStore.requestAccess(to: .event) { granted, error in
+                DispatchQueue.main.async {
+                    completion(granted, error)
+                }
+            }
+        }
+    }
+
+    /// Whether we have read access to calendars (handles macOS 14+ fullAccess/writeOnly).
+    var hasReadAccess: Bool {
+        if #available(macOS 14.0, *) {
+            switch authorizationStatus {
+            case .fullAccess, .authorized:
+                return true
+            case .writeOnly:
+                // Cannot read events with writeOnly
+                return false
+            case .denied, .restricted, .notDetermined:
+                return false
+            @unknown default:
+                return false
+            }
+        } else {
+            return authorizationStatus == .authorized
+        }
+    }
+
+    /// Legacy property - prefer hasReadAccess
+    var isAuthorized: Bool {
+        return hasReadAccess
+    }
+
+    /// The raw authorization status for calendar access.
+    var authorizationStatus: EKAuthorizationStatus {
+        return EKEventStore.authorizationStatus(for: .event)
+    }
+    
+    /// User-friendly description of the current authorization status.
+    var authorizationStatusDescription: String {
+        let status = authorizationStatus
+        
+        if #available(macOS 14.0, *) {
+            switch status {
+            case .notDetermined:
+                return "Not Requested"
+            case .restricted:
+                return "Restricted"
+            case .denied:
+                return "Denied"
+            case .authorized:
+                return "Authorized"
+            case .fullAccess:
+                return "Full Access"
+            case .writeOnly:
+                return "Write Only (Cannot Read)"
+            @unknown default:
+                return "Unknown"
+            }
+        } else {
+            // Pre-macOS 14
+            switch status {
+            case .notDetermined:
+                return "Not Requested"
+            case .restricted:
+                return "Restricted"
+            case .denied:
+                return "Denied"
+            case .authorized:
+                return "Authorized"
+            default:
+                return "Unknown"
+            }
+        }
+    }
+    
+    /// Opens System Preferences to the Calendar privacy pane.
+    func openCalendarPrivacySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+
     
     // MARK: - Fetching Events
     
-    /// Fetches events from the user's calendars for a given date range.
+    /// Fetches events from the user's selected calendars for a given date range.
     /// - Parameters:
     ///   - startDate: The start date of the range to fetch events from.
     ///   - endDate: The end date of the range to fetch events from.
@@ -57,7 +294,16 @@ class CalendarService {
             return
         }
         
-        let calendars = eventStore.calendars(for: .event)
+        // Use only selected calendars
+        let calendars = selectedCalendars
+        
+        // If no calendars selected, return empty array
+        guard !calendars.isEmpty else {
+            print("📅 No calendars selected - returning empty event list")
+            completion([], nil)
+            return
+        }
+        
         let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: calendars)
         
         let events = eventStore.events(matching: predicate).map { ekEvent -> CalendarEvent in
@@ -68,10 +314,13 @@ class CalendarService {
                 endDate: ekEvent.endDate,
                 isAllDay: ekEvent.isAllDay,
                 notes: ekEvent.notes,
+                location: ekEvent.location,
+                url: ekEvent.url,
                 calendar: ekEvent.calendar
             )
         }
         
+        print("📅 Fetched \(events.count) events from \(calendars.count) selected calendar(s)")
         completion(events, nil)
     }
     
@@ -107,6 +356,8 @@ class CalendarService {
                 endDate: newEvent.endDate,
                 isAllDay: newEvent.isAllDay,
                 notes: newEvent.notes,
+                location: newEvent.location,
+                url: newEvent.url,
                 calendar: newEvent.calendar
             )
             completion(calendarEvent, nil)
@@ -137,6 +388,8 @@ class CalendarService {
         ekEvent.endDate = event.endDate
         ekEvent.isAllDay = event.isAllDay
         ekEvent.notes = event.notes
+        ekEvent.location = event.location
+        ekEvent.url = event.url
         ekEvent.calendar = event.calendar
         
         do {
@@ -148,6 +401,8 @@ class CalendarService {
                 endDate: ekEvent.endDate,
                 isAllDay: ekEvent.isAllDay,
                 notes: ekEvent.notes,
+                location: ekEvent.location,
+                url: ekEvent.url,
                 calendar: ekEvent.calendar
             )
             completion(updatedEvent, nil)
