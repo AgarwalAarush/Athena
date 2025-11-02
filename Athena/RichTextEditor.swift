@@ -330,11 +330,15 @@ struct RichTextEditor: NSViewRepresentable {
             if paragraphStyle.headIndent < indent {
                 paragraphStyle.headIndent = indent
             }
-            if !paragraphStyle.tabStops.contains(where: { abs($0.location - indent) < 0.5 }) {
-                var tabStops = paragraphStyle.tabStops
-                tabStops.append(NSTextTab(textAlignment: .left, location: indent, options: [:]))
-                tabStops.sort { $0.location < $1.location }
-                paragraphStyle.tabStops = tabStops
+            // Safely read, mutate, and reassign tab stops
+            let existingStops = paragraphStyle.tabStops ?? []
+            let hasIndentStop = existingStops.contains { abs($0.location - indent) < 0.5 }
+
+            if !hasIndentStop {
+                var stops = existingStops
+                stops.append(NSTextTab(textAlignment: .left, location: indent, options: [:]))
+                stops.sort { $0.location < $1.location }
+                paragraphStyle.tabStops = stops
             }
 
             textStorage.addAttribute(
@@ -382,10 +386,12 @@ struct RichTextEditor: NSViewRepresentable {
 
         /// Legacy fallback list that renders a simple unchecked marker.
         private final class LegacyCheckboxTextList: NSTextList {
-            override init(markerFormat format: NSTextList.MarkerFormat, options mask: Int) {
+            // Designated initializer for this subclass
+            init(markerFormat format: NSTextList.MarkerFormat, options mask: Int) {
                 super.init(markerFormat: format, options: mask)
             }
 
+            // Convenience initializer that chooses a square marker
             convenience init() {
                 self.init(markerFormat: .square, options: 0)
             }
