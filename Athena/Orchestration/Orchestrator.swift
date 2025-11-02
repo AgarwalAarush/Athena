@@ -185,39 +185,33 @@ class Orchestrator {
             self.appViewModel?.showCalendar()
         }
 
-        // Parse the calendar query using AI
-        do {
-            let result = try await parseCalendarQuery(prompt: prompt)
-            print("[Orchestrator] handleCalendarTask: Executing action '\(result.action)'")
+        // Parse the calendar query (with automatic fallback to keyword matching)
+        let result = await parseCalendarQuery(prompt: prompt)
+        print("[Orchestrator] handleCalendarTask: Executing action '\(result.action)'")
 
-            // Execute the appropriate action
-            switch result.action {
-            case .view:
-                // Already switched to calendar, nothing more to do
-                print("[Orchestrator] handleCalendarTask: View action - calendar opened")
+        // Execute the appropriate action
+        switch result.action {
+        case .view:
+            // Already switched to calendar, nothing more to do
+            print("[Orchestrator] handleCalendarTask: View action - calendar opened")
 
-            case .navigate:
-                await executeNavigate(params: result.params)
+        case .navigate:
+            await executeNavigate(params: result.params)
 
-            case .create:
-                await executeCreateEvent(params: result.params)
+        case .create:
+            await executeCreateEvent(params: result.params)
 
-            case .update:
-                await executeUpdateEvent(params: result.params)
+        case .update:
+            await executeUpdateEvent(params: result.params)
 
-            case .delete:
-                await executeDeleteEvent(params: result.params)
+        case .delete:
+            await executeDeleteEvent(params: result.params)
 
-            case .query:
-                await executeQuery(params: result.params)
-            }
-
-            print("[Orchestrator] handleCalendarTask: Action completed")
-
-        } catch {
-            print("[Orchestrator] handleCalendarTask: Error parsing/executing calendar query: \(error)")
-            // Calendar view is still opened even if action fails
+        case .query:
+            await executeQuery(params: result.params)
         }
+
+        print("[Orchestrator] handleCalendarTask: Action completed")
     }
 
     /// Handles notes-related tasks by switching to notes view or executing notes actions.
@@ -539,85 +533,166 @@ class Orchestrator {
 
     // MARK: Parsing Helpers
 
-    /// Parses a calendar query using AI to determine action type and extract parameters
-    private func parseCalendarQuery(prompt: String) async throws -> CalendarActionResult {
-        let currentDate = Date()
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .full
-        dateFormatter.timeStyle = .short
+    /// Fallback parser using keyword matching for common calendar queries
+    /// Used when AI parsing fails or is unavailable
+    private func parseCalendarQueryFallback(prompt: String) -> CalendarActionResult {
+        let lowercased = prompt.lowercased()
+        print("[Orchestrator] Using fallback keyword-based parser for: '\(prompt)'")
 
-        let systemPrompt = """
-        You are a calendar action parser. Analyze the user's query and determine what calendar action they want.
-
-        Current date and time: \(dateFormatter.string(from: currentDate))
-
-        Available actions:
-        1. "view" - Just open/show calendar (no specific action)
-        2. "navigate" - Change visible date
-           Required params: targetDate (e.g., "tomorrow", "next week", "friday", "2024-03-15")
-        3. "create" - Create new event
-           Required params: title, date (default "today"), startTime (HH:mm format)
-           Optional params: endTime (HH:mm) OR duration (minutes), notes
-        4. "update" - Modify existing event
-           Required params: eventIdentifier (description of event), changes (what to modify)
-        5. "delete" - Delete event
-           Required params: eventIdentifier (description of event to delete)
-        6. "query" - Ask about events
-           Required params: dateRange (e.g., "today", "this week", "tomorrow")
-           Optional params: filters (e.g., "morning", "afternoon")
-
-        Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
-        {
-          "action": "action_name",
-          "params": {
-            "param1": "value1",
-            "param2": "value2"
-          }
+        // Navigation patterns
+        if lowercased.contains("tomorrow") {
+            print("[Orchestrator] Fallback: Detected 'tomorrow' - navigate action")
+            return CalendarActionResult(action: .navigate, params: ["targetDate": "tomorrow"])
         }
 
-        Examples:
-        Query: "show me tomorrow"
-        Response: {"action": "navigate", "params": {"targetDate": "tomorrow"}}
+        if lowercased.contains("today") {
+            print("[Orchestrator] Fallback: Detected 'today' - navigate/query action")
+            // If asking about events, treat as query; otherwise navigate
+            if lowercased.contains("what") || lowercased.contains("show") {
+                return CalendarActionResult(action: .query, params: ["dateRange": "today"])
+            }
+            return CalendarActionResult(action: .navigate, params: ["targetDate": "today"])
+        }
 
-        Query: "create a meeting at 3pm called Team Sync"
-        Response: {"action": "create", "params": {"title": "Team Sync", "date": "today", "startTime": "15:00", "duration": "60"}}
+        if lowercased.contains("yesterday") {
+            print("[Orchestrator] Fallback: Detected 'yesterday' - navigate action")
+            return CalendarActionResult(action: .navigate, params: ["targetDate": "yesterday"])
+        }
 
-        Query: "delete my dentist appointment"
-        Response: {"action": "delete", "params": {"eventIdentifier": "dentist appointment"}}
+        if lowercased.contains("next week") {
+            print("[Orchestrator] Fallback: Detected 'next week' - navigate action")
+            return CalendarActionResult(action: .navigate, params: ["targetDate": "next week"])
+        }
 
-        Query: "what's on my calendar today"
-        Response: {"action": "query", "params": {"dateRange": "today"}}
+        if lowercased.contains("next month") {
+            print("[Orchestrator] Fallback: Detected 'next month' - navigate action")
+            return CalendarActionResult(action: .navigate, params: ["targetDate": "next month"])
+        }
 
-        Query: "open calendar"
-        Response: {"action": "view", "params": {}}
+        // Weekday navigation
+        let weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        for weekday in weekdays {
+            if lowercased.contains(weekday) {
+                print("[Orchestrator] Fallback: Detected weekday '\(weekday)' - navigate action")
+                return CalendarActionResult(action: .navigate, params: ["targetDate": weekday])
+            }
+        }
 
-        Now parse this query: "\(prompt)"
-        Respond with ONLY the JSON, no other text.
-        """
-
-        print("[Orchestrator] Parsing calendar query: \(prompt)")
-        let response = try await aiService.getCompletion(
-            prompt: prompt,
-            systemPrompt: systemPrompt,
-            provider: .openai,
-            model: "gpt-5-nano-2025-08-07"
-        )
-
-        print("[Orchestrator] AI response: \(response)")
-
-        // Parse JSON response
-        guard let jsonData = response.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-              let actionString = json["action"] as? String,
-              let action = CalendarActionType(rawValue: actionString) else {
-            print("[Orchestrator] Failed to parse JSON response, defaulting to 'view' action")
+        // Create patterns
+        if (lowercased.contains("create") || lowercased.contains("schedule") || lowercased.contains("add")) &&
+           (lowercased.contains("at") || lowercased.contains("meeting") || lowercased.contains("event")) {
+            print("[Orchestrator] Fallback: Detected create pattern - would need title/time extraction")
+            // For now, just open calendar - full implementation would extract title and time
             return CalendarActionResult(action: .view, params: [:])
         }
 
-        let params = (json["params"] as? [String: String]) ?? [:]
-        print("[Orchestrator] Parsed action: \(action), params: \(params)")
+        // Delete patterns
+        if (lowercased.contains("delete") || lowercased.contains("remove") || lowercased.contains("cancel")) {
+            print("[Orchestrator] Fallback: Detected delete pattern - would need event identifier")
+            // For now, just open calendar - full implementation would extract event identifier
+            return CalendarActionResult(action: .view, params: [:])
+        }
 
-        return CalendarActionResult(action: action, params: params)
+        // Query patterns
+        if lowercased.contains("what") && lowercased.contains("calendar") {
+            print("[Orchestrator] Fallback: Detected query pattern")
+            return CalendarActionResult(action: .query, params: ["dateRange": "today"])
+        }
+
+        // Default: just view calendar
+        print("[Orchestrator] Fallback: No specific pattern matched - default to view")
+        return CalendarActionResult(action: .view, params: [:])
+    }
+
+    /// Parses a calendar query using AI to determine action type and extract parameters
+    /// Falls back to keyword matching if AI parsing fails
+    private func parseCalendarQuery(prompt: String) async -> CalendarActionResult {
+        print("[Orchestrator] Parsing calendar query: \(prompt)")
+
+        // Try AI parsing first
+        do {
+            let currentDate = Date()
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateStyle = .full
+            dateFormatter.timeStyle = .short
+
+            let systemPrompt = """
+            You are a calendar action parser. Analyze the user's query and determine what calendar action they want.
+
+            Current date and time: \(dateFormatter.string(from: currentDate))
+
+            Available actions:
+            1. "view" - Just open/show calendar (no specific action)
+            2. "navigate" - Change visible date
+               Required params: targetDate (e.g., "tomorrow", "next week", "friday", "2024-03-15")
+            3. "create" - Create new event
+               Required params: title, date (default "today"), startTime (HH:mm format)
+               Optional params: endTime (HH:mm) OR duration (minutes), notes
+            4. "update" - Modify existing event
+               Required params: eventIdentifier (description of event), changes (what to modify)
+            5. "delete" - Delete event
+               Required params: eventIdentifier (description of event to delete)
+            6. "query" - Ask about events
+               Required params: dateRange (e.g., "today", "this week", "tomorrow")
+               Optional params: filters (e.g., "morning", "afternoon")
+
+            Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
+            {
+              "action": "action_name",
+              "params": {
+                "param1": "value1",
+                "param2": "value2"
+              }
+            }
+
+            Examples:
+            Query: "show me tomorrow"
+            Response: {"action": "navigate", "params": {"targetDate": "tomorrow"}}
+
+            Query: "create a meeting at 3pm called Team Sync"
+            Response: {"action": "create", "params": {"title": "Team Sync", "date": "today", "startTime": "15:00", "duration": "60"}}
+
+            Query: "delete my dentist appointment"
+            Response: {"action": "delete", "params": {"eventIdentifier": "dentist appointment"}}
+
+            Query: "what's on my calendar today"
+            Response: {"action": "query", "params": {"dateRange": "today"}}
+
+            Query: "open calendar"
+            Response: {"action": "view", "params": {}}
+
+            Now parse this query: "\(prompt)"
+            Respond with ONLY the JSON, no other text.
+            """
+
+            print("[Orchestrator] Attempting AI parse...")
+            let response = try await aiService.getCompletion(
+                prompt: prompt,
+                systemPrompt: systemPrompt,
+                provider: .openai,
+                model: "gpt-5-nano-2025-08-07"
+            )
+
+            print("[Orchestrator] AI response: \(response)")
+
+            // Parse JSON response
+            guard let jsonData = response.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                  let actionString = json["action"] as? String,
+                  let action = CalendarActionType(rawValue: actionString) else {
+                print("[Orchestrator] Failed to parse AI JSON response, using fallback")
+                return parseCalendarQueryFallback(prompt: prompt)
+            }
+
+            let params = (json["params"] as? [String: String]) ?? [:]
+            print("[Orchestrator] AI parsed action: \(action), params: \(params)")
+
+            return CalendarActionResult(action: action, params: params)
+
+        } catch {
+            print("[Orchestrator] AI parsing error: \(error) - using fallback parser")
+            return parseCalendarQueryFallback(prompt: prompt)
+        }
     }
 
     /// Parses a relative or absolute date string into a Date

@@ -15,7 +15,8 @@ class AppViewModel: ObservableObject {
     // MARK: - View Models for Orchestrator Access
 
     /// DayViewModel for calendar view - accessible to orchestrator for executing calendar actions
-    @StateObject var dayViewModel = DayViewModel()
+    /// NOTE: Must be @Published (not @StateObject) because AppViewModel is not a View
+    @Published var dayViewModel = DayViewModel()
 
     /// Note content for notes view - accessible to orchestrator for executing notes actions
     @Published var noteContent: String = ""
