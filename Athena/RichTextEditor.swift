@@ -85,11 +85,21 @@ struct RichTextEditor: NSViewRepresentable {
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
 
-        // ✅ Rounded, translucent white background
+        // ✅ Rounded, translucent white background - use NSScrollView's native backgroundColor
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = NSColor.white.withAlphaComponent(0.6)
+        
+        // For rounded corners, use layer
         scrollView.wantsLayer = true
         scrollView.layer?.cornerRadius = 8
         scrollView.layer?.masksToBounds = true
-        scrollView.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.6).cgColor
+        
+        // Ensure the text view remains transparent
+        textView.backgroundColor = .clear
+        textView.drawsBackground = false
+        
+        // Force the enclosing scroll view clip view to be transparent
+        scrollView.contentView.drawsBackground = false
 
         // Initialize content
         if !content.isEmpty {
@@ -142,6 +152,19 @@ struct RichTextEditor: NSViewRepresentable {
 
         init(content: Binding<String>) {
             self._content = content
+        }
+        
+        // MARK: - Range Safety Helper
+        
+        /// Validates and returns a safe range within textStorage bounds, or nil if invalid
+        private func safeRange(location: Int, length: Int, in textStorage: NSTextStorage) -> NSRange? {
+            let maxLocation = textStorage.length
+            guard location >= 0 && location <= maxLocation else { return nil }
+            
+            let safeLength = min(length, maxLocation - location)
+            guard safeLength >= 0 else { return nil }
+            
+            return NSRange(location: location, length: safeLength)
         }
 
         func textDidChange(_ notification: Notification) {
@@ -197,33 +220,19 @@ struct RichTextEditor: NSViewRepresentable {
             // Delete the typed trigger
             textStorage.deleteCharacters(in: triggerRange)
 
-            // Get the paragraph range after deletion
+            // Get the paragraph range after deletion - SAFE APPROACH
             let caretLocation = triggerRange.location
             
-            // Find the paragraph that contains the caret
-            var effectiveRange: NSRange
-            if textStorage.length > 0 {
-                let currentString = textStorage.string as NSString
-                let checkLocation = min(max(caretLocation, 0), textStorage.length - 1)
-                effectiveRange = currentString.paragraphRange(for: NSRange(location: checkLocation, length: 0))
-                
-                // Check if paragraph is effectively empty (only whitespace/newline after trigger deletion)
-                let paragraphContent = currentString.substring(with: effectiveRange)
-                let trimmed = paragraphContent.trimmingCharacters(in: .whitespacesAndNewlines)
-                
-                // If paragraph has no real content, ensure it has at least a space for the marker to attach to
-                if trimmed.isEmpty {
-                    // Insert a space at the caret location
-                    textStorage.replaceCharacters(in: NSRange(location: caretLocation, length: 0), with: " ")
-                    // Recalculate paragraph range after insertion
-                    let updatedString = textStorage.string as NSString
-                    effectiveRange = updatedString.paragraphRange(for: NSRange(location: caretLocation, length: 0))
-                }
-            } else {
-                // Empty document - insert space + newline to create a paragraph with content
-                textStorage.replaceCharacters(in: NSRange(location: 0, length: 0), with: " \n")
-                effectiveRange = NSRange(location: 0, length: 2)
+            // Ensure we have content to work with
+            if textStorage.length == 0 {
+                textStorage.replaceCharacters(in: NSRange(location: 0, length: 0), with: " ")
             }
+            
+            // Get paragraph range safely
+            let safeLocation = min(caretLocation, textStorage.length)
+            let effectiveRange = (textStorage.string as NSString).paragraphRange(
+                for: NSRange(location: safeLocation, length: 0)
+            )
 
             // Apply checkbox style to this paragraph
             applyCheckboxList(toParagraphRange: effectiveRange, in: textView)
@@ -262,8 +271,12 @@ struct RichTextEditor: NSViewRepresentable {
 
             let newParagraphStart = affectedCharRange.location + 1
             if newParagraphStart <= textStorage.length {
-                let newParagraphRange = (textStorage.string as NSString)
-                    .paragraphRange(for: NSRange(location: newParagraphStart, length: 0))
+                // Use safe range helper to validate before accessing
+                guard let searchRange = safeRange(location: newParagraphStart, length: 0, in: textStorage) else {
+                    textStorage.endEditing()
+                    return false
+                }
+                let newParagraphRange = (textStorage.string as NSString).paragraphRange(for: searchRange)
 
                 applyCheckboxList(toParagraphRange: newParagraphRange, in: textView)
             }
@@ -292,23 +305,21 @@ struct RichTextEditor: NSViewRepresentable {
             let checkboxList = makeCheckboxList()
             let paragraphRange = (textStorage.string as NSString).paragraphRange(for: range)
             
-            // Build the paragraph style
-            let paragraphStyle: NSMutableParagraphStyle
+            // Build the paragraph style - SAFER APPROACH
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.lineSpacing = 2
+            paragraphStyle.paragraphSpacing = 8
+            
+            // Only try to preserve existing style if we have valid content
             if textStorage.length > 0 && paragraphRange.location < textStorage.length {
-                let attributeLocation = max(min(paragraphRange.location, textStorage.length - 1), 0)
+                let safeLocation = min(paragraphRange.location, textStorage.length - 1)
                 if let existing = textStorage.attribute(.paragraphStyle,
-                                                        at: attributeLocation,
-                                                        effectiveRange: nil) as? NSParagraphStyle {
-                    paragraphStyle = existing.mutableCopy() as! NSMutableParagraphStyle
-                } else {
-                    paragraphStyle = NSMutableParagraphStyle()
-                    paragraphStyle.lineSpacing = 2
-                    paragraphStyle.paragraphSpacing = 8
+                                                       at: safeLocation,
+                                                       effectiveRange: nil) as? NSParagraphStyle,
+                   existing.textLists.isEmpty { // Only copy if not already a list
+                    paragraphStyle.lineSpacing = existing.lineSpacing
+                    paragraphStyle.paragraphSpacing = existing.paragraphSpacing
                 }
-            } else {
-                paragraphStyle = NSMutableParagraphStyle()
-                paragraphStyle.lineSpacing = 2
-                paragraphStyle.paragraphSpacing = 8
             }
 
             paragraphStyle.textLists = [checkboxList]
@@ -327,16 +338,25 @@ struct RichTextEditor: NSViewRepresentable {
             stops.sort { $0.location < $1.location }
             paragraphStyle.tabStops = stops
 
-            // Always apply to storage for markers to render properly
-            if paragraphRange.length > 0 {
-                textStorage.addAttribute(.paragraphStyle, value: paragraphStyle, range: paragraphRange)
+            // Always apply to storage for markers to render properly - WITH VALIDATION
+            // Validate range before applying
+            let validRange = NSRange(
+                location: min(paragraphRange.location, textStorage.length),
+                length: min(paragraphRange.length, textStorage.length - paragraphRange.location)
+            )
+            
+            if validRange.length > 0 && NSMaxRange(validRange) <= textStorage.length {
+                textStorage.addAttribute(.paragraphStyle, value: paragraphStyle, range: validRange)
             }
             
-            // Also set typing attributes so new text inherits the style
-            var attrs = textView.typingAttributes
-            attrs[.paragraphStyle] = paragraphStyle
-            attrs[.foregroundColor] = NSColor.black
-            textView.typingAttributes = attrs
+            // Defer typing attributes update to avoid range conflicts
+            DispatchQueue.main.async { [weak textView] in
+                guard let textView = textView else { return }
+                var attrs = textView.typingAttributes
+                attrs[.paragraphStyle] = paragraphStyle
+                attrs[.foregroundColor] = NSColor.black
+                textView.typingAttributes = attrs
+            }
         }
 
         /// Determine if current paragraph (or typing attributes) have checkbox style.

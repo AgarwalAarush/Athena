@@ -36,8 +36,8 @@ struct ContentView: View {
                 // Title Bar
                 TitleBarView(chatViewModel: chatViewModel)
 
-                Divider()
-                    .opacity(0.5)
+//                Divider()
+//                    .opacity(0.5)
 
                 // Main Content Area
                 Group {

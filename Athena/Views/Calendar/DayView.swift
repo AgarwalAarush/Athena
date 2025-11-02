@@ -30,6 +30,7 @@ struct DayView: View {
 
     var body: some View {
         ZStack {
+            // Rounded container for calendar content
             VStack(spacing: 0) {
                 // Navigation header
                 navigationHeader
@@ -49,6 +50,9 @@ struct DayView: View {
                     calendarContent
                 }
             }
+            .background(Color.white.opacity(0.6))
+            .cornerRadius(8)
+            .padding()
 
             // Invisible buttons for keyboard shortcuts
             VStack {
@@ -63,6 +67,7 @@ struct DayView: View {
             .frame(width: 0, height: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.clear)
         .onAppear {
             startCurrentTimeTimer()
         }
