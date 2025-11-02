@@ -14,9 +14,11 @@ import AppKit
 struct RichTextEditor: NSViewRepresentable {
 
     @Binding var content: String
+    var onFocusLost: (() -> Void)?
 
-    init(content: Binding<String>) {
+    init(content: Binding<String>, onFocusLost: (() -> Void)? = nil) {
         self._content = content
+        self.onFocusLost = onFocusLost
     }
 
     // MARK: - NSViewRepresentable
