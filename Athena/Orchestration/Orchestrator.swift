@@ -97,49 +97,51 @@ class Orchestrator {
     ///   }
     ///   ```
     func route(prompt: String, context: AppView? = nil) async throws {
-        // TODO: Implement context-aware routing (see documentation above)
-        // For now, use existing keyword-based routing
-
-        let lowercasedPrompt = prompt.lowercased()
-
         if let wakewordAction = detectWakewordControlAction(from: prompt) {
             await handleWakewordControlTask(prompt: prompt, inferredAction: wakewordAction)
             return
         }
 
-        if lowercasedPrompt.contains("calendar") {
+        let taskType = try await classifyTask(prompt: prompt, context: context)
+        switch taskType {
+        case .calendar:
             await handleCalendarTask(prompt: prompt)
-        } else if lowercasedPrompt.contains("note") || lowercasedPrompt.contains("notes") {
+        case .notes:
             await handleNotesTask(prompt: prompt)
-        } else {
-            let taskType = try await classifyTask(prompt: prompt)
-            switch taskType {
-            case .windowManagement:
-                await handleWindowManagementTask(prompt: prompt)
-            case .computerUse:
-                await handleComputerUseTask(prompt: prompt)
-            case .appCommand:
-                await handleAppCommandTask(prompt: prompt)
-            case .wakewordControl:
-                await handleWakewordControlTask(prompt: prompt)
-            case .notApplicable, .notes, .calendar:
-                // Handle 'notApplicable' or cases that should have been caught by keyword search
-                print("Task not applicable or mis-routed: \(taskType)")
-            }
+        case .windowManagement:
+            await handleWindowManagementTask(prompt: prompt)
+        case .computerUse:
+            await handleComputerUseTask(prompt: prompt)
+        case .appCommand:
+            await handleAppCommandTask(prompt: prompt)
+        case .wakewordControl:
+            await handleWakewordControlTask(prompt: prompt)
+        case .notApplicable:
+            print("Task not applicable: \(prompt)")
         }
     }
 
     /// Classifies a prompt into windowManagement, computerUse, appCommand, or notApplicable.
-    private func classifyTask(prompt: String) async throws -> TaskType {
+    private func classifyTask(prompt: String, context: AppView?) async throws -> TaskType {
+        let currentView = context ?? .chat
         let systemPrompt = """
-        Given this user query:
-        "\(prompt)"
-        Return a classification for whether it is a wakewordControl task, a windowManagement task, a computerUse task, an appCommand task, or neither.
-        - 'wakewordControl' tasks cover enabling, disabling, or toggling the wake word listening mode (e.g. "Athena shut down", "stop wakeword mode", "Athena wake up").
-        - 'windowManagement' tasks may include predefined user configs for how windows look.
-        - 'appCommand' tasks are for making changes and navigating within the app itself (e.g. "go back to the chatview").
-        - 'computerUse' tasks involve general computer operations not covered by the other categories.
-        Respond with exactly one label: 'wakewordControl', 'windowManagement', 'computerUse', 'appCommand', or 'NA'.
+        You are a task classifier for a desktop assistant named Athena. Your job is to determine the user's intent based on their query and the current application view.
+
+        Current view: '\(currentView)'
+        User query: "\(prompt)"
+
+        Classify the query into one of the following categories:
+        - 'notes': Any action related to taking notes (creating, editing, viewing).
+        - 'calendar': Any action related to the calendar (scheduling, viewing events, navigating dates).
+        - 'wakewordControl': Enabling, disabling, or toggling the wake word listening mode (e.g., "Athena shut down", "stop listening").
+        - 'windowManagement': Arranging or managing application windows.
+        - 'appCommand': Navigating or controlling the Athena app itself (e.g., "go back to chat", "open settings").
+        - 'computerUse': General computer operations (e.g., "open Safari", "take a screenshot").
+        - 'NA': If the query does not fit any of the above categories.
+
+        Consider the current view for context. For example, if the user is in the 'calendar' view and says "show tomorrow", the intent is likely 'calendar'. If they are in the 'chat' view and say "take a note", the intent is 'notes'.
+
+        Respond with exactly one label: 'notes', 'calendar', 'wakewordControl', 'windowManagement', 'appCommand', 'computerUse', or 'NA'.
         """
 
         let classification = try await aiService.getCompletion(

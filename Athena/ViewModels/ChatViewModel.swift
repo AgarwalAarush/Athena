@@ -246,7 +246,7 @@ class ChatViewModel: ObservableObject {
         do {
             // Initialize Orchestrator with AppViewModel
             let orchestrator = Orchestrator(appViewModel: appViewModel)
-            try await orchestrator.route(prompt: messageContent)
+            try await orchestrator.route(prompt: messageContent, context: appViewModel.currentView)
 
         } catch {
             errorMessage = "Failed to process message: \(error.localizedDescription)"
