@@ -8,6 +8,8 @@
 import Foundation
 import SwiftUI
 import Combine
+import EventKit
+import AppKit
 
 /// ViewModel for managing day view calendar state and event fetching
 @MainActor
@@ -71,10 +73,22 @@ class DayViewModel: ObservableObject {
                 self?.isAuthorized = granted
                 if granted {
                     await self?.fetchEvents()
-                } else if let error = error {
-                    self?.errorMessage = "Calendar access denied: \(error.localizedDescription)"
+                } else {
+                    let status = self?.calendarService.authorizationStatus()
+                    if status == .denied || status == .restricted {
+                        self?.errorMessage = "Calendar access is denied. Please enable it in System Settings."
+                    } else if let error = error {
+                        self?.errorMessage = "Calendar access denied: \(error.localizedDescription)"
+                    }
                 }
             }
+        }
+    }
+
+    /// Opens System Settings to the Calendar privacy settings
+    func openCalendarSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
+            NSWorkspace.shared.open(url)
         }
     }
 

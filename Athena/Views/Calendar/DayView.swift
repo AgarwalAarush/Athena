@@ -62,7 +62,7 @@ struct DayView: View {
             }
             .frame(width: 0, height: 0)
         }
-        .background(Color.white)
+        .background(Color.white.opacity(0.85))
         .onAppear {
             startCurrentTimeTimer()
         }
@@ -285,9 +285,18 @@ struct DayView: View {
                 .foregroundColor(.orange)
             Text(message)
                 .foregroundColor(.black) // Explicitly set to black
-            Button("Retry") {
-                Task {
-                    await viewModel.fetchEvents()
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+
+            HStack(spacing: 12) {
+                if message.contains("denied") || message.contains("not authorized") {
+                    Button("Open Privacy Settings") {
+                        viewModel.openCalendarSettings()
+                    }
+                }
+
+                Button("Retry") {
+                    viewModel.checkAuthorization()
                 }
             }
         }

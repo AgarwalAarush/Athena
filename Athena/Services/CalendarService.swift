@@ -30,18 +30,39 @@ class CalendarService {
     private init() {}
     
     // MARK: - Authorization
-    
+
     /// Requests access to the user's calendar.
     /// - Parameter completion: A closure that is called with a boolean indicating whether access was granted and an optional error.
     func requestAccess(completion: @escaping (Bool, Error?) -> Void) {
-        eventStore.requestAccess(to: .event) { granted, error in
-            completion(granted, error)
+        if #available(macOS 14.0, *) {
+            eventStore.requestFullAccessToEvents { granted, error in
+                DispatchQueue.main.async {
+                    completion(granted, error)
+                }
+            }
+        } else {
+            eventStore.requestAccess(to: .event) { granted, error in
+                DispatchQueue.main.async {
+                    completion(granted, error)
+                }
+            }
         }
     }
-    
+
     /// A boolean indicating whether the app has been granted access to the user's calendar.
     var isAuthorized: Bool {
-        return EKEventStore.authorizationStatus(for: .event) == .authorized
+        let status = EKEventStore.authorizationStatus(for: .event)
+        if #available(macOS 14.0, *) {
+            // For reading events, we need fullAccess
+            return status == .fullAccess
+        } else {
+            return status == .authorized
+        }
+    }
+
+    /// Returns the current authorization status for calendar access.
+    func authorizationStatus() -> EKAuthorizationStatus {
+        return EKEventStore.authorizationStatus(for: .event)
     }
     
     // MARK: - Fetching Events

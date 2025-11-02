@@ -30,5 +30,6 @@ class AppViewModel: ObservableObject {
 
     func showNotes() {
         currentView = .notes
+        windowManager?.resizeForCalendar()
     }
 }

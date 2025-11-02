@@ -125,7 +125,7 @@ struct TitleBarView: View {
                 .help("Calendar")
 
                 Button(action: { appViewModel.showNotes() }) {
-                    Image(systemName: "note.text")
+                    Image(systemName: "square.and.pencil")
                         .foregroundColor(appViewModel.currentView == .notes ? .accentColor : .primary)
                 }
                 .buttonStyle(.plain)

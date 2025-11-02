@@ -66,7 +66,7 @@ struct MessageInputView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 4)
                         .padding(.bottom, 4)
-                        .background(Color.white.opacity(0.15))
+                        .background(Color.white.opacity(0.6))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .disabled(isLoading || isRecording)
                         .onTapGesture {
@@ -251,4 +251,3 @@ struct CustomTextEditor: NSViewRepresentable {
     }
     .frame(width: 470)
 }
-
