@@ -42,6 +42,41 @@ extension Color {
     static let settingsTextSecondary = Color(NSColor.secondaryLabelColor)
 }
 
+// MARK: - Window Styling
+
+struct WindowStyler: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(TitlebarConfigurator())
+    }
+
+    private struct TitlebarConfigurator: NSViewRepresentable {
+        func makeNSView(context: Context) -> NSView {
+            let view = NSView()
+            DispatchQueue.main.async {
+                if let window = view.window {
+                    window.titleVisibility = .hidden
+                    window.titlebarAppearsTransparent = true
+                    window.isMovableByWindowBackground = true
+                    window.styleMask.insert(.fullSizeContentView)
+                    window.toolbarStyle = .unifiedCompact
+                    window.isOpaque = false
+                    window.backgroundColor = .clear
+                }
+            }
+            return view
+        }
+
+        func updateNSView(_ nsView: NSView, context: Context) {}
+    }
+}
+
+extension View {
+    func unifiedTitlebar() -> some View {
+        modifier(WindowStyler())
+    }
+}
+
 // MARK: - Custom Components
 
 struct ModernCard<Content: View>: View {
@@ -162,29 +197,118 @@ struct ModernSecureField: View {
     }
 }
 
-// Settings-specific text field styles similar to ChatView input
-struct SettingsTextFieldStyle: TextFieldStyle {
-    func _body(configuration: TextField<Self._Label>) -> some View {
-        configuration
-            .padding(.horizontal, 20)
-            .padding(.vertical, 8)
-            .background(Color(hex: "303030"))
-            .foregroundColor(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+// Settings-specific text field components similar to ChatView input
+struct SettingsTextField: NSViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+    let onChange: (String) -> Void
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        let textView = NSTextView()
+
+        textView.font = NSFont.systemFont(ofSize: 14)
+        textView.textColor = NSColor.white
+        textView.backgroundColor = .clear
+        textView.drawsBackground = false
+        textView.isRichText = false
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.string = text
+        textView.delegate = context.coordinator
+
+        // Remove extra padding
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainerInset = NSSize(width: 4, height: 4)
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.heightTracksTextView = false
+
+        // Configure scroll view
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.documentView = textView
+        scrollView.borderType = .noBorder
+        scrollView.backgroundColor = .clear
+        scrollView.drawsBackground = false
+
+        context.coordinator.textView = textView
+
+        return scrollView
+    }
+
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        if let textView = nsView.documentView as? NSTextView {
+            if textView.string != text {
+                textView.string = text
+            }
+            textView.textColor = NSColor.white
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: SettingsTextField
+        var textView: NSTextView?
+
+        init(_ parent: SettingsTextField) {
+            self.parent = parent
+        }
+
+        func textDidChange(_ notification: Notification) {
+            if let textView = textView {
+                parent.text = textView.string
+                parent.onChange(textView.string)
+            }
+        }
     }
 }
 
-struct SettingsSecureField: View {
-    let placeholder: String
+struct SettingsSecureField: NSViewRepresentable {
     @Binding var text: String
+    let placeholder: String
+    let onChange: (String) -> Void
 
-    var body: some View {
-        SecureField(placeholder, text: $text)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 8)
-            .background(Color(hex: "303030"))
-            .foregroundColor(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+    func makeNSView(context: Context) -> NSSecureTextField {
+        let textField = NSSecureTextField()
+
+        textField.font = NSFont.systemFont(ofSize: 14)
+        textField.textColor = NSColor.white
+        textField.backgroundColor = .clear
+        textField.isBordered = false
+        textField.focusRingType = .none
+        textField.placeholderString = placeholder
+        textField.stringValue = text
+        textField.delegate = context.coordinator
+
+        return textField
+    }
+
+    func updateNSView(_ nsView: NSSecureTextField, context: Context) {
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: SettingsSecureField
+
+        init(_ parent: SettingsSecureField) {
+            self.parent = parent
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            if let textField = notification.object as? NSSecureTextField {
+                parent.text = textField.stringValue
+                parent.onChange(textField.stringValue)
+            }
+        }
     }
 }
 
@@ -194,27 +318,32 @@ struct SettingsView: View {
     @ObservedObject var config = ConfigurationManager.shared
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 32) {
-                // AI Provider Configuration Section
-                ProviderSettingsView()
+        ZStack {
+            Color(hex: "1E1E1E")
+                .ignoresSafeArea(.container, edges: .top)
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 32) {
+                    // AI Provider Configuration Section
+                    ProviderSettingsView()
 
-                Divider()
-                    .padding(.horizontal, 16)
+                    Divider()
+                        .padding(.horizontal, 16)
 
-                // Permissions Section
-                PermissionsSettingsView()
-                
-                Divider()
-                    .padding(.horizontal, 16)
-                
-                // Calendar Selection Section
-                CalendarSelectionSettingsView()
+                    // Permissions Section
+                    PermissionsSettingsView()
+                    
+                    Divider()
+                        .padding(.horizontal, 16)
+                    
+                    // Calendar Selection Section
+                    CalendarSelectionSettingsView()
+                }
+                .padding(.horizontal, 32)
+                .padding(.vertical, 24)
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 24)
         }
-        .background(Color(hex: "1E1E1E"))
+        .unifiedTitlebar()
     }
 }
 
@@ -269,27 +398,43 @@ struct ProviderSettingsView: View {
                 }
 
                 // Input field with eye button and remove button
-                HStack(spacing: 12) {
+                HStack(alignment: .center, spacing: 12) {
                     if showOpenAIKey {
-                        TextField("Enter API Key", text: $openaiKey)
-                            .textFieldStyle(SettingsTextFieldStyle())
-                            .onChange(of: openaiKey) { newValue in
+                        SettingsTextField(
+                            text: $openaiKey,
+                            placeholder: "Enter API Key",
+                            onChange: { newValue in
                                 if !newValue.isEmpty {
                                     saveOpenAIKey()
                                 }
                             }
+                        )
+                        .frame(height: 32)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 4)
+                        .background(Color(hex: "303030"))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                     } else {
-                        SettingsSecureField(placeholder: "Enter API Key", text: $openaiKey)
-                            .onChange(of: openaiKey) { newValue in
+                        SettingsSecureField(
+                            text: $openaiKey,
+                            placeholder: "Enter API Key",
+                            onChange: { newValue in
                                 if !newValue.isEmpty {
                                     saveOpenAIKey()
                                 }
                             }
+                        )
+                        .frame(height: 32)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 4)
+                        .background(Color(hex: "303030"))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
 
                     Button(action: { showOpenAIKey.toggle() }) {
                         Image(systemName: showOpenAIKey ? "eye.slash.fill" : "eye.fill")
                             .foregroundColor(.white.opacity(0.6))
+                            .frame(width: 20, height: 20)
                     }
                     .buttonStyle(.plain)
                     .help(showOpenAIKey ? "Hide key" : "Show key")
@@ -532,17 +677,16 @@ struct CalendarSelectionSettingsView: View {
     
     private var calendarListView: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Selection summary
-            HStack(spacing: 8) {
+            // Selection summary with bulk actions
+            HStack(spacing: 12) {
                 Image(systemName: "calendar.badge.checkmark")
                     .foregroundColor(.white)
                 Text("\(calendarService.selectedCalendarIDs.count) of \(calendarService.allEventCalendars.count) calendars selected")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.7))
-            }
-            
-            // Select/Deselect All buttons
-            HStack(spacing: 12) {
+                
+                Spacer()
+                
                 Button("Select All") {
                     calendarService.selectAllCalendars()
                 }
@@ -569,17 +713,6 @@ struct CalendarSelectionSettingsView: View {
             .padding(12)
             .background(Color.black.opacity(0.2))
             .cornerRadius(8)
-            .frame(maxHeight: 300)
-            
-            // Info text
-            HStack(spacing: 8) {
-                Image(systemName: "info.circle")
-                    .foregroundColor(.blue)
-                Text("Only events from selected calendars will be displayed in the app.")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.6))
-            }
-            .padding(.top, 4)
         }
     }
 }

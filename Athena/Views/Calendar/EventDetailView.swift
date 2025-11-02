@@ -66,8 +66,9 @@ struct EventDetailView: View {
                 .padding()
             }
         }
-        .frame(minWidth: 400, minHeight: 300)
-        .background(Color.white.opacity(0.7))
+        .frame(width: 375)
+        .frame(minHeight: 300)
+        .background(Color.white.opacity(0.6))
         .cornerRadius(12)
     }
 
