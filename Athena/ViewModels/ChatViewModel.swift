@@ -351,10 +351,33 @@ class ChatViewModel: ObservableObject {
         inputText = transcript
         print("[ChatViewModel] handleFinalTranscript: inputText is now: '\(inputText)'")
 
-        // Conditionally auto-send to AI based on config/debug setting
-        // When shouldAutoSendVoiceTranscript is false, the transcript stays in the input field
-        // for manual review/editing before sending
+        // Get current view to determine routing behavior
+        let currentView = appViewModel.currentView
+        print("[ChatViewModel] handleFinalTranscript: Current view is \(currentView)")
+
+        // CALENDAR/NOTES VIEWS: Always auto-send to orchestrator (bypass config)
+        if currentView == .calendar || currentView == .notes {
+            print("[ChatViewModel] handleFinalTranscript: In calendar/notes view - auto-sending to orchestrator")
+            Task {
+                do {
+                    let orchestrator = Orchestrator(appViewModel: appViewModel)
+                    try await orchestrator.route(prompt: transcript, context: currentView)
+                    print("[ChatViewModel] handleFinalTranscript: Successfully routed to orchestrator with context \(currentView)")
+                } catch {
+                    print("[ChatViewModel] handleFinalTranscript: Error routing to orchestrator: \(error)")
+                    errorMessage = "Failed to process command: \(error.localizedDescription)"
+                }
+
+                // Note: WakeWordTranscriptionManager handles state transitions automatically via VAD
+                // No need to restart listening manually
+            }
+            return
+        }
+
+        // CHAT VIEW: Use existing config-based behavior
+        print("[ChatViewModel] handleFinalTranscript: In chat view - using config-based behavior")
         print("[ChatViewModel] handleFinalTranscript: shouldAutoSendVoiceTranscript = \(shouldAutoSendVoiceTranscript)")
+
         guard shouldAutoSendVoiceTranscript else {
             print("[ChatViewModel] handleFinalTranscript: NOT auto-sending - transcript stays in input field for manual editing")
 

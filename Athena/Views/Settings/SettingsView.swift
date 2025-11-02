@@ -121,6 +121,7 @@ struct ModernButton: ButtonStyle {
         case primary
         case secondary
         case danger
+        case neutral
     }
 
     let style: Style
@@ -148,12 +149,15 @@ struct ModernButton: ButtonStyle {
             return isPressed ? Color.settingsBorder : Color.clear
         case .danger:
             return isPressed ? Color.red.opacity(0.8) : Color.red
+        case .neutral:
+            let base = Color(hex: "3A3A3A")
+            return isPressed ? base.opacity(0.8) : base
         }
     }
 
     private var foregroundColor: Color {
         switch style {
-        case .primary, .danger:
+        case .primary, .danger, .neutral:
             return .white
         case .secondary:
             return .white
@@ -167,6 +171,8 @@ struct ModernButton: ButtonStyle {
         case .secondary:
             return Color.settingsBorder
         case .danger:
+            return Color.clear
+        case .neutral:
             return Color.clear
         }
     }
@@ -352,7 +358,6 @@ struct SettingsView: View {
 struct ProviderSettingsView: View {
     @ObservedObject var config = ConfigurationManager.shared
     @State private var openaiKey: String = ""
-    @State private var showOpenAIKey: Bool = false
     @State private var saveStatus: SaveStatus = .none
 
     enum SaveStatus {
@@ -397,53 +402,28 @@ struct ProviderSettingsView: View {
                     }
                 }
 
-                // Input field with eye button and remove button
+                // Input field with remove button
                 HStack(alignment: .center, spacing: 12) {
-                    if showOpenAIKey {
-                        SettingsTextField(
-                            text: $openaiKey,
-                            placeholder: "Enter API Key",
-                            onChange: { newValue in
-                                if !newValue.isEmpty {
-                                    saveOpenAIKey()
-                                }
+                    SettingsSecureField(
+                        text: $openaiKey,
+                        placeholder: "Enter API Key",
+                        onChange: { newValue in
+                            if !newValue.isEmpty {
+                                saveOpenAIKey()
                             }
-                        )
-                        .frame(height: 32)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 4)
-                        .background(Color(hex: "303030"))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    } else {
-                        SettingsSecureField(
-                            text: $openaiKey,
-                            placeholder: "Enter API Key",
-                            onChange: { newValue in
-                                if !newValue.isEmpty {
-                                    saveOpenAIKey()
-                                }
-                            }
-                        )
-                        .frame(height: 32)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 4)
-                        .background(Color(hex: "303030"))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-
-                    Button(action: { showOpenAIKey.toggle() }) {
-                        Image(systemName: showOpenAIKey ? "eye.slash.fill" : "eye.fill")
-                            .foregroundColor(.white.opacity(0.6))
-                            .frame(width: 20, height: 20)
-                    }
-                    .buttonStyle(.plain)
-                    .help(showOpenAIKey ? "Hide key" : "Show key")
+                        }
+                    )
+                    .frame(height: 32)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 4)
+                    .background(Color(hex: "303030"))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
 
                     if config.hasAPIKey(for: "openai") {
                         Button("Remove") {
                             removeOpenAIKey()
                         }
-                        .buttonStyle(ModernButton(style: .danger))
+                        .buttonStyle(ModernButton(style: .neutral))
                     }
                 }
             }
@@ -524,34 +504,23 @@ struct PermissionsSettingsView: View {
                         .font(.headline)
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
-                }
-
-                Text("Athena needs access to your calendar to display and manage events.")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.7))
-
-                HStack(spacing: 12) {
-                    // Status indicator
-                    HStack(spacing: 8) {
+                    
+                    Spacer()
+                    
+                    HStack(spacing: 6) {
                         Circle()
                             .fill(statusColor)
                             .frame(width: 10, height: 10)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Status")
-                                .font(.caption)
-                                .foregroundColor(.white.opacity(0.6))
-                            Text(calendarStatus)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundColor(.white)
-                        }
+                        Text(calendarStatus)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
                     }
-
-                    Spacer()
-
-                    // Action buttons
-                    if CalendarService.shared.authorizationStatus == .notDetermined {
+                }
+                
+                if CalendarService.shared.authorizationStatus == .notDetermined {
+                    HStack(spacing: 12) {
+                        Spacer()
                         Button(action: requestCalendarAccess) {
                             if isRequesting {
                                 ProgressView()
@@ -563,12 +532,18 @@ struct PermissionsSettingsView: View {
                         }
                         .buttonStyle(ModernButton(style: .primary))
                         .disabled(isRequesting)
-                    } else if CalendarService.shared.authorizationStatus == .denied {
+                    }
+                } else if CalendarService.shared.authorizationStatus == .denied {
+                    HStack(spacing: 12) {
+                        Spacer()
                         Button("Open System Settings") {
                             CalendarService.shared.openCalendarPrivacySettings()
                         }
                         .buttonStyle(ModernButton(style: .primary))
-                    } else if CalendarService.shared.authorizationStatus == .writeOnly {
+                    }
+                } else if CalendarService.shared.authorizationStatus == .writeOnly {
+                    HStack(spacing: 12) {
+                        Spacer()
                         VStack(alignment: .trailing, spacing: 8) {
                             Text("Write-only access detected")
                                 .font(.caption)
@@ -682,8 +657,8 @@ struct CalendarSelectionSettingsView: View {
                 Image(systemName: "calendar.badge.checkmark")
                     .foregroundColor(.white)
                 Text("\(calendarService.selectedCalendarIDs.count) of \(calendarService.allEventCalendars.count) calendars selected")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.7))
+                    .foregroundColor(.white)
+                    .fontWeight(.medium)
                 
                 Spacer()
                 
@@ -697,6 +672,7 @@ struct CalendarSelectionSettingsView: View {
                 }
                 .buttonStyle(ModernButton(style: .secondary))
             }
+            .font(.body)
             
             // Calendar list in a scrollable container
             VStack(alignment: .leading, spacing: 0) {

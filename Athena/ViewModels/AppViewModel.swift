@@ -11,7 +11,17 @@ enum AppView {
 
 class AppViewModel: ObservableObject {
     @Published var currentView: AppView = .chat
-    
+
+    // MARK: - View Models for Orchestrator Access
+
+    /// DayViewModel for calendar view - accessible to orchestrator for executing calendar actions
+    @StateObject var dayViewModel = DayViewModel()
+
+    /// Note content for notes view - accessible to orchestrator for executing notes actions
+    @Published var noteContent: String = ""
+
+    // MARK: - Private Properties
+
     private var windowManager: WindowManager?
 
     func setup(windowManager: WindowManager) {

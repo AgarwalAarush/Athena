@@ -14,7 +14,7 @@ struct DayView: View {
     // MARK: - Properties
 
     @EnvironmentObject var appViewModel: AppViewModel
-    @StateObject private var viewModel = DayViewModel()
+    @ObservedObject var viewModel: DayViewModel
     @State private var selectedEvent: CalendarEvent?
     @State private var showEventDetail = false
     @State private var currentTimeOffset: CGFloat = 0
@@ -435,6 +435,7 @@ struct AllDayEventRow: View {
 // MARK: - Preview
 
 #Preview {
-    DayView()
+    DayView(viewModel: DayViewModel())
+        .environmentObject(AppViewModel())
         .frame(width: 800, height: 600)
 }

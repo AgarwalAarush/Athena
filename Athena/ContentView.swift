@@ -46,7 +46,7 @@ struct ContentView: View {
                         ChatView(viewModel: chatViewModel)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     case .calendar:
-                        DayView()
+                        DayView(viewModel: appViewModel.dayViewModel)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     case .notes:
                         NotesView()
