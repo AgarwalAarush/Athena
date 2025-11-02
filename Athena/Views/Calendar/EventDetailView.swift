@@ -61,12 +61,13 @@ struct EventDetailView: View {
         HStack {
             Text("Event Details")
                 .font(.headline)
+                .foregroundColor(.black)
 
             Spacer()
 
             Button(action: { dismiss() }) {
                 Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.black) // Changed from .secondary
                     .imageScale(.large)
             }
             .buttonStyle(.plain)
@@ -88,6 +89,7 @@ struct EventDetailView: View {
                 Text(event.title)
                     .font(.title2)
                     .fontWeight(.semibold)
+                    .foregroundColor(.black)
             }
         }
     }
@@ -98,7 +100,7 @@ struct EventDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Time", systemImage: "clock")
                 .font(.headline)
-                .foregroundColor(.secondary)
+                .foregroundColor(.black) // Changed from .secondary
 
             if event.isAllDay {
                 HStack {
@@ -106,28 +108,32 @@ struct EventDetailView: View {
                         .foregroundColor(.orange)
                     Text("All Day")
                         .font(.body)
+                        .foregroundColor(.black)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("Start:")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.black) // Changed from .secondary
                             .frame(width: 60, alignment: .leading)
                         Text(formatDateTime(event.startDate))
+                            .foregroundColor(.black) // Explicitly set to black
                     }
 
                     HStack {
                         Text("End:")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.black) // Changed from .secondary
                             .frame(width: 60, alignment: .leading)
                         Text(formatDateTime(event.endDate))
+                            .foregroundColor(.black) // Explicitly set to black
                     }
 
                     HStack {
                         Text("Duration:")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.black) // Changed from .secondary
                             .frame(width: 60, alignment: .leading)
                         Text(formatDuration())
+                            .foregroundColor(.black) // Explicitly set to black
                     }
                 }
                 .font(.body)
@@ -141,7 +147,7 @@ struct EventDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Calendar", systemImage: "calendar")
                 .font(.headline)
-                .foregroundColor(.secondary)
+                .foregroundColor(.black) // Changed from .secondary
 
             HStack(spacing: 8) {
                 Circle()
@@ -150,6 +156,7 @@ struct EventDetailView: View {
 
                 Text(event.calendar.title)
                     .font(.body)
+                    .foregroundColor(.black)
             }
         }
     }
@@ -160,11 +167,11 @@ struct EventDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Notes", systemImage: "note.text")
                 .font(.headline)
-                .foregroundColor(.secondary)
+                .foregroundColor(.black) // Changed from .secondary
 
             Text(notes)
                 .font(.body)
-                .foregroundColor(.primary)
+                .foregroundColor(.black) // Changed from .primary
                 .textSelection(.enabled)
         }
     }

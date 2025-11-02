@@ -62,7 +62,7 @@ struct DayView: View {
             }
             .frame(width: 0, height: 0)
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(Color.white)
         .onAppear {
             startCurrentTimeTimer()
         }
@@ -77,13 +77,6 @@ struct DayView: View {
 
     private var navigationHeader: some View {
         HStack {
-            // Go Back button
-            Button(action: { appViewModel.showChat() }) {
-                Label("Back", systemImage: "chevron.left")
-            }
-            .buttonStyle(.borderless)
-            .help("Go back to chat")
-
             // Previous Day button
             Button(action: viewModel.previousDay) {
                 Label("Previous", systemImage: "chevron.left")
@@ -97,10 +90,11 @@ struct DayView: View {
             VStack(spacing: 2) {
                 Text(viewModel.formattedDate)
                     .font(.headline)
+                    .foregroundColor(.black) // Explicitly set to black
                 if viewModel.isToday {
                     Text("Today")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.black) // Explicitly set to black
                 }
             }
 
@@ -158,7 +152,7 @@ struct DayView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("All-Day Events")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(.black) // Explicitly set to black
                 .padding(.horizontal, 4)
 
             VStack(spacing: 4) {
@@ -202,7 +196,7 @@ struct DayView: View {
                     // Hour label
                     Text(formatHour(hour))
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.black) // Explicitly set to black
                         .frame(width: hourLabelWidth, alignment: .trailing)
                         .padding(.trailing, 8)
 
@@ -290,7 +284,7 @@ struct DayView: View {
                 .font(.largeTitle)
                 .foregroundColor(.orange)
             Text(message)
-                .foregroundColor(.secondary)
+                .foregroundColor(.black) // Explicitly set to black
             Button("Retry") {
                 Task {
                     await viewModel.fetchEvents()
@@ -406,6 +400,7 @@ struct AllDayEventRow: View {
             Text(event.title)
                 .font(.body)
                 .lineLimit(1)
+                .foregroundColor(.black)
 
             Spacer()
         }
