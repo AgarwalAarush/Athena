@@ -200,8 +200,8 @@ struct RichTextEditor: NSViewRepresentable {
             
             let selection = textView.selectedRange()
             let paragraphRange = currentParagraphRange(in: textView)
+            guard paragraphRange.location != NSNotFound else { return }
             
-            // Check trigger "- [ ] " after leading whitespace
             let paragraphText = (textStorage.string as NSString).substring(with: paragraphRange)
             let wsCount = paragraphText.prefix { $0 == " " || $0 == "\t" }.count
             let triggerStart = paragraphRange.location + wsCount
@@ -217,26 +217,21 @@ struct RichTextEditor: NSViewRepresentable {
             defer { textView.undoManager?.endUndoGrouping() }
             
             textStorage.beginEditing()
+            
+            // 1) Delete only the trigger. Do NOT insert any tabs into content.
             textStorage.deleteCharacters(in: triggerRange)
             
-            // Recompute paragraph (since content changed)
-            var para = (textStorage.string as NSString).paragraphRange(for: NSRange(location: triggerStart, length: 0))
-            
-            // Ensure a TAB at the actual paragraph START
-            let paraString = (textStorage.string as NSString).substring(with: para)
-            if !paraString.hasPrefix("\t") {
-                textStorage.replaceCharacters(in: NSRange(location: para.location, length: 0), with: "\t")
-                para = (textStorage.string as NSString).paragraphRange(for: NSRange(location: para.location, length: 0))
-            }
-            
-            // Apply list style
-            applyCheckboxList(toParagraphRange: para, in: textView)
+            // 2) Recompute paragraph and apply list style.
+            let updatedParagraphRange = (textStorage.string as NSString)
+                .paragraphRange(for: NSRange(location: triggerStart, length: 0))
+            applyCheckboxList(toParagraphRange: updatedParagraphRange, in: textView)
             
             textStorage.endEditing()
             
-            // Place caret after the tab (start of text column)
-            let caret = min(para.location + 1, textStorage.length)
-            textView.setSelectedRange(NSRange(location: caret, length: 0))
+            // 3) Place caret at start of the text column (paragraph start is fine; indent is paragraph style)
+            textView.setSelectedRange(NSRange(location: updatedParagraphRange.location, length: 0))
+            
+            // Sync binding
             content = textStorage.string
         }
 
@@ -263,21 +258,18 @@ struct RichTextEditor: NSViewRepresentable {
             // Insert newline
             textStorage.replaceCharacters(in: affectedCharRange, with: "\n")
 
-            let newParagraphStart = affectedCharRange.location + 1
-            if newParagraphStart <= textStorage.length {
-                let newParagraphRange = (textStorage.string as NSString).paragraphRange(
-                    for: NSRange(location: newParagraphStart, length: 0)
-                )
-
-                applyCheckboxList(toParagraphRange: newParagraphRange, in: textView)
-                
-                // Place caret after the tab that applyCheckboxList inserted
-                let caret = min(newParagraphRange.location + 1, textStorage.length)
+            // Style the new paragraph (no literal tabs inserted)
+            let newStart = affectedCharRange.location + 1
+            if newStart <= textStorage.length {
+                let newPara = (textStorage.string as NSString)
+                    .paragraphRange(for: NSRange(location: newStart, length: 0))
+                applyCheckboxList(toParagraphRange: newPara, in: textView)
                 textStorage.endEditing()
-                textView.setSelectedRange(NSRange(location: caret, length: 0))
+                // Caret at the start of new line; paragraph style provides indent
+                textView.setSelectedRange(NSRange(location: newPara.location, length: 0))
             } else {
                 textStorage.endEditing()
-                textView.setSelectedRange(NSRange(location: newParagraphStart, length: 0))
+                textView.setSelectedRange(NSRange(location: newStart, length: 0))
             }
 
             content = textStorage.string
@@ -293,37 +285,42 @@ struct RichTextEditor: NSViewRepresentable {
             return (textStorage.string as NSString).paragraphRange(for: selection)
         }
 
-        /// Apply checkbox paragraph style with hanging indent and proper tab handling.
+        /// Apply checkbox paragraph style with distinct indents (no literal tabs inserted).
         private func applyCheckboxList(toParagraphRange range: NSRange, in textView: NSTextView) {
-            guard let textStorage = textView.textStorage else { return }
+            guard let textStorage = textView.textStorage,
+                  range.location != NSNotFound else { return }
             
-            // Recompute the full paragraph
-            var para = (textStorage.string as NSString).paragraphRange(for: range)
+            let paragraphRange = (textStorage.string as NSString).paragraphRange(for: range)
+            let attributeLocation = min(max(paragraphRange.location, 0), max(textStorage.length - 1, 0))
             
-            // Ensure a leading tab AT PARAGRAPH START (not caret)
-            let paraString = (textStorage.string as NSString).substring(with: para)
-            if !paraString.hasPrefix("\t") {
-                textStorage.replaceCharacters(in: NSRange(location: para.location, length: 0), with: "\t")
-                // update range after insertion
-                para = (textStorage.string as NSString).paragraphRange(for: NSRange(location: para.location, length: 0))
+            // Build/clone paragraph style
+            let ps: NSMutableParagraphStyle
+            if textStorage.length > 0,
+               let existing = textStorage.attribute(.paragraphStyle,
+                                                    at: attributeLocation,
+                                                    effectiveRange: nil) as? NSParagraphStyle {
+                ps = existing.mutableCopy() as! NSMutableParagraphStyle
+            } else {
+                ps = NSMutableParagraphStyle()
+                ps.lineSpacing = 2
+                ps.paragraphSpacing = 8
             }
             
-            // Build paragraph style: hanging indent; marker drawn before the tab at headIndent
-            let head: CGFloat = 28 // text column start
-            let ps = NSMutableParagraphStyle()
-            ps.lineSpacing = 2
-            ps.paragraphSpacing = 8
-            ps.firstLineHeadIndent = head
-            ps.headIndent = head
+            // Distinct indents: gutter for marker, then text column
+            let markerIndent: CGFloat = 16
+            let textIndent: CGFloat = 28
             
-            // Ensure a tab stop exactly at head indent
-            var tabs = ps.tabStops ?? []
-            tabs.removeAll { abs($0.location - head) < 0.5 }
-            tabs.append(NSTextTab(textAlignment: .left, location: head, options: [:]))
-            tabs.sort { $0.location < $1.location }
-            ps.tabStops = tabs
+            ps.firstLineHeadIndent = markerIndent
+            ps.headIndent = textIndent
             
-            // Attach a checkbox list (macOS 15+), else fallback
+            // Ensure a tab stop at the text indent (for NSTextList marker spacing)
+            var stops = ps.tabStops ?? []
+            stops.removeAll { abs($0.location - textIndent) < 0.5 }
+            stops.append(NSTextTab(textAlignment: .left, location: textIndent, options: [:]))
+            stops.sort { $0.location < $1.location }
+            ps.tabStops = stops
+            
+            // Attach checkbox list
             let list: NSTextList
             if #available(macOS 15.0, *) {
                 list = NSTextList(markerFormat: .check, options: 0)
@@ -332,38 +329,31 @@ struct RichTextEditor: NSViewRepresentable {
             }
             ps.textLists = [list]
             
-            // Apply style to the whole paragraph
-            textStorage.addAttribute(.paragraphStyle, value: ps, range: para)
+            // Apply to the paragraph
+            textStorage.addAttribute(.paragraphStyle, value: ps, range: paragraphRange)
             
-            // Keep typing attributes in sync
-            DispatchQueue.main.async { [weak textView] in
-                guard let tv = textView else { return }
-                var attrs = tv.typingAttributes
+            // If the paragraph is empty, also set typingAttributes so the marker shows immediately
+            if paragraphRange.length == 0 {
+                var attrs = textView.typingAttributes
                 attrs[.paragraphStyle] = ps
-                attrs[.foregroundColor] = NSColor.black
-                tv.typingAttributes = attrs
+                if attrs[.foregroundColor] == nil { attrs[.foregroundColor] = NSColor.black }
+                textView.typingAttributes = attrs
             }
         }
 
         /// Determine if current paragraph (or typing attributes) have checkbox style.
         private func paragraphHasCheckboxStyle(at location: Int) -> Bool {
             guard let textView = textView else { return false }
-            guard let textStorage = textView.textStorage else {
-                if let ps = textView.typingAttributes[.paragraphStyle] as? NSParagraphStyle {
+            
+            if let ts = textView.textStorage, ts.length > 0, location < ts.length {
+                if let ps = ts.attribute(.paragraphStyle,
+                                         at: max(0, min(location, ts.length - 1)),
+                                         effectiveRange: nil) as? NSParagraphStyle {
                     return ps.textLists.contains(where: { isCheckboxList($0) })
                 }
-                return false
             }
-
-            if textStorage.length == 0 || location >= textStorage.length {
-                if let ps = textView.typingAttributes[.paragraphStyle] as? NSParagraphStyle {
-                    return ps.textLists.contains(where: { isCheckboxList($0) })
-                }
-                return false
-            }
-
-            let checkLocation = min(max(location, 0), textStorage.length - 1)
-            if let ps = textStorage.attribute(.paragraphStyle, at: checkLocation, effectiveRange: nil) as? NSParagraphStyle {
+            
+            if let ps = textView.typingAttributes[.paragraphStyle] as? NSParagraphStyle {
                 return ps.textLists.contains(where: { isCheckboxList($0) })
             }
             return false
@@ -385,16 +375,16 @@ struct RichTextEditor: NSViewRepresentable {
             }
         }
 
-        /// Legacy fallback list rendering with Unicode checkbox character.
+        /// Legacy fallback list rendering (tab in marker, NOT in paragraph content).
         private final class LegacyCheckboxTextList: NSTextList {
             convenience init() {
-                // Use disc format as base, we'll override the marker anyway
                 self.init(markerFormat: .disc, options: 0)
                 self.startingItemNumber = 1
             }
             
-            override func marker(forItemNumber itemNumber: Int) -> String { 
-                "☐" // Use the actual checkbox Unicode character
+            override func marker(forItemNumber itemNumber: Int) -> String {
+                // The \t here is part of the marker drawing, not inserted into the text content.
+                return "[ ]\t"
             }
         }
     }
