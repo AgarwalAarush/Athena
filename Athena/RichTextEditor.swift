@@ -386,18 +386,9 @@ struct RichTextEditor: NSViewRepresentable {
 
         /// Legacy fallback list that renders a simple unchecked marker.
         private final class LegacyCheckboxTextList: NSTextList {
-            // Designated initializer for this subclass
-            init(markerFormat format: NSTextList.MarkerFormat, options mask: Int) {
-                super.init(markerFormat: format, options: mask)
-            }
-
-            // Convenience initializer that chooses a square marker
+            // Simple convenience init that funnels to the inherited designated init
             convenience init() {
                 self.init(markerFormat: .square, options: 0)
-            }
-
-            required init?(coder: NSCoder) {
-                super.init(coder: coder)
             }
 
             override func marker(forItemNumber itemNumber: Int) -> String {

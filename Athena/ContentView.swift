@@ -65,6 +65,7 @@ struct ContentView: View {
 
 struct TitleBarView: View {
     @EnvironmentObject var windowManager: WindowManager
+    @EnvironmentObject var appViewModel: AppViewModel
     @ObservedObject var chatViewModel: ChatViewModel
     @ObservedObject private var config = ConfigurationManager.shared
 
@@ -72,6 +73,16 @@ struct TitleBarView: View {
 
     var body: some View {
         HStack {
+            // Back button (visible in notes and calendar views)
+            if appViewModel.currentView == .notes || appViewModel.currentView == .calendar {
+                Button(action: { appViewModel.showChat() }) {
+                    Image(systemName: "chevron.left")
+                        .foregroundColor(.accentColor)
+                }
+                .buttonStyle(.plain)
+                .help("Back to Chat")
+            }
+
             Spacer()
 
             HStack(spacing: 12) {

@@ -3,22 +3,14 @@ import SwiftUI
 
 struct NotesView: View {
     @EnvironmentObject var appViewModel: AppViewModel
+    @State private var noteContent: String = ""
 
     var body: some View {
-        VStack {
-            HStack {
-                Button(action: { appViewModel.showChat() }) {
-                    Label("Back", systemImage: "chevron.left")
-                }
-                .buttonStyle(.borderless)
-                .help("Go back to chat")
-                Spacer()
-            }
-            .padding()
-            
-            Spacer()
-            Text("Notes View (Placeholder)")
-            Spacer()
+        VStack(spacing: 0) {
+            // Rich text editor
+            RichTextEditor(content: $noteContent)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
         }
     }
 }
