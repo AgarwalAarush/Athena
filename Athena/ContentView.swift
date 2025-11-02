@@ -47,6 +47,9 @@ struct ContentView: View {
                 case .calendar:
                     DayView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .notes:
+                    NotesView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .clipShape(shell)

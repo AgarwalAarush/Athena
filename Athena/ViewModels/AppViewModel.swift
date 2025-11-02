@@ -1,10 +1,12 @@
 
 import Foundation
 import SwiftUI
+import Combine
 
 enum AppView {
     case chat
     case calendar
+    case notes
 }
 
 class AppViewModel: ObservableObject {
@@ -24,5 +26,9 @@ class AppViewModel: ObservableObject {
     func showChat() {
         currentView = .chat
         windowManager?.resizeForChat()
+    }
+
+    func showNotes() {
+        currentView = .notes
     }
 }

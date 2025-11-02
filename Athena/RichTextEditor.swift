@@ -134,7 +134,6 @@ struct RichTextEditor: NSViewRepresentable {
     ///
     /// Implements NSTextViewDelegate to handle text changes and checkbox behavior.
     /// Uses isProgrammaticChange guard to prevent binding feedback loops.
-    /// Requires macOS 15+ for NSTextList.MarkerFormat.checkBox support.
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
 
@@ -199,12 +198,17 @@ struct RichTextEditor: NSViewRepresentable {
             // Extract paragraph text
             let paragraphText = (textStorage.string as NSString).substring(with: paragraphRange)
 
-            // Check if paragraph starts with trigger at the very start
-            guard paragraphText.hasPrefix(checkboxTrigger) else { return }
+            // Allow leading whitespace before the trigger
+            let leadingWhitespaceCount = paragraphText.prefix { $0 == " " || $0 == "\t" }.count
+            let triggerStart = paragraphRange.location + leadingWhitespaceCount
+
+            // Check if paragraph starts with trigger after optional whitespace
+            guard paragraphText.dropFirst(leadingWhitespaceCount).hasPrefix(checkboxTrigger) else { return }
+
+            let triggerRange = NSRange(location: triggerStart, length: checkboxTrigger.count)
 
             // Ensure cursor is after the trigger
-            let triggerRange = NSRange(location: paragraphRange.location, length: checkboxTrigger.count)
-            guard selection.location == triggerRange.location + triggerRange.length else { return }
+            guard selection.location == NSMaxRange(triggerRange) else { return }
 
             // Apply transformation within undo group
             isProgrammaticChange = true
@@ -218,20 +222,14 @@ struct RichTextEditor: NSViewRepresentable {
             // Delete trigger text
             textStorage.deleteCharacters(in: triggerRange)
 
-            // Adjust paragraph range after deletion
-            let adjustedParagraphRange = NSRange(
-                location: paragraphRange.location,
-                length: paragraphRange.length - checkboxTrigger.count
-            )
-
-            // Apply checkbox list style to paragraph
-            applyCheckboxList(toParagraphRange: adjustedParagraphRange, in: textView)
+            // Apply checkbox list style to the paragraph
+            let updatedParagraphRange = currentParagraphRange(in: textView)
+            applyCheckboxList(toParagraphRange: updatedParagraphRange, in: textView)
 
             textStorage.endEditing()
 
-            // Update selection (move back by trigger length)
-            let newLocation = selection.location - checkboxTrigger.count
-            textView.setSelectedRange(NSRange(location: newLocation, length: 0))
+            // Move cursor back to where the trigger started
+            textView.setSelectedRange(NSRange(location: triggerRange.location, length: 0))
 
             // Sync binding
             content = textStorage.string
@@ -278,8 +276,8 @@ struct RichTextEditor: NSViewRepresentable {
 
             textStorage.endEditing()
 
-            // Move cursor to start of new line
-            textView.setSelectedRange(NSRange(location: affectedCharRange.location + 1, length: 0))
+            // Move cursor to start of the new paragraph
+            textView.setSelectedRange(NSRange(location: newParagraphStart, length: 0))
 
             // Sync binding
             content = textStorage.string
@@ -300,24 +298,22 @@ struct RichTextEditor: NSViewRepresentable {
         }
 
         /// Applies checkbox list formatting to the specified paragraph range.
-        ///
-        /// Creates NSTextList with checkBox marker format and applies via paragraph style.
-        /// Uses mutable copy to avoid mutating shared default style objects.
         private func applyCheckboxList(toParagraphRange range: NSRange, in textView: NSTextView) {
             guard let textStorage = textView.textStorage,
-                  range.location + range.length <= textStorage.length else { return }
+                  NSMaxRange(range) <= textStorage.length else { return }
 
-            // Create checkbox text list
-            let checkboxList = NSTextList(markerFormat: .checkBox, options: 0)
+            let checkboxList = makeCheckboxList()
 
-            // Get current paragraph style or create new one
-            var paragraphStyle: NSMutableParagraphStyle
-            if range.length > 0,
+            let paragraphRange = (textStorage.string as NSString).paragraphRange(for: range)
+            let attributeLocation = max(min(paragraphRange.location, textStorage.length - 1), 0)
+
+            let paragraphStyle: NSMutableParagraphStyle
+            if textStorage.length > 0,
                let existingStyle = textStorage.attribute(
                 .paragraphStyle,
-                at: range.location,
+                at: attributeLocation,
                 effectiveRange: nil
-               ) as? NSParagraphStyle {
+            ) as? NSParagraphStyle {
                 paragraphStyle = existingStyle.mutableCopy() as! NSMutableParagraphStyle
             } else {
                 paragraphStyle = NSMutableParagraphStyle()
@@ -325,14 +321,26 @@ struct RichTextEditor: NSViewRepresentable {
                 paragraphStyle.paragraphSpacing = 8
             }
 
-            // Add checkbox list to paragraph style
             paragraphStyle.textLists = [checkboxList]
 
-            // Apply to range
+            let indent: CGFloat = 24
+            if paragraphStyle.firstLineHeadIndent < indent {
+                paragraphStyle.firstLineHeadIndent = indent
+            }
+            if paragraphStyle.headIndent < indent {
+                paragraphStyle.headIndent = indent
+            }
+            if !paragraphStyle.tabStops.contains(where: { abs($0.location - indent) < 0.5 }) {
+                var tabStops = paragraphStyle.tabStops
+                tabStops.append(NSTextTab(textAlignment: .left, location: indent, options: [:]))
+                tabStops.sort { $0.location < $1.location }
+                paragraphStyle.tabStops = tabStops
+            }
+
             textStorage.addAttribute(
                 .paragraphStyle,
                 value: paragraphStyle,
-                range: range
+                range: paragraphRange
             )
         }
 
@@ -345,16 +353,49 @@ struct RichTextEditor: NSViewRepresentable {
             // Check at valid character position (adjust if at end of document)
             let checkLocation = min(location, textStorage.length - 1)
 
-            // Get paragraph style at location
             guard let paragraphStyle = textStorage.attribute(
                 .paragraphStyle,
                 at: checkLocation,
                 effectiveRange: nil
             ) as? NSParagraphStyle else { return false }
 
-            // Check if any text list has checkbox marker format
-            return paragraphStyle.textLists.contains { list in
-                list.markerFormat == .checkBox
+            return paragraphStyle.textLists.contains(where: { isCheckboxList($0) })
+        }
+
+        /// Returns a checkbox-compatible text list, falling back when .check is unavailable.
+        private func makeCheckboxList() -> NSTextList {
+            if #available(macOS 15.0, *) {
+                return NSTextList(markerFormat: .check, options: 0)
+            } else {
+                return LegacyCheckboxTextList()
+            }
+        }
+
+        /// Determines whether the supplied list represents a checkbox style.
+        private func isCheckboxList(_ list: NSTextList) -> Bool {
+            if #available(macOS 15.0, *) {
+                return list.markerFormat == .check
+            } else {
+                return list is LegacyCheckboxTextList
+            }
+        }
+
+        /// Legacy fallback list that renders a simple unchecked marker.
+        private final class LegacyCheckboxTextList: NSTextList {
+            override init(markerFormat format: NSTextList.MarkerFormat, options mask: Int) {
+                super.init(markerFormat: format, options: mask)
+            }
+
+            convenience init() {
+                self.init(markerFormat: .square, options: 0)
+            }
+
+            required init?(coder: NSCoder) {
+                super.init(coder: coder)
+            }
+
+            override func marker(forItemNumber itemNumber: Int) -> String {
+                "[ ]\t"
             }
         }
     }

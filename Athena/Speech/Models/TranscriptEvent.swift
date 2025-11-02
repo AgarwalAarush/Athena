@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 
 /// Events emitted by transcription services during speech-to-text conversion
 enum TranscriptEvent {

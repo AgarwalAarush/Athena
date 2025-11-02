@@ -89,7 +89,9 @@ class Orchestrator {
     }
 
     private func handleNotesTask(prompt: String) async {
-        // Implementation to be added
+        DispatchQueue.main.async {
+            self.appViewModel?.showNotes()
+        }
     }
 
     private func handleWindowManagementTask(prompt: String) async {

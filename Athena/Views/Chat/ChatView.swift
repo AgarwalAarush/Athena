@@ -116,7 +116,6 @@ struct ErrorBannerView: View {
 }
 
 #Preview {
-    ChatView(viewModel: ChatViewModel())
+    ChatView(viewModel: ChatViewModel(appViewModel: AppViewModel()))
         .frame(width: 470, height: 640)
 }
-
