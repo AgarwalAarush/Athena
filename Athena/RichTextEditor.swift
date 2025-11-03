@@ -12,6 +12,11 @@ import AppKit
 /// binding synchronization while preventing feedback loops.
 @MainActor
 struct RichTextEditor: NSViewRepresentable {
+    
+    // MARK: - Configuration
+    
+    /// Font size for the text editor. Adjust this value to change the editor font size.
+    private static let fontSize: CGFloat = 14
 
     @Binding var content: String
     var onFocusLost: (() -> Void)?
@@ -65,7 +70,7 @@ struct RichTextEditor: NSViewRepresentable {
         textView.textContainerInset = NSSize(width: 10, height: 10)
 
         // Use font one size larger than subheadline (which is used in preview)
-        textView.font = NSFont.systemFont(ofSize: 18)
+        textView.font = NSFont.systemFont(ofSize: Self.fontSize)
         textView.textColor = .black
         
         // Make text view transparent
@@ -77,6 +82,13 @@ struct RichTextEditor: NSViewRepresentable {
         paragraphStyle.lineSpacing = 2
         paragraphStyle.paragraphSpacing = 8
         textView.defaultParagraphStyle = paragraphStyle
+        
+        // Set typing attributes to ensure font is applied to new text
+        textView.typingAttributes = [
+            .font: NSFont.systemFont(ofSize: Self.fontSize),
+            .foregroundColor: NSColor.black,
+            .paragraphStyle: paragraphStyle
+        ]
 
         // Delegate wiring
         textView.delegate = context.coordinator
@@ -110,6 +122,11 @@ struct RichTextEditor: NSViewRepresentable {
         // Initialize content
         if !content.isEmpty {
             textStorage.replaceCharacters(in: NSRange(location: 0, length: 0), with: content)
+            // Apply base font attributes to ensure consistent formatting
+            textStorage.addAttributes([
+                .font: NSFont.systemFont(ofSize: Self.fontSize),
+                .foregroundColor: NSColor.black
+            ], range: NSRange(location: 0, length: textStorage.length))
         }
 
         // First responder when attached
@@ -134,6 +151,14 @@ struct RichTextEditor: NSViewRepresentable {
 
         let selectedRange = textView.selectedRange()
         textStorage.replaceCharacters(in: NSRange(location: 0, length: textStorage.length), with: content)
+        
+        // Apply base font attributes to ensure consistent formatting
+        if textStorage.length > 0 {
+            textStorage.addAttributes([
+                .font: NSFont.systemFont(ofSize: Self.fontSize),
+                .foregroundColor: NSColor.black
+            ], range: NSRange(location: 0, length: textStorage.length))
+        }
 
         let newLength = textStorage.length
         if selectedRange.location <= newLength {
