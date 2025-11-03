@@ -163,3 +163,5 @@ Once this works, you can:
 2. Add a similar permission UI for other privacy-sensitive features (e.g., Microphone in Speech settings)
 3. Consider showing a "Grant Calendar Access" button in the Calendar view itself if not authorized
 
+
+

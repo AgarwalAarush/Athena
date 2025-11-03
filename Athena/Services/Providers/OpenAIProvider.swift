@@ -19,8 +19,7 @@ final class OpenAIProvider: BaseProvider {
     private let baseURL = "https://api.openai.com/v1"
     
     private var models: [String] = [
-        "gpt-5-nano",
-        "gpt-4o-mini",
+        "gpt-5-nano"
     ]
     
     /// Initializes a new OpenAI provider with the given API key.
@@ -48,6 +47,8 @@ final class OpenAIProvider: BaseProvider {
         maxTokens: Int,
         topP: Double
     ) async throws -> ChatResponse {
+        print("[OpenAIProvider] 🤖 Making API call with model: \(model), temperature: \(temperature)")
+        
         guard let url = URL(string: "\(baseURL)/chat/completions") else {
             throw NetworkError.invalidURL
         }
@@ -137,7 +138,9 @@ final class OpenAIProvider: BaseProvider {
         maxTokens: Int,
         topP: Double
     ) -> AsyncThrowingStream<StreamChunk, Error> {
-        AsyncThrowingStream { continuation in
+        print("[OpenAIProvider] 🌊 Making streaming API call with model: \(model), temperature: \(temperature)")
+        
+        return AsyncThrowingStream { continuation in
             Task {
                 do {
                     guard let url = URL(string: "\(baseURL)/chat/completions") else {

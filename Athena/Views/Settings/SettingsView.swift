@@ -122,6 +122,7 @@ struct ModernButton: ButtonStyle {
         case secondary
         case danger
         case neutral
+        case calendarAction
     }
 
     let style: Style
@@ -152,12 +153,15 @@ struct ModernButton: ButtonStyle {
         case .neutral:
             let base = Color(hex: "3A3A3A")
             return isPressed ? base.opacity(0.8) : base
+        case .calendarAction:
+            let base = Color(hex: "3A3A3A")
+            return isPressed ? base.opacity(0.8) : base
         }
     }
 
     private var foregroundColor: Color {
         switch style {
-        case .primary, .danger, .neutral:
+        case .primary, .danger, .neutral, .calendarAction:
             return .white
         case .secondary:
             return .white
@@ -172,7 +176,7 @@ struct ModernButton: ButtonStyle {
             return Color.settingsBorder
         case .danger:
             return Color.clear
-        case .neutral:
+        case .neutral, .calendarAction:
             return Color.clear
         }
     }
@@ -665,12 +669,12 @@ struct CalendarSelectionSettingsView: View {
                 Button("Select All") {
                     calendarService.selectAllCalendars()
                 }
-                .buttonStyle(ModernButton(style: .secondary))
+                .buttonStyle(ModernButton(style: .calendarAction))
                 
                 Button("Deselect All") {
                     calendarService.deselectAllCalendars()
                 }
-                .buttonStyle(ModernButton(style: .secondary))
+                .buttonStyle(ModernButton(style: .calendarAction))
             }
             .font(.body)
             

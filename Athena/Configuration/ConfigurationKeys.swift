@@ -10,7 +10,6 @@ import Foundation
 enum ConfigurationKey: String, CaseIterable {
     // AI Provider Keys (Secure - Keychain)
     case openaiAPIKey = "openai_api_key"
-    case anthropicAPIKey = "anthropic_api_key"
     case ollamaBaseURL = "ollama_base_url"
     
     // Provider Selection (UserDefaults)
@@ -100,14 +99,14 @@ enum ConfigurationKey: String, CaseIterable {
             return false
 
         // Secure keys have no defaults
-        case .openaiAPIKey, .anthropicAPIKey:
+        case .openaiAPIKey:
             return ""
         }
     }
     
     var isSecure: Bool {
         switch self {
-        case .openaiAPIKey, .anthropicAPIKey:
+        case .openaiAPIKey:
             return true
         default:
             return false
@@ -116,7 +115,7 @@ enum ConfigurationKey: String, CaseIterable {
     
     var category: ConfigurationCategory {
         switch self {
-        case .openaiAPIKey, .anthropicAPIKey, .ollamaBaseURL, .selectedProvider, .selectedModel:
+        case .openaiAPIKey, .ollamaBaseURL, .selectedProvider, .selectedModel:
             return .aiProvider
         case .topP:
             return .modelParameters

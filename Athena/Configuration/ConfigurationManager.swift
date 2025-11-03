@@ -104,8 +104,6 @@ class ConfigurationManager: ObservableObject {
         switch provider.lowercased() {
         case "openai":
             return keychain.exists(for: ConfigurationKey.openaiAPIKey.rawValue)
-        case "anthropic", "claude":
-            return keychain.exists(for: ConfigurationKey.anthropicAPIKey.rawValue)
         default:
             return false
         }
@@ -115,8 +113,6 @@ class ConfigurationManager: ObservableObject {
         switch provider.lowercased() {
         case "openai":
             return try? keychain.retrieveString(for: ConfigurationKey.openaiAPIKey.rawValue)
-        case "anthropic", "claude":
-            return try? keychain.retrieveString(for: ConfigurationKey.anthropicAPIKey.rawValue)
         default:
             return nil
         }
@@ -126,8 +122,6 @@ class ConfigurationManager: ObservableObject {
         switch provider.lowercased() {
         case "openai":
             try keychain.save(key, for: ConfigurationKey.openaiAPIKey.rawValue)
-        case "anthropic", "claude":
-            try keychain.save(key, for: ConfigurationKey.anthropicAPIKey.rawValue)
         default:
             throw NSError(domain: "ConfigurationManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unknown provider"])
         }
@@ -137,8 +131,6 @@ class ConfigurationManager: ObservableObject {
         switch provider.lowercased() {
         case "openai":
             try keychain.delete(for: ConfigurationKey.openaiAPIKey.rawValue)
-        case "anthropic", "claude":
-            try keychain.delete(for: ConfigurationKey.anthropicAPIKey.rawValue)
         default:
             throw NSError(domain: "ConfigurationManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unknown provider"])
         }

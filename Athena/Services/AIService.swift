@@ -38,13 +38,7 @@ class AIService: AIServiceProtocol {
         }
         
         // Create new provider
-        let newProvider: BaseProvider
-        switch provider {
-        case .openai:
-            newProvider = OpenAIProvider(apiKey: apiKey)
-        case .anthropic:
-            newProvider = AnthropicProvider(apiKey: apiKey)
-        }
+        let newProvider: BaseProvider = OpenAIProvider(apiKey: apiKey)
         
         // Cache provider
         providers[cacheKey] = newProvider
@@ -78,7 +72,7 @@ class AIService: AIServiceProtocol {
         let response = try await aiProvider.chat(
             messages: allMessages,
             model: model,
-            temperature: 0.7,
+            temperature: 0.0,
             maxTokens: 2048,
             topP: config.getDouble(.topP)
         )
@@ -125,7 +119,7 @@ class AIService: AIServiceProtocol {
                     let stream = aiProvider.stream(
                         messages: allMessages,
                         model: model,
-                        temperature: 0.7,
+                        temperature: 0.0,
                         maxTokens: 2048,
                         topP: self.config.getDouble(.topP)
                     )
@@ -151,13 +145,7 @@ class AIService: AIServiceProtocol {
     
     func testConnection(provider: AIProvider, apiKey: String) async throws -> Bool {
         // Create a temporary provider with the test API key
-        let testProvider: BaseProvider
-        switch provider {
-        case .openai:
-            testProvider = OpenAIProvider(apiKey: apiKey)
-        case .anthropic:
-            testProvider = AnthropicProvider(apiKey: apiKey)
-        }
+        let testProvider: BaseProvider = OpenAIProvider(apiKey: apiKey)
         
         // Try a minimal request
         let testMessages = [
@@ -171,7 +159,7 @@ class AIService: AIServiceProtocol {
             _ = try await testProvider.chat(
                 messages: testMessages,
                 model: defaultModel,
-                temperature: 0.7,
+                temperature: 0.0,
                 maxTokens: 5,
                 topP: 1.0
             )
