@@ -47,7 +47,7 @@ final class OpenAIProvider: BaseProvider {
         maxTokens: Int,
         topP: Double
     ) async throws -> ChatResponse {
-        print("[OpenAIProvider] 🤖 Making API call with model: \(model), temperature: \(temperature)")
+        print("[OpenAIProvider] 🤖 Making API call with model: \(model), temperature: \(temperature), messages: \(messages)")
         
         guard let url = URL(string: "\(baseURL)/chat/completions") else {
             throw NetworkError.invalidURL
@@ -67,6 +67,7 @@ final class OpenAIProvider: BaseProvider {
             "messages": openaiMessages,
             "temperature": temperature,
             "max_completion_tokens": maxTokens,
+            "response_format": ["type": "text"],
             "top_p": topP,
             "stream": false
         ]
@@ -107,6 +108,8 @@ final class OpenAIProvider: BaseProvider {
               let message = choice.message else {
             throw NetworkError.noData
         }
+        
+        print("[OpenAIProvider] AI Response: \(message)")
         
         return ChatResponse(
             content: message.content ?? "",

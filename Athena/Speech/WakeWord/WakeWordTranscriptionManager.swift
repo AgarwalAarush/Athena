@@ -43,6 +43,11 @@ class WakeWordTranscriptionManager: ObservableObject {
     private var accumulatedText: String = ""
     private var lastSessionTranscript: String = ""
 
+    // Ring buffer for audio handoff (captures last ~1 second of audio)
+    private var audioRingBuffer: [AVAudioPCMBuffer] = []
+    private let maxRingBufferDuration: TimeInterval = 1.0 // 1 second of audio
+    private var currentRingBufferDuration: TimeInterval = 0.0
+
     // MARK: - Initialization
 
     init() {
@@ -161,6 +166,9 @@ class WakeWordTranscriptionManager: ObservableObject {
     private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) async {
         switch state {
         case .listeningForWakeWord:
+            // Add to ring buffer for smooth handoff
+            addToRingBuffer(buffer)
+            
             // Send audio to wake word detector
             wakeWordDetector?.processAudioBuffer(buffer)
 
@@ -176,6 +184,43 @@ class WakeWordTranscriptionManager: ObservableObject {
             // No processing during cooldown
             break
         }
+    }
+
+    // MARK: - Ring Buffer Management
+    
+    private func addToRingBuffer(_ buffer: AVAudioPCMBuffer) {
+        // Calculate duration of this buffer
+        let bufferDuration = Double(buffer.frameLength) / buffer.format.sampleRate
+        
+        // Add new buffer
+        audioRingBuffer.append(buffer)
+        currentRingBufferDuration += bufferDuration
+        
+        // Remove old buffers to maintain ~1 second window
+        while currentRingBufferDuration > maxRingBufferDuration && !audioRingBuffer.isEmpty {
+            let oldBuffer = audioRingBuffer.removeFirst()
+            let oldDuration = Double(oldBuffer.frameLength) / oldBuffer.format.sampleRate
+            currentRingBufferDuration -= oldDuration
+        }
+    }
+    
+    private func clearRingBuffer() {
+        audioRingBuffer.removeAll()
+        currentRingBufferDuration = 0.0
+    }
+    
+    private func feedRingBufferToTranscriber() {
+        guard let transcriber = vadTranscriber else { return }
+        
+        let bufferCount = audioRingBuffer.count
+        print("[WakeWordTranscriptionManager] 🔄 Feeding \(bufferCount) buffered audio frames (~\(String(format: "%.2f", currentRingBufferDuration))s) to transcriber")
+        
+        for buffer in audioRingBuffer {
+            transcriber.appendAudioBuffer(buffer)
+        }
+        
+        // Clear the ring buffer after feeding to transcriber
+        clearRingBuffer()
     }
 
     // MARK: - Private Methods - Wake Word Detection
@@ -204,10 +249,11 @@ class WakeWordTranscriptionManager: ObservableObject {
         print("[WakeWordTranscriptionManager] 🎤 Wake word detected! Transitioning to transcription mode...")
         print("[WakeWordTranscriptionManager] 📊 Current state: \(state)")
 
-        // Stop wake word detection
-        print("[WakeWordTranscriptionManager] 🛑 Stopping wake word detector")
+        // Stop wake word detection and clear its buffer
+        print("[WakeWordTranscriptionManager] 🛑 Stopping wake word detector and clearing buffer")
         wakeWordDetector?.stop()
         detectorTask?.cancel()
+        wakeWordDetector = nil // Fully release to clear buffer
 
         // Start full transcription with VAD
         do {
@@ -215,6 +261,8 @@ class WakeWordTranscriptionManager: ObservableObject {
             try await startTranscription()
         } catch {
             print("[WakeWordTranscriptionManager] ❌ Error starting transcription: \(error)")
+            // Clear ring buffer on error
+            clearRingBuffer()
             // Fall back to wake word detection
             print("[WakeWordTranscriptionManager] 🔄 Falling back to wake word detection")
             try? await startWakeWordDetection()

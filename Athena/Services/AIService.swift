@@ -72,7 +72,7 @@ class AIService: AIServiceProtocol {
         let response = try await aiProvider.chat(
             messages: allMessages,
             model: model,
-            temperature: 0.0,
+            temperature: 1.0,
             maxTokens: 2048,
             topP: config.getDouble(.topP)
         )
@@ -119,7 +119,7 @@ class AIService: AIServiceProtocol {
                     let stream = aiProvider.stream(
                         messages: allMessages,
                         model: model,
-                        temperature: 0.0,
+                        temperature: 1.0,
                         maxTokens: 2048,
                         topP: self.config.getDouble(.topP)
                     )
@@ -159,7 +159,7 @@ class AIService: AIServiceProtocol {
             _ = try await testProvider.chat(
                 messages: testMessages,
                 model: defaultModel,
-                temperature: 0.0,
+                temperature: 1.0,
                 maxTokens: 5,
                 topP: 1.0
             )
@@ -193,7 +193,7 @@ class AIService: AIServiceProtocol {
         let response = try await aiProvider.chat(
             messages: messages,
             model: model,
-            temperature: 0.0, // Deterministic for classification
+            temperature: 1.0, // Deterministic for classification
             maxTokens: 50,    // Small response for classification
             topP: 1.0
         )

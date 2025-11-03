@@ -151,7 +151,13 @@ class Orchestrator {
             model: "gpt-5-nano"
         )
 
-        return TaskType(rawValue: classification.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .notApplicable
+        print("[Orchestrator] 🔍 AI raw response: '\(classification)'")
+        let trimmed = classification.trimmingCharacters(in: .whitespacesAndNewlines)
+        print("[Orchestrator] 🔍 AI trimmed response: '\(trimmed)'")
+        let taskType = TaskType(rawValue: trimmed) ?? .notApplicable
+        print("[Orchestrator] 🔍 Final TaskType: \(taskType)")
+        
+        return taskType
     }
 
     // MARK: - Calendar Action Types
