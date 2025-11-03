@@ -65,7 +65,7 @@ struct RichTextEditor: NSViewRepresentable {
         textView.textContainerInset = NSSize(width: 10, height: 10)
 
         // Use font one size larger than subheadline (which is used in preview)
-        textView.font = NSFont.systemFont(ofSize: 16)
+        textView.font = NSFont.systemFont(ofSize: 18)
         textView.textColor = .black
         
         // Make text view transparent

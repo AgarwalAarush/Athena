@@ -39,8 +39,7 @@ class WakeWordTranscriptionManager: ObservableObject {
     private var detectorTask: Task<Void, Never>?
     private var transcriberTask: Task<Void, Never>?
 
-    // Text accumulation across recognition sessions
-    private var accumulatedText: String = ""
+    // Current transcript from the speech recognizer
     private var lastSessionTranscript: String = ""
 
     // Ring buffer for audio handoff (captures last ~1 second of audio)
@@ -102,7 +101,6 @@ class WakeWordTranscriptionManager: ObservableObject {
         state = .idle
         partialTranscript = ""
         finalTranscript = nil
-        accumulatedText = ""
         lastSessionTranscript = ""
         
         // Clear ring buffer
@@ -282,10 +280,9 @@ class WakeWordTranscriptionManager: ObservableObject {
         partialTranscript = ""
         finalTranscript = nil
 
-        // Reset text accumulation for this new transcription session
-        accumulatedText = ""
+        // Reset transcript for this new transcription session
         lastSessionTranscript = ""
-        print("[WakeWordTranscriptionManager] 🔄 Reset accumulated text - starting fresh transcription session")
+        print("[WakeWordTranscriptionManager] 🔄 Reset transcript - starting fresh transcription session")
 
         print("[WakeWordTranscriptionManager] 🏗️ Creating SimplifiedVADTranscriber with 1.25s silence timeout")
         let transcriber = try SimplifiedVADTranscriber(silenceTimeout: 1.25)
@@ -294,9 +291,9 @@ class WakeWordTranscriptionManager: ObservableObject {
         print("[WakeWordTranscriptionManager] ▶️ Starting VAD transcriber")
         try transcriber.start()
 
-        // Feed the ring buffer (last ~1 second of audio) to transcriber
-        print("[WakeWordTranscriptionManager] 🎯 Feeding ring buffer to transcriber for smooth handoff")
-        feedRingBufferToTranscriber()
+        // Clear the ring buffer to avoid transcribing the wake word
+        print("[WakeWordTranscriptionManager] 🧹 Clearing ring buffer to avoid transcribing wake word")
+        clearRingBuffer()
 
         print("[WakeWordTranscriptionManager] 🎧 Starting event listener for transcription")
         // Listen for transcription events
@@ -314,73 +311,35 @@ class WakeWordTranscriptionManager: ObservableObject {
     private func handleTranscriptEvent(_ event: TranscriptEvent) async {
         switch event {
         case .partial(let text):
-            // Detect if this is a new recognition session by checking if transcript got shorter
-            // or doesn't start with accumulated content
-            let isNewSession = !lastSessionTranscript.isEmpty &&
-                               (text.count < lastSessionTranscript.count ||
-                                !text.hasPrefix(lastSessionTranscript.prefix(min(text.count, lastSessionTranscript.count))))
-
-            if isNewSession {
-                // New recognition session detected - append last session to accumulated
-                if !lastSessionTranscript.isEmpty {
-                    if !accumulatedText.isEmpty {
-                        accumulatedText += " " + lastSessionTranscript
-                    } else {
-                        accumulatedText = lastSessionTranscript
-                    }
-                    print("[WakeWordTranscriptionManager] 🔄 New recognition session detected - accumulated: '\(accumulatedText)'")
-                }
-                lastSessionTranscript = ""
-            }
-
-            // Update current session transcript
+            // Speech recognizer internally accumulates, so just use the latest transcript
+            print("[WakeWordTranscriptionManager] 📝 Partial: '\(text)'")
             lastSessionTranscript = text
-
-            // Display accumulated + current partial
-            let displayText = accumulatedText.isEmpty ? text : accumulatedText + " " + text
-            print("[WakeWordTranscriptionManager] 📝 Partial: '\(text)' | Accumulated: '\(accumulatedText)' | Display: '\(displayText)'")
-            partialTranscript = displayText
+            partialTranscript = text
 
         case .final(let text, let confidence):
             let confidenceStr = confidence.map { String(format: "%.2f", $0) } ?? "N/A"
-            print("[WakeWordTranscriptionManager] ✅ Final transcript from current session: '\(text)' (confidence: \(confidenceStr))")
-
-            // Update last session transcript with final text
+            print("[WakeWordTranscriptionManager] ✅ Final transcript: '\(text)' (confidence: \(confidenceStr))")
+            
             lastSessionTranscript = text
-
-            // Display accumulated + final
-            let displayText = accumulatedText.isEmpty ? text : accumulatedText + " " + text
-            print("[WakeWordTranscriptionManager] 📊 Display text: '\(displayText)'")
-            partialTranscript = displayText
+            partialTranscript = text
 
             // Note: Don't end transcription on final - wait for VAD silence detection
 
         case .silenceDetected:
-            // Combine all accumulated text as the final transcript
-            var fullTranscript = accumulatedText
-            if !lastSessionTranscript.isEmpty {
-                if !fullTranscript.isEmpty {
-                    fullTranscript += " " + lastSessionTranscript
-                } else {
-                    fullTranscript = lastSessionTranscript
-                }
-            }
-
             print("[WakeWordTranscriptionManager] 🔇 Silence detected - ending transcription session")
-            print("[WakeWordTranscriptionManager] 📊 Accumulated: '\(accumulatedText)', LastSession: '\(lastSessionTranscript)'")
-            print("[WakeWordTranscriptionManager] 📊 Full transcript: '\(fullTranscript)'")
+            print("[WakeWordTranscriptionManager] 📊 Full transcript: '\(lastSessionTranscript)'")
 
-            finalTranscript = fullTranscript.isEmpty ? nil : fullTranscript
+            finalTranscript = lastSessionTranscript.isEmpty ? nil : lastSessionTranscript
             await onSilenceDetected()
 
         case .error(let error):
             print("[WakeWordTranscriptionManager] ❌ Transcription error: \(error)")
-            print("[WakeWordTranscriptionManager] 📊 State at error: \(state), accumulated: '\(accumulatedText)', lastSession: '\(lastSessionTranscript)'")
+            print("[WakeWordTranscriptionManager] 📊 State at error: \(state), lastSession: '\(lastSessionTranscript)'")
             await onTranscriptionEnded()
 
         case .ended:
             print("[WakeWordTranscriptionManager] 🏁 Transcription ended normally")
-            print("[WakeWordTranscriptionManager] 📊 Accumulated: '\(accumulatedText)', LastSession: '\(lastSessionTranscript)'")
+            print("[WakeWordTranscriptionManager] 📊 LastSession: '\(lastSessionTranscript)'")
             await onTranscriptionEnded()
         }
     }
@@ -392,9 +351,8 @@ class WakeWordTranscriptionManager: ObservableObject {
         print("[WakeWordTranscriptionManager] 🛑 Stopping transcription")
         stopTranscription()
 
-        // Clear accumulated text for next session
-        print("[WakeWordTranscriptionManager] 🧹 Clearing accumulated text for next wake word session")
-        accumulatedText = ""
+        // Clear transcript for next session
+        print("[WakeWordTranscriptionManager] 🧹 Clearing transcript for next wake word session")
         lastSessionTranscript = ""
 
         // Small cooldown before restarting wake word detection
@@ -418,9 +376,8 @@ class WakeWordTranscriptionManager: ObservableObject {
         print("[WakeWordTranscriptionManager] 🛑 Stopping transcription")
         stopTranscription()
 
-        // Clear accumulated text for next session
-        print("[WakeWordTranscriptionManager] 🧹 Clearing accumulated text for next wake word session")
-        accumulatedText = ""
+        // Clear transcript for next session
+        print("[WakeWordTranscriptionManager] 🧹 Clearing transcript for next wake word session")
         lastSessionTranscript = ""
 
         // Return to wake word detection immediately (no cooldown on error)

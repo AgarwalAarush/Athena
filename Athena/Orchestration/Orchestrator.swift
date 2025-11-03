@@ -97,11 +97,38 @@ class Orchestrator {
     ///   }
     ///   ```
     func route(prompt: String, context: AppView? = nil) async throws {
+        // 1. Check for wakeword control (highest priority)
         if let wakewordAction = detectWakewordControlAction(from: prompt) {
             await handleWakewordControlTask(prompt: prompt, inferredAction: wakewordAction)
             return
         }
 
+        // 2. Quick keyword-based routing for obvious cases (avoid LLM call)
+        if let quickRoute = detectQuickRoute(from: prompt) {
+            print("[Orchestrator] ⚡ Quick route detected: \(quickRoute) (no LLM call needed)")
+            switch quickRoute {
+            case .notes:
+                await handleNotesTask(prompt: prompt)
+                return
+            case .calendar:
+                await handleCalendarTask(prompt: prompt)
+                return
+            case .windowManagement:
+                await handleWindowManagementTask(prompt: prompt)
+                return
+            case .computerUse:
+                await handleComputerUseTask(prompt: prompt)
+                return
+            case .appCommand:
+                await handleAppCommandTask(prompt: prompt)
+                return
+            default:
+                break
+            }
+        }
+
+        // 3. Use LLM for ambiguous cases
+        print("[Orchestrator] 🤖 Using LLM classification for ambiguous query")
         let taskType = try await classifyTask(prompt: prompt, context: context)
         switch taskType {
         case .calendar:
@@ -202,6 +229,55 @@ class Orchestrator {
         case update     // Modify existing event
         case delete     // Delete event
         case query      // Ask about events
+    }
+
+    // MARK: - Quick Route Detection
+
+    /// Attempts to quickly detect task type from obvious keywords without using LLM.
+    /// Returns nil if the query is ambiguous and requires LLM classification.
+    private func detectQuickRoute(from prompt: String) -> TaskType? {
+        let lowercased = prompt.lowercased()
+        let tokens = Set(lowercased.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty })
+        
+        // Notes keywords (highest specificity first)
+        let noteKeywords = ["note", "notes", "notebook", "notepad", "jot"]
+        if noteKeywords.contains(where: { lowercased.contains($0) }) {
+            return .notes
+        }
+        
+        // Calendar keywords
+        let calendarKeywords = ["calendar", "agenda", "event", "events", "schedule", "meeting", "appointment"]
+        let timeKeywords = ["today", "tomorrow", "yesterday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        
+        if calendarKeywords.contains(where: { lowercased.contains($0) }) {
+            return .calendar
+        }
+        
+        // Time references often indicate calendar
+        if timeKeywords.contains(where: { tokens.contains($0) }) {
+            return .calendar
+        }
+        
+        // Window management keywords
+        let windowKeywords = ["window", "resize", "split", "maximize", "minimize", "center", "arrange"]
+        if windowKeywords.contains(where: { lowercased.contains($0) }) {
+            return .windowManagement
+        }
+        
+        // Computer use keywords (OS-level operations)
+        let computerUseKeywords = ["safari", "chrome", "firefox", "browser", "screenshot", "volume", "bluetooth", "wifi", "wi-fi"]
+        if computerUseKeywords.contains(where: { lowercased.contains($0) }) {
+            return .computerUse
+        }
+        
+        // App command keywords (but only if no domain is mentioned)
+        let appCommandKeywords = ["settings", "preferences", "theme", "help", "about", "sign in", "log out", "home"]
+        if appCommandKeywords.contains(where: { lowercased.contains($0) }) {
+            return .appCommand
+        }
+        
+        // No clear match - return nil to trigger LLM classification
+        return nil
     }
 
     // MARK: - Wakeword Control
@@ -538,37 +614,109 @@ class Orchestrator {
     private func executeOpenNote(title: String) async {
         guard let notesViewModel = appViewModel?.notesViewModel else { return }
         
-        let searchResults = notesViewModel.searchNotes(query: title)
-
-        if searchResults.count == 1 {
-            notesViewModel.selectNote(searchResults[0])
-        } else if searchResults.count > 1 {
-            // Fuzzy find and decide with LLM
-            let titles = searchResults.map { $0.title }
-            let systemPrompt = """
-            Given the user's query "\(title)" and the following note titles:
-            \(titles.joined(separator: "\n"))
-
-            Which title is the best match? Respond with only the title.
-            """
-            
-            let bestTitle = try? await aiService.getCompletion(
-                prompt: title,
-                systemPrompt: systemPrompt,
-                provider: .openai,
-                model: "gpt-5-nano-2025-08-07"
-            )
-
-            if let bestTitle = bestTitle,
-               let noteToOpen = searchResults.first(where: { $0.title == bestTitle }) {
-                notesViewModel.selectNote(noteToOpen)
-            } else {
-                // Could not decide, do nothing and stay in the notes list view
+        let allNotes = await MainActor.run { notesViewModel.notes }
+        
+        print("[Orchestrator] executeOpenNote: Searching for '\(title)' among \(allNotes.count) notes")
+        
+        // Calculate fuzzy match scores for all notes
+        let matchesWithScores = allNotes.map { note -> (note: NoteModel, score: Double) in
+            let score = fuzzyMatchScore(query: title, target: note.title)
+            print("[Orchestrator] executeOpenNote:   - '\(note.title)' => \(String(format: "%.2f%%", score * 100)) similarity")
+            return (note: note, score: score)
+        }
+        
+        // Filter by 35% threshold and sort by score descending
+        let threshold = 0.35
+        let qualifyingMatches = matchesWithScores
+            .filter { $0.score >= threshold }
+            .sorted { $0.score > $1.score }
+        
+        print("[Orchestrator] executeOpenNote: Found \(qualifyingMatches.count) matches above \(String(format: "%.0f%%", threshold * 100)) threshold")
+        
+        if let bestMatch = qualifyingMatches.first {
+            print("[Orchestrator] executeOpenNote: Opening best match '\(bestMatch.note.title)' with score \(String(format: "%.2f%%", bestMatch.score * 100))")
+            await MainActor.run {
+                notesViewModel.selectNote(bestMatch.note)
             }
         } else {
-            // No note found, maybe create one?
-            // For now, do nothing and stay in the notes list view
+            print("[Orchestrator] executeOpenNote: No note found matching '\(title)' above \(String(format: "%.0f%%", threshold * 100)) threshold")
+            // No match found above threshold, stay in notes list view
         }
+    }
+    
+    /// Calculates a fuzzy match score between a query and target string (0.0 to 1.0)
+    /// Uses a combination of exact match, contains match, and Levenshtein distance
+    private func fuzzyMatchScore(query: String, target: String) -> Double {
+        let queryLower = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let targetLower = target.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Exact match
+        if queryLower == targetLower {
+            return 1.0
+        }
+        
+        // Contains match gets high score
+        if targetLower.contains(queryLower) {
+            let lengthRatio = Double(queryLower.count) / Double(targetLower.count)
+            return 0.85 + (0.15 * lengthRatio) // 0.85-1.0 range
+        }
+        
+        if queryLower.contains(targetLower) {
+            let lengthRatio = Double(targetLower.count) / Double(queryLower.count)
+            return 0.75 + (0.10 * lengthRatio) // 0.75-0.85 range
+        }
+        
+        // Use Levenshtein distance for similarity
+        let distance = levenshteinDistance(queryLower, targetLower)
+        let maxLength = max(queryLower.count, targetLower.count)
+        
+        guard maxLength > 0 else { return 0.0 }
+        
+        let similarity = 1.0 - (Double(distance) / Double(maxLength))
+        
+        // Boost score if query words are in target
+        let queryWords = Set(queryLower.split(separator: " ").map(String.init))
+        let targetWords = Set(targetLower.split(separator: " ").map(String.init))
+        let commonWords = queryWords.intersection(targetWords)
+        
+        if !queryWords.isEmpty {
+            let wordMatchRatio = Double(commonWords.count) / Double(queryWords.count)
+            return max(similarity, wordMatchRatio * 0.8) // Word match can boost score
+        }
+        
+        return similarity
+    }
+    
+    /// Calculates the Levenshtein distance between two strings
+    private func levenshteinDistance(_ s1: String, _ s2: String) -> Int {
+        let s1 = Array(s1)
+        let s2 = Array(s2)
+        
+        var distance = Array(repeating: Array(repeating: 0, count: s2.count + 1), count: s1.count + 1)
+        
+        for i in 0...s1.count {
+            distance[i][0] = i
+        }
+        
+        for j in 0...s2.count {
+            distance[0][j] = j
+        }
+        
+        for i in 1...s1.count {
+            for j in 1...s2.count {
+                if s1[i - 1] == s2[j - 1] {
+                    distance[i][j] = distance[i - 1][j - 1]
+                } else {
+                    distance[i][j] = min(
+                        distance[i - 1][j] + 1,      // deletion
+                        distance[i][j - 1] + 1,      // insertion
+                        distance[i - 1][j - 1] + 1   // substitution
+                    )
+                }
+            }
+        }
+        
+        return distance[s1.count][s2.count]
     }
 
     private func executeCreateNote(title: String?) async {

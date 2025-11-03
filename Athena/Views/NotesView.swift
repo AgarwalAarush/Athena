@@ -7,7 +7,7 @@ import SwiftUI
 import Combine
 
 struct NotesView: View {
-    @StateObject private var vm = NotesViewModel(store: SwiftDataNotesStore())
+    @ObservedObject var vm: NotesViewModel
     
     var body: some View {
         ZStack {
