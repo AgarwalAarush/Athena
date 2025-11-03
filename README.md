@@ -8,6 +8,11 @@
 
 Athena is a floating AI assistant that brings together cutting-edge voice processing, comprehensive system automation, and intelligent AI integration. Built for power users who need seamless AI interaction with their computer.
 
+## Upcoming Features
+- [ ] Edit notes
+- [ ] Create, edit, and delete calendar events
+- [ ] More to come!
+
 ## 🚀 Core Capabilities
 
 ### Voice Processing & Wake Word Detection
