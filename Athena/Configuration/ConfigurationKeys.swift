@@ -53,7 +53,7 @@ enum ConfigurationKey: String, CaseIterable {
         case .selectedProvider:
             return "openai"
         case .selectedModel:
-            return "gpt-5-nano-2025-08-07"
+            return "gpt-5-nano"
             
         // Model parameter defaults
         case .topP:

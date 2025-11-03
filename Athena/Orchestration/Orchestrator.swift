@@ -148,7 +148,7 @@ class Orchestrator {
             prompt: prompt,
             systemPrompt: systemPrompt,
             provider: .openai,
-            model: "gpt-5-nano-2025-08-07"
+            model: "gpt-5-nano"
         )
 
         return TaskType(rawValue: classification.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .notApplicable
@@ -489,7 +489,7 @@ class Orchestrator {
             prompt: prompt,
             systemPrompt: systemPrompt,
             provider: .openai,
-            model: "gpt-5-nano-2025-08-07"
+            model: "gpt-5-nano"
         )
 
         guard let jsonData = response.data(using: .utf8),

@@ -23,7 +23,7 @@ enum AIProvider: String, Codable, CaseIterable {
     var defaultModel: String {
         switch self {
         case .openai:
-            return "gpt-5-nano-2025-08-07"
+            return "gpt-5-nano"
         case .anthropic:
             return "claude-haiku-4-5-20251001"
         }
@@ -33,8 +33,10 @@ enum AIProvider: String, Codable, CaseIterable {
         switch self {
         case .openai:
             return [
-                AIModel(id: "gpt-5-nano-2025-08-07", name: "GPT-5 Nano", provider: .openai),
-                AIModel(id: "gpt-4-turbo-preview", name: "GPT-4 Turbo", provider: .openai),
+                AIModel(id: "gpt-5-nano", name: "GPT-5 Nano", provider: .openai),
+                AIModel(id: "gpt-4o", name: "GPT-4o", provider: .openai),
+                AIModel(id: "gpt-4o-mini", name: "GPT-4o Mini", provider: .openai),
+                AIModel(id: "gpt-4-turbo", name: "GPT-4 Turbo", provider: .openai),
                 AIModel(id: "gpt-4", name: "GPT-4", provider: .openai),
                 AIModel(id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", provider: .openai)
             ]

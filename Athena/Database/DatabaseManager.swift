@@ -45,7 +45,6 @@ class DatabaseManager {
         // Migration v1: Create conversations and messages tables
         return migrator
     }
-    }
     
     // MARK: - Database Access
 

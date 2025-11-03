@@ -12,8 +12,8 @@ import Combine
 
 @MainActor
 class NotesViewModel: ObservableObject {
-    @Published var notes: [Note] = []
-    @Published var currentNote: Note? {
+    @Published var notes: [NoteModel] = []
+    @Published var currentNote: NoteModel? {
         didSet {
             if let note = currentNote {
                 noteContent = "\(note.title)\n\(note.body)"
@@ -35,24 +35,23 @@ class NotesViewModel: ObservableObject {
     }
 
     func bootstrap() async {
-        await store.bootstrap()
         await fetchNotes()
     }
 
     func fetchNotes() async {
         do {
-            notes = try await store.fetchNotes()
+            notes = try await store.fetchAll()
         } catch {
             print("Error fetching notes: \(error)")
         }
     }
 
-    func selectNote(_ note: Note) {
+    func selectNote(_ note: NoteModel) {
         currentNote = note
     }
 
     func createNewNote() {
-        let newNote = Note(title: "Untitled Note", body: "")
+        let newNote = NoteModel(title: "Untitled Note", body: "")
         currentNote = newNote
     }
 
@@ -70,7 +69,7 @@ class NotesViewModel: ObservableObject {
     }
 
     func saveCurrentNoteIfChanged() async {
-        guard let note = currentNote else { return }
+        guard var note = currentNote else { return }
 
         let lines = noteContent.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
         let title = String(lines.first ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -80,19 +79,27 @@ class NotesViewModel: ObservableObject {
             return // No changes
         }
 
-        note.update(title: title.isEmpty ? "Untitled Note" : title, body: body)
+        // Update the note (NoteModel is a struct, so we need to create a new one)
+        note = NoteModel(
+            id: note.id,
+            title: title.isEmpty ? "Untitled Note" : title,
+            body: body,
+            createdAt: note.createdAt,
+            modifiedAt: Date()
+        )
+        currentNote = note
 
         do {
-            try await store.saveNote(note)
+            try await store.save(note)
             await fetchNotes()
         } catch {
             print("Error saving note: \(error)")
         }
     }
 
-    func deleteNote(_ note: Note) async {
+    func deleteNote(_ note: NoteModel) async {
         do {
-            try await store.deleteNote(note)
+            try await store.delete(id: note.id)
             if currentNote?.id == note.id {
                 currentNote = nil
             }
@@ -102,7 +109,7 @@ class NotesViewModel: ObservableObject {
         }
     }
     
-    func searchNotes(query: String) -> [Note] {
+    func searchNotes(query: String) -> [NoteModel] {
         return notes.filter { $0.title.lowercased().contains(query.lowercased()) }
     }
 }

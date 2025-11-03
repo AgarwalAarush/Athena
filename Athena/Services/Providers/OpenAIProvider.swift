@@ -19,10 +19,8 @@ final class OpenAIProvider: BaseProvider {
     private let baseURL = "https://api.openai.com/v1"
     
     private var models: [String] = [
-        "gpt-5-nano-2025-08-07",
-        "gpt-4-turbo-preview",
-        "gpt-4",
-        "gpt-3.5-turbo"
+        "gpt-5-nano",
+        "gpt-4o-mini",
     ]
     
     /// Initializes a new OpenAI provider with the given API key.
@@ -67,7 +65,7 @@ final class OpenAIProvider: BaseProvider {
             "model": model,
             "messages": openaiMessages,
             "temperature": temperature,
-            "max_tokens": maxTokens,
+            "max_completion_tokens": maxTokens,
             "top_p": topP,
             "stream": false
         ]
@@ -80,7 +78,28 @@ final class OpenAIProvider: BaseProvider {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = bodyData
         
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, httpResponse) = try await URLSession.shared.data(for: request)
+        
+        // Check HTTP status code
+        guard let httpResponse = httpResponse as? HTTPURLResponse else {
+            throw NetworkError.httpError(statusCode: 0, message: "Invalid response")
+        }
+        
+        // Handle error responses
+        guard (200...299).contains(httpResponse.statusCode) else {
+            // Try to decode error response
+            if let errorResponse = try? JSONDecoder().decode(OpenAIErrorResponse.self, from: data) {
+                throw NetworkError.httpError(
+                    statusCode: httpResponse.statusCode,
+                    message: errorResponse.error.message
+                )
+            }
+            throw NetworkError.httpError(
+                statusCode: httpResponse.statusCode,
+                message: "Request failed with status \(httpResponse.statusCode)"
+            )
+        }
+        
         let response = try JSONDecoder().decode(OpenAIResponse.self, from: data)
         
         guard let choice = response.choices.first,
@@ -139,7 +158,7 @@ final class OpenAIProvider: BaseProvider {
                         "model": model,
                         "messages": openaiMessages,
                         "temperature": temperature,
-                        "max_tokens": maxTokens,
+                        "max_completion_tokens": maxTokens,
                         "top_p": topP,
                         "stream": true
                     ]
@@ -248,5 +267,17 @@ private struct OpenAIUsage: Codable {
         case completionTokens = "completion_tokens"
         case totalTokens = "total_tokens"
     }
+}
+
+/// Represents an error response from the OpenAI API.
+private struct OpenAIErrorResponse: Codable {
+    let error: OpenAIError
+}
+
+/// Represents the error details in an OpenAI error response.
+private struct OpenAIError: Codable {
+    let message: String
+    let type: String?
+    let code: String?
 }
 

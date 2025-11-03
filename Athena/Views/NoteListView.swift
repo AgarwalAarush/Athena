@@ -11,33 +11,66 @@ struct NoteListView: View {
     @ObservedObject var vm: NotesViewModel
 
     var body: some View {
-        VStack {
+        VStack(spacing: 0) {
+            // Header
             HStack {
                 Text("Notes")
                     .font(.largeTitle)
                     .bold()
+                    .foregroundColor(.black)
                 Spacer()
                 Button(action: {
-                    vm.createNewNote()
+                    Task {
+                        await vm.createNewNote()
+                    }
                 }) {
                     Image(systemName: "plus")
+                        .foregroundColor(.black)
                 }
+                .buttonStyle(.plain)
             }
             .padding()
-
-            List(vm.notes) { note in
-                VStack(alignment: .leading) {
-                    Text(note.title)
-                        .font(.headline)
-                    Text(note.body)
-                        .font(.subheadline)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+            
+            // Notes list
+            ScrollView {
+                VStack(spacing: 12) {
+                    ForEach(vm.notes) { note in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(note.title.isEmpty ? "Untitled" : note.title)
+                                .font(.headline)
+                                .foregroundColor(.black)
+                            if !note.body.isEmpty {
+                                Text(note.body)
+                                    .font(.subheadline)
+                                    .foregroundColor(.black)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                        .background(Color.gray.opacity(0.15))
+                        .cornerRadius(8)
+                        .onTapGesture {
+                            vm.selectNote(note)
+                        }
+                        .contextMenu {
+                            Button("Delete", role: .destructive) {
+                                Task {
+                                    await vm.deleteNote(note)
+                                }
+                            }
+                        }
+                    }
                 }
-                .onTapGesture {
-                    vm.selectNote(note)
-                }
+                .padding()
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            Color.white.opacity(0.6)
+                .cornerRadius(8)
+        )
+        .padding()
     }
 }
