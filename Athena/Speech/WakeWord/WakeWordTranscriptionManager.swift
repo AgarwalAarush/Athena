@@ -104,6 +104,9 @@ class WakeWordTranscriptionManager: ObservableObject {
         finalTranscript = nil
         accumulatedText = ""
         lastSessionTranscript = ""
+        
+        // Clear ring buffer
+        clearRingBuffer()
 
         print("[WakeWordTranscriptionManager] ✅ Wake word mode stopped - state=\(state)")
     }
@@ -284,12 +287,16 @@ class WakeWordTranscriptionManager: ObservableObject {
         lastSessionTranscript = ""
         print("[WakeWordTranscriptionManager] 🔄 Reset accumulated text - starting fresh transcription session")
 
-        print("[WakeWordTranscriptionManager] 🏗️ Creating SimplifiedVADTranscriber")
-        let transcriber = try SimplifiedVADTranscriber()
+        print("[WakeWordTranscriptionManager] 🏗️ Creating SimplifiedVADTranscriber with 1.25s silence timeout")
+        let transcriber = try SimplifiedVADTranscriber(silenceTimeout: 1.25)
         self.vadTranscriber = transcriber
 
         print("[WakeWordTranscriptionManager] ▶️ Starting VAD transcriber")
         try transcriber.start()
+
+        // Feed the ring buffer (last ~1 second of audio) to transcriber
+        print("[WakeWordTranscriptionManager] 🎯 Feeding ring buffer to transcriber for smooth handoff")
+        feedRingBufferToTranscriber()
 
         print("[WakeWordTranscriptionManager] 🎧 Starting event listener for transcription")
         // Listen for transcription events

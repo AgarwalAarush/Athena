@@ -65,10 +65,8 @@ final class OpenAIProvider: BaseProvider {
         let requestBody: [String: Any] = [
             "model": model,
             "messages": openaiMessages,
-            "temperature": temperature,
-            "max_completion_tokens": maxTokens,
             "response_format": ["type": "text"],
-            "top_p": topP,
+            "verbosity": "medium",
             "stream": false
         ]
         

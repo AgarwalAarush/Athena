@@ -94,13 +94,17 @@ final class WakeWordDetector {
     func stop() {
         print("[WakeWordDetector] Stopping wake word detection")
 
+        // Cancel and nil out the task
         recognitionTask?.cancel()
         recognitionTask = nil
 
+        // End audio and nil out the request to clear buffer
         recognitionRequest?.endAudio()
         recognitionRequest = nil
 
         isListening = false
+        
+        print("[WakeWordDetector] ✅ Stopped - buffer cleared, ready for fresh start")
     }
 
     func processAudioBuffer(_ buffer: AVAudioPCMBuffer) {
@@ -140,12 +144,9 @@ final class WakeWordDetector {
             print("[WakeWordDetector] ✅ Wake word detected!")
             wakeWordDetectedContinuation.yield(())
 
-            // Stop and restart to reset the buffer
+            // Stop immediately to clear buffer - DO NOT restart
+            // (Manager will restart us after transcription ends)
             stop()
-            Task {
-                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s pause
-                try? self.start()
-            }
         }
     }
 

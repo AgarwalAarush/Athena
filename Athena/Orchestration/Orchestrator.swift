@@ -127,20 +127,46 @@ class Orchestrator {
         let systemPrompt = """
         You are a task classifier for a desktop assistant named Athena. Your job is to determine the user's intent based on their query and the current application view.
 
-        Current view: '\(currentView)'
-        User query: "\(prompt)"
+        Taxonomy (return EXACTLY one of these labels):
+        - 'notes': Any action related to notes (creating, editing, viewing notes).
+        - 'calendar': Any action related to the calendar (opening calendar view, scheduling, viewing events, navigating dates).
+        - 'wakewordControl': Enabling/disabling/toggling wake word listening (e.g., "Athena stop listening").
+        - 'windowManagement': Arranging/managing windows (e.g., split, focus, resize).
+        - 'appCommand': App-level navigation/settings not tied to a specific content domain (e.g., "open settings", "go back to chat/home").
+        - 'computerUse': Operating the computer outside Athena (e.g., "open Safari", "take a screenshot").
+        - 'NA': None of the above or unclear.
 
-        Classify the query into one of the following categories:
-        - 'notes': Any action related to taking notes (creating, editing, viewing).
-        - 'calendar': Any action related to the calendar (scheduling, viewing events, navigating dates).
-        - 'wakewordControl': Enabling, disabling, or toggling the wake word listening mode (e.g., "Athena shut down", "stop listening").
-        - 'windowManagement': Arranging or managing application windows.
-        - 'appCommand': Navigating or controlling the Athena app itself (e.g., "go back to chat", "open settings").
-        - 'computerUse': General computer operations (e.g., "open Safari", "take a screenshot").
-        - 'NA': If the query does not fit any of the above categories.
+        Inputs:
+        - Current view: '\(currentView)'
+        - User query: "\(prompt)"
 
-        Consider the current view for context. For example, if the user is in the 'calendar' view and says "show tomorrow", the intent is likely 'calendar'. If they are in the 'chat' view and say "take a note", the intent is 'notes'.
+        Decision rules (in order of priority):
+        1) If the query explicitly mentions a domain by name (e.g., "calendar", "notes", "events", "schedule"), RETURN that domain label, even if it says "open … view". (Do NOT return 'appCommand' for domain-named views.)
+        2) If no domain term is present, but the query is clearly about app-level navigation or settings (e.g., "open settings", "go back", "switch theme", "open preferences"), RETURN 'appCommand'.
+        3) If the query is about arranging or moving windows, RETURN 'windowManagement'.
+        4) If the query is about the computer outside Athena (apps, OS features), RETURN 'computerUse'.
+        5) If the query is to enable/disable wake word, RETURN 'wakewordControl'.
+        6) If multiple could apply, prefer specific domain labels ('notes', 'calendar') over 'appCommand'.
+        7) If genuinely unclear, RETURN 'NA'.
 
+        Keyword guidance (non-exhaustive):
+        - calendar domain: calendar, agenda, events, schedule, day, week, month, today, tomorrow
+        - notes domain: note, notebook, notepad, jot, write this down, new note
+        - appCommand: settings, preferences, theme, about, help, sign in, log out, home, chat (when not a domain)
+        - windowManagement: resize, split, focus window, move window, center, maximize, minimize
+        - computerUse: open Safari/Chrome, take screenshot, system volume, Bluetooth, Wi-Fi
+
+        Examples (Current view -> Query => Label):
+        - notes -> "Athena open calendar view" => calendar
+        - calendar -> "show tomorrow" => calendar
+        - notes -> "create a new note titled project ideas" => notes
+        - chat -> "open settings" => appCommand
+        - calendar -> "maximize the window" => windowManagement
+        - any -> "open Safari" => computerUse
+        - any -> "Athena stop listening" => wakewordControl
+        - any -> "asdf qwer zzzz" => NA
+
+        Output:
         Respond with exactly one label: 'notes', 'calendar', 'wakewordControl', 'windowManagement', 'appCommand', 'computerUse', or 'NA'.
         """
 
