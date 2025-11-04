@@ -74,7 +74,7 @@ class DatabaseManager {
                 t.column("createdAt", .datetime).notNull()
                 t.column("updatedAt", .datetime).notNull()
             }
-            
+
             try db.create(table: "window_configuration_windows") { t in
                 t.autoIncrementedPrimaryKey("id")
                 t.column("configId", .integer).notNull()
@@ -90,7 +90,18 @@ class DatabaseManager {
                 t.column("layer", .integer).notNull()
             }
         }
-        
+
+        // Migration v3: Add WindowDescriptor fields for enhanced tracking
+        migrator.registerMigration("v3") { db in
+            try db.alter(table: "window_configuration_windows") { t in
+                t.add(column: "bundleID", .text)
+                t.add(column: "windowNumber", .integer)
+                t.add(column: "axIdentifier", .text)
+                t.add(column: "workspaceURL", .text)
+                t.add(column: "displayUUID", .text)
+            }
+        }
+
         return migrator
     }
     

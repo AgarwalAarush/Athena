@@ -13,6 +13,10 @@ struct DisplayInfo: Codable, Identifiable, Hashable {
     /// Backing identifier provided by CoreGraphics
     let id: CGDirectDisplayID
 
+    /// Stable UUID for this display (from CGDisplayCreateUUIDFromDisplayID)
+    /// More reliable than id when displays are reconnected
+    let uuid: UUID?
+
     /// Human-readable name, if available
     let name: String
 
@@ -30,6 +34,7 @@ struct DisplayInfo: Codable, Identifiable, Hashable {
 
     init(
         id: CGDirectDisplayID,
+        uuid: UUID? = nil,
         name: String,
         frame: CGRect,
         visibleFrame: CGRect,
@@ -37,6 +42,7 @@ struct DisplayInfo: Codable, Identifiable, Hashable {
         isMain: Bool
     ) {
         self.id = id
+        self.uuid = uuid
         self.name = name
         self.frame = frame
         self.visibleFrame = visibleFrame

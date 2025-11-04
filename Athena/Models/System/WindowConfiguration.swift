@@ -89,69 +89,113 @@ struct SavedWindowInfo: Codable, Identifiable, FetchableRecord, PersistableRecor
     var id: Int64?
     var configId: Int64?
     var appName: String
+    var bundleID: String?
     var windowTitle: String
+    var windowNumber: Int?
+    var axIdentifier: String?
+    var workspaceURL: String?  // Stored as string for database compatibility
     var x: CGFloat
     var y: CGFloat
     var width: CGFloat
     var height: CGFloat
-    var screenIndex: Int
+    var screenIndex: Int  // Kept for backward compatibility
+    var displayUUID: String?  // New: stable display identifier
     var layer: Int
-    
+
     static let databaseTableName = "window_configuration_windows"
-    
+
     // Define columns for type-safe queries
     enum Columns {
         static let id = Column(CodingKeys.id)
         static let configId = Column(CodingKeys.configId)
         static let appName = Column(CodingKeys.appName)
+        static let bundleID = Column(CodingKeys.bundleID)
         static let windowTitle = Column(CodingKeys.windowTitle)
+        static let windowNumber = Column(CodingKeys.windowNumber)
+        static let axIdentifier = Column(CodingKeys.axIdentifier)
+        static let workspaceURL = Column(CodingKeys.workspaceURL)
         static let x = Column(CodingKeys.x)
         static let y = Column(CodingKeys.y)
         static let width = Column(CodingKeys.width)
         static let height = Column(CodingKeys.height)
         static let screenIndex = Column(CodingKeys.screenIndex)
+        static let displayUUID = Column(CodingKeys.displayUUID)
         static let layer = Column(CodingKeys.layer)
     }
-    
+
     // Relationship to configuration
     static let configuration = belongsTo(WindowConfiguration.self)
-    
-    // Initialize from WindowInfo
+
+    // Initialize from WindowDescriptor
+    init(from descriptor: WindowDescriptor) {
+        self.id = nil
+        self.configId = nil
+        self.appName = descriptor.bundleID.components(separatedBy: ".").last ?? descriptor.bundleID
+        self.bundleID = descriptor.bundleID
+        self.windowTitle = descriptor.title ?? ""
+        self.windowNumber = descriptor.windowNumber
+        self.axIdentifier = descriptor.axIdentifier
+        self.workspaceURL = descriptor.workspaceURL?.absoluteString
+        self.x = descriptor.frame.origin.x
+        self.y = descriptor.frame.origin.y
+        self.width = descriptor.frame.width
+        self.height = descriptor.frame.height
+        self.screenIndex = 0  // Default for backward compatibility
+        self.displayUUID = descriptor.displayUUID?.uuidString
+        self.layer = descriptor.layer
+    }
+
+    // Initialize from WindowInfo (backward compatibility)
     init(from windowInfo: WindowInfo, screenIndex: Int) {
         self.id = nil
         self.configId = nil
         self.appName = windowInfo.ownerName
+        self.bundleID = nil
         self.windowTitle = windowInfo.title
+        self.windowNumber = windowInfo.windowNumber
+        self.axIdentifier = nil
+        self.workspaceURL = nil
         self.x = windowInfo.bounds.origin.x
         self.y = windowInfo.bounds.origin.y
         self.width = windowInfo.bounds.width
         self.height = windowInfo.bounds.height
         self.screenIndex = screenIndex
+        self.displayUUID = nil
         self.layer = windowInfo.layer
     }
-    
+
     // Full initializer
     init(
         id: Int64? = nil,
         configId: Int64? = nil,
         appName: String,
+        bundleID: String? = nil,
         windowTitle: String,
+        windowNumber: Int? = nil,
+        axIdentifier: String? = nil,
+        workspaceURL: String? = nil,
         x: CGFloat,
         y: CGFloat,
         width: CGFloat,
         height: CGFloat,
         screenIndex: Int,
+        displayUUID: String? = nil,
         layer: Int
     ) {
         self.id = id
         self.configId = configId
         self.appName = appName
+        self.bundleID = bundleID
         self.windowTitle = windowTitle
+        self.windowNumber = windowNumber
+        self.axIdentifier = axIdentifier
+        self.workspaceURL = workspaceURL
         self.x = x
         self.y = y
         self.width = width
         self.height = height
         self.screenIndex = screenIndex
+        self.displayUUID = displayUUID
         self.layer = layer
     }
     
@@ -172,6 +216,27 @@ struct SavedWindowInfo: Codable, Identifiable, FetchableRecord, PersistableRecor
 extension SavedWindowInfo: CustomStringConvertible {
     var description: String {
         "\(appName) - \"\(windowTitle)\" at (\(Int(x)), \(Int(y))) size \(Int(width))x\(Int(height))"
+    }
+}
+
+// MARK: - Conversion to WindowDescriptor
+extension SavedWindowInfo {
+    /// Converts SavedWindowInfo to WindowDescriptor
+    /// Note: PID will be 0 and needs to be resolved when restoring
+    func toWindowDescriptor() -> WindowDescriptor {
+        return WindowDescriptor(
+            bundleID: bundleID ?? appName,
+            pid: 0,  // Will be resolved during restore
+            windowNumber: windowNumber ?? -1,
+            axIdentifier: axIdentifier,
+            title: windowTitle.isEmpty ? nil : windowTitle,
+            workspaceURL: workspaceURL.flatMap { URL(string: $0) },
+            frame: CGRect(x: x, y: y, width: width, height: height),
+            displayUUID: displayUUID.flatMap { UUID(uuidString: $0) },
+            spaceHint: nil,
+            layer: layer,
+            timestamp: Date()
+        )
     }
 }
 
