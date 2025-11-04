@@ -82,12 +82,12 @@ struct TitleBarView: View {
         HStack {
             // Back button (visible in notes and calendar views)
             if appViewModel.currentView == .notes || appViewModel.currentView == .calendar {
-                Button(action: { appViewModel.showChat() }) {
+                Button(action: { appViewModel.showHome() }) {
                     Image(systemName: "chevron.left")
                         .foregroundColor(.accentColor)
                 }
                 .buttonStyle(.plain)
-                .help("Back to Chat")
+                .help("Back to Home")
             }
 
             Spacer()
@@ -117,12 +117,12 @@ struct TitleBarView: View {
                     isPulsing = newValue
                 }
 
-                Button(action: { appViewModel.showChat() }) {
-                    Image(systemName: "message")
-                        .foregroundColor(appViewModel.currentView == .chat ? .accentColor : .primary)
+                Button(action: { appViewModel.showHome() }) {
+                    Image(systemName: "house")
+                        .foregroundColor(appViewModel.currentView == .home ? .accentColor : .primary)
                 }
                 .buttonStyle(.plain)
-                .help("Chat")
+                .help("Home")
 
                 Button(action: { appViewModel.showCalendar() }) {
                     Image(systemName: "calendar")
@@ -137,13 +137,6 @@ struct TitleBarView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Notes")
-
-                Button(action: { appViewModel.showHome() }) {
-                    Image(systemName: "house")
-                        .foregroundColor(appViewModel.currentView == .home ? .accentColor : .primary)
-                }
-                .buttonStyle(.plain)
-                .help("Home")
 
                 Button(action: { windowManager.openSettingsWindow() }) {
                     Image(systemName: "gear")
