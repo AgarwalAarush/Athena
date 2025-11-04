@@ -103,7 +103,16 @@ class Orchestrator {
             return
         }
 
-        // 2. Quick keyword-based routing for obvious cases (avoid LLM call)
+        // 2. Check for "go home" navigation (no LLM needed)
+        if detectGoHomeCommand(from: prompt) {
+            print("[Orchestrator] 🏠 Go home detected - navigating to home view")
+            await MainActor.run {
+                appViewModel?.showHome()
+            }
+            return
+        }
+
+        // 3. Quick keyword-based routing for obvious cases (avoid LLM call)
         if let quickRoute = detectQuickRoute(from: prompt) {
             print("[Orchestrator] ⚡ Quick route detected: \(quickRoute) (no LLM call needed)")
             switch quickRoute {
@@ -127,7 +136,7 @@ class Orchestrator {
             }
         }
 
-        // 3. Use LLM for ambiguous cases
+        // 4. Use LLM for ambiguous cases
         print("[Orchestrator] 🤖 Using LLM classification for ambiguous query")
         let taskType = try await classifyTask(prompt: prompt, context: context)
         switch taskType {
@@ -388,6 +397,49 @@ class Orchestrator {
         }
 
         return nil
+    }
+
+    /// Detects "go home" commands from the user prompt.
+    /// Matches patterns like "go home", "take me home", "show home", "home page", etc.
+    /// Returns true if a home navigation command is detected.
+    private func detectGoHomeCommand(from prompt: String) -> Bool {
+        let lowered = prompt.lowercased()
+        let components = lowered.components(separatedBy: CharacterSet.alphanumerics.inverted)
+        let tokens = components.filter { !$0.isEmpty }
+        
+        guard !tokens.isEmpty else { return false }
+        
+        let sanitized = tokens.joined(separator: " ")
+        
+        // Direct home patterns
+        let homePatterns = [
+            "go home",
+            "take me home",
+            "show home",
+            "open home",
+            "home page",
+            "homepage",
+            "go to home",
+            "back home",
+            "return home",
+            "navigate home",
+            "home view",
+            "show me home"
+        ]
+        
+        // Check if any home pattern matches
+        for pattern in homePatterns {
+            if sanitized.contains(pattern) {
+                return true
+            }
+        }
+        
+        // Also check for just "home" as a standalone command
+        if tokens.count == 1 && tokens[0] == "home" {
+            return true
+        }
+        
+        return false
     }
 
     // MARK: - Task Handlers

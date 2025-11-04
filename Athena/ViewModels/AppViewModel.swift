@@ -4,6 +4,7 @@ import SwiftUI
 import Combine
 
 enum AppView {
+    case home
     case chat
     case calendar
     case notes
@@ -55,6 +56,15 @@ class AppViewModel: ObservableObject {
         transaction.disablesAnimations = true
         withTransaction(transaction) {
             currentView = .notes
+        }
+        windowManager?.resizeForCalendar()
+    }
+
+    func showHome() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            currentView = .home
         }
         windowManager?.resizeForCalendar()
     }

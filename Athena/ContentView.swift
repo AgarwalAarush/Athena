@@ -42,6 +42,9 @@ struct ContentView: View {
                 // Main Content Area
                 Group {
                     switch appViewModel.currentView {
+                    case .home:
+                        HomeView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     case .chat:
                         ChatView(viewModel: chatViewModel)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -134,6 +137,13 @@ struct TitleBarView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Notes")
+
+                Button(action: { appViewModel.showHome() }) {
+                    Image(systemName: "house")
+                        .foregroundColor(appViewModel.currentView == .home ? .accentColor : .primary)
+                }
+                .buttonStyle(.plain)
+                .help("Home")
 
                 Button(action: { windowManager.openSettingsWindow() }) {
                     Image(systemName: "gear")
