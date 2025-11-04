@@ -260,8 +260,8 @@ class NotesViewModel: ObservableObject {
         do {
             // Get the configured provider and model
             let configManager = ConfigurationManager.shared
-            let providerName = configManager.getString(.aiProvider)
-            let modelName = configManager.getString(.aiModel)
+            let providerName = configManager.getString(.selectedProvider)
+            let modelName = configManager.getString(.selectedModel)
             
             guard let provider = AIProvider(rawValue: providerName) else {
                 throw NSError(domain: "NotesViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid AI provider: \(providerName)"])
@@ -278,7 +278,8 @@ class NotesViewModel: ObservableObject {
             print("[NotesViewModel] ✅ LLM formatting complete")
             
             // Insert formatted text into note
-            insertTextIntoNote(formattedText.trimmingCharacters(in: .whitespacesAndNewlines))
+            let trimmedText = formattedText.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            insertTextIntoNote(trimmedText)
             
         } catch {
             print("[NotesViewModel] ❌ Error formatting transcript: \(error)")
@@ -319,10 +320,15 @@ class NotesViewModel: ObservableObject {
     private func cleanup() {
         print("[NotesViewModel] 🧹 Cleaning up listen mode")
         
-        listenModeCancellables.removeAll()
-        listenModeManager = nil
-        listenModePartialTranscript = ""
+        // Set state to idle FIRST to prevent any state updates during cleanup
         listenModeState = .idle
+        listenModePartialTranscript = ""
+        
+        // Remove subscriptions to stop listening to manager updates
+        listenModeCancellables.removeAll()
+        
+        // Release the manager
+        listenModeManager = nil
         
         // Resume wake word mode
         appViewModel?.resumeWakeWord()

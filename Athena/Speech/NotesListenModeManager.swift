@@ -48,10 +48,8 @@ class NotesListenModeManager: ObservableObject {
     }
     
     deinit {
+        // Only cancel tasks - stop() should be called before deallocation
         transcriberTask?.cancel()
-        Task { @MainActor in
-            self.stopAudioEngine()
-        }
     }
     
     // MARK: - Public Methods
