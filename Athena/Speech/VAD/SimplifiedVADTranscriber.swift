@@ -31,6 +31,9 @@ final class SimplifiedVADTranscriber: NSObject {
     private let maxRestartAttempts = 3
 
     private var isRunning = false
+    
+    // Transcript accumulation - prevents content loss when Speech Recognition resets
+    private var longestTranscript: String = ""
 
     // MARK: - Initialization
 
@@ -95,6 +98,7 @@ final class SimplifiedVADTranscriber: NSObject {
         // Reset VAD state - DON'T start timer yet!
         lastSpeechTime = nil
         hasReceivedFirstTranscript = false
+        longestTranscript = "" // Reset transcript accumulation for new session
         print("[SimplifiedVADTranscriber] 🔇 VAD state reset - waiting for first speech before starting silence detection")
 
         // Start recognition task
@@ -121,6 +125,7 @@ final class SimplifiedVADTranscriber: NSObject {
         hasReceivedFirstTranscript = false
         lastSpeechTime = nil
         restartAttempts = 0
+        longestTranscript = "" // Clear accumulated transcript
 
         print("[SimplifiedVADTranscriber] ✅ Stopped - all state reset, ready for next session")
     }
@@ -204,10 +209,17 @@ final class SimplifiedVADTranscriber: NSObject {
         if result.isFinal {
             print("[SimplifiedVADTranscriber] ✅ Final result: '\(transcript)' (length: \(transcript.count) chars)")
             let confidence = Double(result.bestTranscription.segments.first?.confidence ?? 0.0)
+            longestTranscript = transcript // Update with final result
             eventsContinuation.yield(.final(transcript, confidence))
         } else {
-            print("[SimplifiedVADTranscriber] 📝 Partial result: '\(transcript)' (length: \(transcript.count) chars, resetting silence timer)")
-            eventsContinuation.yield(.partial(transcript))
+            // Only yield partial if it's longer than what we've seen (prevents content loss)
+            if transcript.count >= longestTranscript.count {
+                print("[SimplifiedVADTranscriber] 📝 Partial result: '\(transcript)' (length: \(transcript.count) chars, resetting silence timer)")
+                longestTranscript = transcript
+                eventsContinuation.yield(.partial(transcript))
+            } else {
+                print("[SimplifiedVADTranscriber] ⚠️ Skipping shorter partial: '\(transcript)' (length: \(transcript.count) chars) - keeping longest: '\(longestTranscript)' (length: \(longestTranscript.count) chars)")
+            }
         }
     }
 

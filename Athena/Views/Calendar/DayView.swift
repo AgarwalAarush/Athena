@@ -549,7 +549,7 @@ extension View {
                         onCreate: onCreate,
                         onCancel: onCancel
                     )
-                    .frame(width: 400, height: 600)
+                    .frame(width: 420, height: 500)
                     .background(Color.white.opacity(1))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(

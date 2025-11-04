@@ -63,8 +63,6 @@ struct EventCreateView: View {
             // Header with action button
             headerWithAction
             
-            Divider()
-            
             // Content
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -117,7 +115,7 @@ struct EventCreateView: View {
             Button(action: onCancel) {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundColor(.black)
-                    .imageScale(.large)
+                    .font(.headline)
             }
             .buttonStyle(.plain)
             .help("Cancel")
@@ -131,10 +129,11 @@ struct EventCreateView: View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: "text.cursor")
                 .foregroundColor(.black)
+                .font(.headline)
                 .frame(width: 20)
             
             Text("Title")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.headline)
                 .foregroundColor(.black)
                 .frame(width: 70, alignment: .leading)
             
@@ -149,17 +148,18 @@ struct EventCreateView: View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: "calendar")
                 .foregroundColor(.black)
+                .font(.headline)
                 .frame(width: 20)
             
             Text("Date")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.headline)
                 .foregroundColor(.black)
                 .frame(width: 70, alignment: .leading)
             
             // Custom date display with picker
             Button(action: { showDatePicker.toggle() }) {
                 Text(formatDate(date))
-                    .font(.system(size: 14))
+                    .font(.headline)
                     .foregroundColor(.black)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
@@ -184,10 +184,11 @@ struct EventCreateView: View {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: "clock")
                     .foregroundColor(.black)
+                    .font(.headline)
                     .frame(width: 20)
                 
                 Text("Start")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.headline)
                     .foregroundColor(.black)
                     .frame(width: 70, alignment: .leading)
                 
@@ -198,21 +199,27 @@ struct EventCreateView: View {
                 )
                 .datePickerStyle(.field)
                 .labelsHidden()
+                .foregroundColor(.black)
+                .accentColor(.black)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(Color.blue.opacity(0.08))
                 .cornerRadius(6)
+                .onChange(of: startTime) {
+                    validateTimes()
+                }
             }
             
             // End time
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: "clock.fill")
                     .foregroundColor(.black)
+                    .font(.headline)
                     .frame(width: 20)
                 
                 Text("End")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.headline)
                     .foregroundColor(.black)
                     .frame(width: 70, alignment: .leading)
                 
@@ -223,17 +230,22 @@ struct EventCreateView: View {
                 )
                 .datePickerStyle(.field)
                 .labelsHidden()
+                .foregroundColor(.black)
+                .accentColor(.black)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(Color.blue.opacity(0.08))
                 .cornerRadius(6)
+                .onChange(of: endTime) {
+                    validateTimes()
+                }
             }
             
             // Error message
             if endTime <= startTime {
                 Text("End time must be after start time")
-                    .font(.caption)
+                    .font(.headline)
                     .foregroundColor(.red)
                     .padding(.leading, 32)
             }
@@ -246,16 +258,17 @@ struct EventCreateView: View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: "calendar.badge.plus")
                 .foregroundColor(.black)
+                .font(.headline)
                 .frame(width: 20)
             
             Text("Calendar")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.headline)
                 .foregroundColor(.black)
                 .frame(width: 70, alignment: .leading)
             
             if calendarService.selectedCalendars.isEmpty {
                 Text("No calendars available")
-                    .font(.system(size: 14))
+                    .font(.headline)
                     .foregroundColor(.secondary)
             } else {
                 Menu {
@@ -268,6 +281,7 @@ struct EventCreateView: View {
                                     .fill(Color(calendar.cgColor))
                                     .frame(width: 12, height: 12)
                                 Text(calendar.title)
+                                    .font(.headline)
                             }
                         }
                     }
@@ -278,13 +292,13 @@ struct EventCreateView: View {
                             .frame(width: 12, height: 12)
                         
                         Text(selectedCalendar.title)
-                            .font(.system(size: 14))
+                            .font(.headline)
                             .foregroundColor(.black)
                         
                         Spacer()
                         
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 12))
+                            .font(.headline)
                             .foregroundColor(.black.opacity(0.5))
                     }
                     .padding(.horizontal, 12)
@@ -305,10 +319,11 @@ struct EventCreateView: View {
             HStack(spacing: 12) {
                 Image(systemName: "note.text")
                     .foregroundColor(.black)
+                    .font(.headline)
                     .frame(width: 20)
                 
                 Text("Notes")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.headline)
                     .foregroundColor(.black)
             }
             
@@ -338,6 +353,11 @@ struct EventCreateView: View {
         formatter.dateStyle = .none
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+    
+    private func validateTimes() {
+        // This function is called when times change to trigger view update
+        // The validation happens in the computed property isValid
     }
     
     // MARK: - Actions
@@ -380,8 +400,12 @@ struct CustomSingleLineTextField: NSViewRepresentable {
         let scrollView = NSScrollView()
         let textView = NSTextView()
         
-        // Configure text view
-        textView.font = NSFont.systemFont(ofSize: 14)
+        // Configure text view with headline font size
+        if let headlineSize = NSFont.preferredFont(forTextStyle: .headline).pointSize as CGFloat? {
+            textView.font = NSFont.systemFont(ofSize: headlineSize)
+        } else {
+            textView.font = NSFont.systemFont(ofSize: 17) // Default headline size
+        }
         textView.textColor = NSColor.black
         textView.backgroundColor = .clear
         textView.drawsBackground = false
@@ -473,8 +497,12 @@ struct CustomMultiLineTextField: NSViewRepresentable {
         let scrollView = NSScrollView()
         let textView = NSTextView()
         
-        // Configure text view
-        textView.font = NSFont.systemFont(ofSize: 14)
+        // Configure text view with headline font size
+        if let headlineSize = NSFont.preferredFont(forTextStyle: .headline).pointSize as CGFloat? {
+            textView.font = NSFont.systemFont(ofSize: headlineSize)
+        } else {
+            textView.font = NSFont.systemFont(ofSize: 17) // Default headline size
+        }
         textView.textColor = NSColor.black
         textView.backgroundColor = .clear
         textView.drawsBackground = false
