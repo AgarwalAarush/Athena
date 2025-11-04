@@ -240,6 +240,27 @@ class Orchestrator {
         case query      // Ask about events
     }
 
+    // MARK: - Window Management Action Types
+    
+    /// Result of parsing a window management query
+    private struct WindowManagementActionResult {
+        let action: WindowManagementActionType
+        let configName: String?
+        let appName: String?
+        let position: TilePosition?
+    }
+    
+    /// Types of window management actions that can be performed
+    private enum WindowManagementActionType: String {
+        case saveConfig     // Save current configuration
+        case restoreConfig  // Restore saved configuration
+        case listConfigs    // List all configurations
+        case deleteConfig   // Delete a configuration
+        case moveWindow     // Move a specific window
+        case tileWindow     // Tile a window to a position
+        case focusWindow    // Bring a window to front
+    }
+
     // MARK: - Quick Route Detection
 
     /// Attempts to quickly detect task type from obvious keywords without using LLM.
@@ -268,7 +289,7 @@ class Orchestrator {
         }
         
         // Window management keywords
-        let windowKeywords = ["window", "resize", "split", "maximize", "minimize", "center", "arrange"]
+        let windowKeywords = ["window", "resize", "split", "maximize", "minimize", "center", "arrange", "configuration", "config"]
         if windowKeywords.contains(where: { lowercased.contains($0) }) {
             return .windowManagement
         }
@@ -573,14 +594,32 @@ class Orchestrator {
         }
     }
 
-    /// Handles window management tasks (e.g., "arrange windows side by side").
-    ///
-    /// **TODO - Not Yet Implemented**
-    ///
-    /// This should handle system-level window arrangement and management tasks.
+    /// Handles window management tasks (e.g., "save window configuration", "move Chrome to left").
     private func handleWindowManagementTask(prompt: String) async {
-        // TODO: Implement window management
-        print("[Orchestrator] Window management not yet implemented: \(prompt)")
+        print("[Orchestrator] handleWindowManagementTask: Processing query '\(prompt)'")
+        
+        // Parse the window management query using AI
+        do {
+            let result = try await parseWindowManagementQuery(prompt: prompt)
+            print("[Orchestrator] handleWindowManagementTask: Executing action '\(result.action)'")
+            
+            switch result.action {
+            case .saveConfig:
+                await executeSaveWindowConfig(name: result.configName, prompt: prompt)
+            case .restoreConfig:
+                await executeRestoreWindowConfig(name: result.configName, prompt: prompt)
+            case .listConfigs:
+                await executeListWindowConfigs()
+            case .deleteConfig:
+                await executeDeleteWindowConfig(name: result.configName, prompt: prompt)
+            case .moveWindow, .tileWindow:
+                await executeTileWindow(appName: result.appName, position: result.position, prompt: prompt)
+            case .focusWindow:
+                await executeFocusWindow(appName: result.appName, prompt: prompt)
+            }
+        } catch {
+            print("[Orchestrator] handleWindowManagementTask: Error parsing/executing window management query: \(error)")
+        }
     }
 
     /// Handles general computer use tasks (e.g., "open Safari", "take a screenshot").
@@ -776,6 +815,211 @@ class Orchestrator {
         notesViewModel.createNewNote()
         if let title = title {
             notesViewModel.currentNote?.title = title
+        }
+    }
+
+    // MARK: - Window Management Action Helpers
+    
+    /// Parses a window management query to determine the action and extract parameters
+    private func parseWindowManagementQuery(prompt: String) async throws -> WindowManagementActionResult {
+        let systemPrompt = """
+        You are a window management action parser. Analyze the user's query and determine what window management action they want.
+        
+        Actions:
+        - "saveConfig": User wants to save the current window configuration. Extract the configuration name.
+        - "restoreConfig": User wants to restore a saved configuration. Extract the configuration name.
+        - "listConfigs": User wants to list all saved configurations.
+        - "deleteConfig": User wants to delete a saved configuration. Extract the configuration name.
+        - "tileWindow": User wants to move/tile a window to a specific position. Extract app name and position.
+        - "focusWindow": User wants to bring a window to the front. Extract app name.
+        
+        Positions (for tileWindow): "leftHalf", "rightHalf", "topHalf", "bottomHalf", "topLeft", "topRight", "bottomLeft", "bottomRight", "maximized"
+        
+        Respond ONLY with valid JSON in this exact format:
+        {
+          "action": "action_name",
+          "configName": "name" or null,
+          "appName": "app" or null,
+          "position": "position" or null
+        }
+        
+        Examples:
+        Query: "remember my current window configuration, call it Home"
+        Response: {"action": "saveConfig", "configName": "Home", "appName": null, "position": null}
+        
+        Query: "open Home configuration"
+        Response: {"action": "restoreConfig", "configName": "Home", "appName": null, "position": null}
+        
+        Query: "move Chrome to the left side of the screen"
+        Response: {"action": "tileWindow", "configName": null, "appName": "Chrome", "position": "leftHalf"}
+        
+        Query: "put Safari on the right half"
+        Response: {"action": "tileWindow", "configName": null, "appName": "Safari", "position": "rightHalf"}
+        
+        Query: "show my window configurations"
+        Response: {"action": "listConfigs", "configName": null, "appName": null, "position": null}
+        
+        Query: "focus Slack"
+        Response: {"action": "focusWindow", "configName": null, "appName": "Slack", "position": null}
+        
+        Now parse this query: "\(prompt)"
+        """
+        
+        let response = try await aiService.getCompletion(
+            prompt: prompt,
+            systemPrompt: systemPrompt,
+            provider: .openai,
+            model: "gpt-5-nano"
+        )
+        
+        guard let jsonData = response.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let actionString = json["action"] as? String,
+              let action = WindowManagementActionType(rawValue: actionString) else {
+            throw NSError(domain: "Orchestrator", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to parse window management query"])
+        }
+        
+        let configName = json["configName"] as? String
+        let appName = json["appName"] as? String
+        let positionString = json["position"] as? String
+        let position = positionString.flatMap { TilePosition(rawValue: $0) }
+        
+        return WindowManagementActionResult(
+            action: action,
+            configName: configName,
+            appName: appName,
+            position: position
+        )
+    }
+    
+    /// Executes saving a window configuration
+    private func executeSaveWindowConfig(name: String?, prompt: String) async {
+        let configName = name ?? "Untitled"
+        
+        do {
+            let config = try WindowConfigurationService.shared.saveConfiguration(name: configName)
+            print("[Orchestrator] executeSaveWindowConfig: Saved '\(configName)' with \(config.windowCount) windows")
+        } catch {
+            print("[Orchestrator] executeSaveWindowConfig: Failed to save configuration - \(error)")
+        }
+    }
+    
+    /// Executes restoring a window configuration
+    private func executeRestoreWindowConfig(name: String?, prompt: String) async {
+        guard let configName = name else {
+            print("[Orchestrator] executeRestoreWindowConfig: No configuration name provided")
+            return
+        }
+        
+        do {
+            try await WindowConfigurationService.shared.restoreConfiguration(name: configName)
+            print("[Orchestrator] executeRestoreWindowConfig: Restored '\(configName)'")
+        } catch {
+            print("[Orchestrator] executeRestoreWindowConfig: Failed to restore configuration - \(error)")
+        }
+    }
+    
+    /// Executes listing all window configurations
+    private func executeListWindowConfigs() async {
+        do {
+            let configs = try WindowConfigurationService.shared.listConfigurations()
+            print("[Orchestrator] executeListWindowConfigs: Found \(configs.count) configurations")
+            for config in configs {
+                print("  - \(config.name): \(config.windowCount) windows")
+            }
+        } catch {
+            print("[Orchestrator] executeListWindowConfigs: Failed to list configurations - \(error)")
+        }
+    }
+    
+    /// Executes deleting a window configuration
+    private func executeDeleteWindowConfig(name: String?, prompt: String) async {
+        guard let configName = name else {
+            print("[Orchestrator] executeDeleteWindowConfig: No configuration name provided")
+            return
+        }
+        
+        do {
+            try WindowConfigurationService.shared.deleteConfiguration(name: configName)
+            print("[Orchestrator] executeDeleteWindowConfig: Deleted '\(configName)'")
+        } catch {
+            print("[Orchestrator] executeDeleteWindowConfig: Failed to delete configuration - \(error)")
+        }
+    }
+    
+    /// Executes tiling/moving a window to a specific position
+    private func executeTileWindow(appName: String?, position: TilePosition?, prompt: String) async {
+        guard let appName = appName else {
+            print("[Orchestrator] executeTileWindow: No app name provided")
+            return
+        }
+        
+        let targetPosition = position ?? .leftHalf // Default to left half if not specified
+        
+        // Find the window's PID
+        let windowsResult = SystemWindowManager.shared.listAllWindows()
+        guard case .success(let windows) = windowsResult else {
+            print("[Orchestrator] executeTileWindow: Failed to list windows")
+            return
+        }
+        
+        // Find matching window (case-insensitive partial match)
+        let matchingWindow = windows.first { window in
+            window.ownerName.lowercased().contains(appName.lowercased()) ||
+            appName.lowercased().contains(window.ownerName.lowercased())
+        }
+        
+        guard let window = matchingWindow else {
+            print("[Orchestrator] executeTileWindow: Could not find window for '\(appName)'")
+            return
+        }
+        
+        let result = SystemWindowManager.shared.tileWindow(
+            pid: window.ownerPID,
+            position: targetPosition,
+            screen: nil // Use main screen
+        )
+        
+        switch result {
+        case .success:
+            print("[Orchestrator] executeTileWindow: Successfully tiled '\(appName)' to \(targetPosition)")
+        case .failure(let error):
+            print("[Orchestrator] executeTileWindow: Failed to tile window - \(error)")
+        }
+    }
+    
+    /// Executes focusing a window
+    private func executeFocusWindow(appName: String?, prompt: String) async {
+        guard let appName = appName else {
+            print("[Orchestrator] executeFocusWindow: No app name provided")
+            return
+        }
+        
+        // Find the window's PID
+        let windowsResult = SystemWindowManager.shared.listAllWindows()
+        guard case .success(let windows) = windowsResult else {
+            print("[Orchestrator] executeFocusWindow: Failed to list windows")
+            return
+        }
+        
+        // Find matching window
+        let matchingWindow = windows.first { window in
+            window.ownerName.lowercased().contains(appName.lowercased()) ||
+            appName.lowercased().contains(window.ownerName.lowercased())
+        }
+        
+        guard let window = matchingWindow else {
+            print("[Orchestrator] executeFocusWindow: Could not find window for '\(appName)'")
+            return
+        }
+        
+        let result = SystemWindowManager.shared.focusWindow(pid: window.ownerPID)
+        
+        switch result {
+        case .success:
+            print("[Orchestrator] executeFocusWindow: Successfully focused '\(appName)'")
+        case .failure(let error):
+            print("[Orchestrator] executeFocusWindow: Failed to focus window - \(error)")
         }
     }
 

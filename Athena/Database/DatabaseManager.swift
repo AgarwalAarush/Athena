@@ -43,6 +43,54 @@ class DatabaseManager {
         var migrator = DatabaseMigrator()
         
         // Migration v1: Create conversations and messages tables
+        migrator.registerMigration("v1") { db in
+            try db.create(table: "conversations", ifNotExists: true) { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("title", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+                t.column("messageCount", .integer).notNull().defaults(to: 0)
+                t.column("isArchived", .boolean).notNull().defaults(to: false)
+            }
+            
+            try db.create(table: "messages", ifNotExists: true) { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("conversationId", .integer).notNull()
+                    .indexed()
+                    .references("conversations", onDelete: .cascade)
+                t.column("role", .text).notNull()
+                t.column("content", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+                t.column("tokenCount", .integer)
+                t.column("metadata", .text)
+            }
+        }
+        
+        // Migration v2: Create window configuration tables
+        migrator.registerMigration("v2") { db in
+            try db.create(table: "window_configurations") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("name", .text).notNull().unique()
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+            
+            try db.create(table: "window_configuration_windows") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("configId", .integer).notNull()
+                    .indexed()
+                    .references("window_configurations", onDelete: .cascade)
+                t.column("appName", .text).notNull()
+                t.column("windowTitle", .text).notNull()
+                t.column("x", .double).notNull()
+                t.column("y", .double).notNull()
+                t.column("width", .double).notNull()
+                t.column("height", .double).notNull()
+                t.column("screenIndex", .integer).notNull()
+                t.column("layer", .integer).notNull()
+            }
+        }
+        
         return migrator
     }
     
@@ -177,6 +225,89 @@ class DatabaseManager {
             return try messageQuery
                 .order(Message.Columns.createdAt.desc)
                 .fetchAll(db)
+        }
+    }
+    
+    // MARK: - Window Configuration Operations
+    
+    func createWindowConfiguration(name: String, windows: [SavedWindowInfo]) throws -> WindowConfiguration {
+        try writer { db in
+            var config = WindowConfiguration(name: name, windows: [])
+            try config.insert(db)
+            
+            guard let configId = config.id else {
+                throw NSError(domain: "DatabaseManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to get configuration ID"])
+            }
+            
+            var savedWindows: [SavedWindowInfo] = []
+            for var window in windows {
+                window.configId = configId
+                try window.insert(db)
+                savedWindows.append(window)
+            }
+            
+            config.windows = savedWindows
+            return config
+        }
+    }
+    
+    func fetchWindowConfiguration(name: String) throws -> WindowConfiguration? {
+        try reader { db in
+            guard let config = try WindowConfiguration
+                .filter(WindowConfiguration.Columns.name == name)
+                .fetchOne(db) else {
+                return nil
+            }
+            
+            guard let configId = config.id else { return config }
+            
+            let windows = try SavedWindowInfo
+                .filter(SavedWindowInfo.Columns.configId == configId)
+                .fetchAll(db)
+            
+            var fullConfig = config
+            fullConfig.windows = windows
+            return fullConfig
+        }
+    }
+    
+    func fetchAllWindowConfigurations() throws -> [WindowConfiguration] {
+        try reader { db in
+            let configs = try WindowConfiguration
+                .order(WindowConfiguration.Columns.updatedAt.desc)
+                .fetchAll(db)
+            
+            return try configs.map { config in
+                var fullConfig = config
+                if let configId = config.id {
+                    fullConfig.windows = try SavedWindowInfo
+                        .filter(SavedWindowInfo.Columns.configId == configId)
+                        .fetchAll(db)
+                }
+                return fullConfig
+            }
+        }
+    }
+    
+    func updateWindowConfiguration(name: String, newName: String) throws {
+        try writer { db in
+            guard var config = try WindowConfiguration
+                .filter(WindowConfiguration.Columns.name == name)
+                .fetchOne(db) else {
+                throw NSError(domain: "DatabaseManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Configuration not found"])
+            }
+            
+            config.name = newName
+            config.updatedAt = Date()
+            try config.update(db)
+        }
+    }
+    
+    func deleteWindowConfiguration(name: String) throws {
+        try writer { db in
+            _ = try WindowConfiguration
+                .filter(WindowConfiguration.Columns.name == name)
+                .deleteAll(db)
         }
     }
 }
