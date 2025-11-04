@@ -28,14 +28,7 @@ struct RichTextEditor: NSViewRepresentable {
 
     // MARK: - NSViewRepresentable
 
-    func makeNSView(context: Context) -> NSView {
-        // Container that provides the rounded translucent background
-        let container = NSView()
-        container.wantsLayer = true
-        container.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.6).cgColor
-        container.layer?.cornerRadius = 8
-        container.layer?.masksToBounds = true
-        
+    func makeNSView(context: Context) -> NSScrollView {
         // Create text system stack
         let textStorage = NSTextStorage()
         let layoutManager = NSLayoutManager()
@@ -99,25 +92,20 @@ struct RichTextEditor: NSViewRepresentable {
         textView.setAccessibilityLabel("Rich Text Editor")
         textView.setAccessibilityRole(.textArea)
 
-        // Scroll view wrapper - fully transparent
+        // Scroll view wrapper
         let scrollView = NSScrollView()
         scrollView.documentView = textView
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
-        scrollView.drawsBackground = false
-        scrollView.contentView.drawsBackground = false
-
-        // Put scroll view inside the container and pin
-        container.addSubview(scrollView)
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: container.topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
-        ])
+        
+        // Apply styling directly to the scroll view
+        scrollView.wantsLayer = true
+        scrollView.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.6).cgColor
+        scrollView.layer?.cornerRadius = 8
+        scrollView.layer?.masksToBounds = true
+        scrollView.drawsBackground = false // Ensure the scroll view itself doesn't draw a background
 
         // Initialize content
         if !content.isEmpty {
@@ -134,13 +122,12 @@ struct RichTextEditor: NSViewRepresentable {
             textView?.window?.makeFirstResponder(textView)
         }
 
-        return container
+        return scrollView
     }
 
-    func updateNSView(_ containerView: NSView, context: Context) {
-        // Find the scroll view inside the container
-        guard let scrollView = containerView.subviews.first as? NSScrollView,
-              let textView = scrollView.documentView as? NSTextView,
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        // Find the text view inside the scroll view
+        guard let textView = scrollView.documentView as? NSTextView,
               let textStorage = textView.textStorage else { return }
 
         let currentText = textStorage.string

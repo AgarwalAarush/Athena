@@ -428,6 +428,7 @@ struct ProviderSettingsView: View {
                             removeOpenAIKey()
                         }
                         .buttonStyle(ModernButton(style: .neutral))
+                        .frame(height: 32)
                     }
                 }
             }

@@ -17,7 +17,7 @@ class ChatViewModel: ObservableObject {
     // - true: Always auto-send transcription to AI
     // - false: Only populate input field (don't auto-send)
     // Location of config setting: ConfigurationKeys.swift line 45 (.autoSendVoiceTranscription)
-    private let DEBUG_OVERRIDE_AUTO_SEND: Bool? = false  // 🔧 DEBUG: Only populate input field
+    private let DEBUG_OVERRIDE_AUTO_SEND: Bool? = true  // 🔧 DEBUG: Only populate input field
 
     @Published var inputText: String = ""
     @Published var isLoading: Bool = false
