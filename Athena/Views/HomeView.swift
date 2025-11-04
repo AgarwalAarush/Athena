@@ -36,6 +36,12 @@ struct HomeView: View {
         .background(Color.white.opacity(0.6))
         .cornerRadius(8)
         .padding()
+        .onAppear {
+            // Ensure events are fetched when the view appears
+            Task {
+                await appViewModel.dayViewModel.fetchEvents()
+            }
+        }
     }
     
     // MARK: - Greeting Section

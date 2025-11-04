@@ -28,19 +28,6 @@ class AppViewModel: ObservableObject {
     // MARK: - Private Properties
 
     private var windowManager: WindowManager?
-
-    // MARK: - Initialization
-
-    init() {
-        bootstrap()
-    }
-
-    private func bootstrap() {
-        Task {
-            await notesViewModel.bootstrap()
-        }
-        // DayViewModel automatically fetches events on initialization
-    }
     
     // MARK: - Wake Word Management
     

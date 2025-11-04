@@ -17,6 +17,9 @@ struct NotesView: View {
                 NoteListView(vm: vm)
             }
         }
+        .task {
+            await vm.bootstrap()
+        }
     }
 }
 
