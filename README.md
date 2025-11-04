@@ -9,11 +9,12 @@
 Athena is a floating AI assistant that brings together cutting-edge voice processing, comprehensive system automation, and intelligent AI integration. Built for power users who need seamless AI interaction with their computer.
 
 ## Upcoming Features
-- [ ] Edit notes with voice
+- [x] Edit notes with voice
 - [ ] Create, edit, and delete calendar events with voice
 - [x] Make the home page default
 - [ ] Complete window control along with saving settings
 - [ ] Optimize wake word
+- [ ] Make window hide and show itself (listening in background as well, and can open itself automatically when it hears "Athena") -> will have another layer on top of the current ContentView, in that view have it be thin, wth just hte ai listening animation
 
 ## 🚀 Core Capabilities
 
