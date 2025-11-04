@@ -9,13 +9,24 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var windowManager: WindowManager
-    @StateObject private var appViewModel = AppViewModel()
+    @StateObject private var appViewModel: AppViewModel
     @StateObject private var chatViewModel: ChatViewModel
 
     init() {
-        let appViewModel = AppViewModel()
-        _appViewModel = StateObject(wrappedValue: appViewModel)
-        _chatViewModel = StateObject(wrappedValue: ChatViewModel(appViewModel: appViewModel))
+        // Create a single AppViewModel instance
+        let appVM = AppViewModel()
+        
+        // Set up NotesViewModel with AppViewModel reference
+        appVM.notesViewModel.setAppViewModel(appVM)
+        
+        // Initialize StateObject wrappers with the same instance
+        _appViewModel = StateObject(wrappedValue: appVM)
+        
+        // Create ChatViewModel with references to AppViewModel and NotesViewModel
+        _chatViewModel = StateObject(wrappedValue: ChatViewModel(
+            appViewModel: appVM,
+            notesViewModel: appVM.notesViewModel
+        ))
     }
 
     var body: some View {

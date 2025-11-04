@@ -52,9 +52,11 @@ class ChatViewModel: ObservableObject {
     }
 
     private let appViewModel: AppViewModel
+    private weak var notesViewModel: NotesViewModel?
 
-    init(appViewModel: AppViewModel) {
+    init(appViewModel: AppViewModel, notesViewModel: NotesViewModel? = nil) {
         self.appViewModel = appViewModel
+        self.notesViewModel = notesViewModel
 
         subscribeToPipeline(speechService.pipeline)
 
@@ -124,6 +126,9 @@ class ChatViewModel: ObservableObject {
         // Initialize wake word manager
         let manager = WakeWordTranscriptionManager()
         self.wakeWordManager = manager
+        
+        // Set wake word manager reference in AppViewModel for pause/resume
+        appViewModel.setWakeWordManager(manager)
 
         // Subscribe to wake word manager state
         manager.$state
@@ -352,6 +357,23 @@ class ChatViewModel: ObservableObject {
             print("[ChatViewModel] handleFinalTranscript: Ignoring empty transcript")
             return
         }
+        
+        // Check for "Athena listen" command for notes dictation
+        if checkForListenCommand(in: trimmedTranscript) {
+            print("[ChatViewModel] 🎤 'Athena listen' detected!")
+            
+            // Check if we're in notes view with editor open
+            if appViewModel.currentView == .notes,
+               let notesVM = notesViewModel,
+               notesVM.showingEditor {
+                print("[ChatViewModel] ✅ In notes editor - starting listen mode")
+                notesVM.startListenMode()
+                return // Don't process as chat command
+            } else {
+                print("[ChatViewModel] ⚠️ 'listen' command detected but not in notes editor")
+                // Fall through to normal processing
+            }
+        }
 
         // ALWAYS populate the input field with the transcription
         print("[ChatViewModel] handleFinalTranscript: Setting inputText to transcript")
@@ -414,5 +436,26 @@ class ChatViewModel: ObservableObject {
                 self.startVoiceInput()
             }
         }
+    }
+    
+    // MARK: - Listen Command Detection
+    
+    /// Check if transcript starts with "listen" (fuzzy match)
+    private func checkForListenCommand(in transcript: String) -> Bool {
+        let words = transcript.lowercased()
+            .components(separatedBy: .whitespaces)
+            .filter { !$0.isEmpty }
+        
+        // Need at least one word
+        guard let firstWord = words.first else { return false }
+        
+        // Fuzzy match on "listen" with 70% threshold
+        let isMatch = FuzzyStringMatcher.fuzzyMatch(firstWord, target: "listen", threshold: 0.7)
+        
+        if isMatch {
+            print("[ChatViewModel] 🎯 Listen command matched! First word: '\(firstWord)'")
+        }
+        
+        return isMatch
     }
 }
