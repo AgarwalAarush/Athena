@@ -362,9 +362,9 @@ class ChatViewModel: ObservableObject {
         let currentView = appViewModel.currentView
         print("[ChatViewModel] handleFinalTranscript: Current view is \(currentView)")
 
-        // CALENDAR/NOTES VIEWS: Always auto-send to orchestrator (bypass config)
-        if currentView == .calendar || currentView == .notes {
-            print("[ChatViewModel] handleFinalTranscript: In calendar/notes view - auto-sending to orchestrator")
+        // HOME/CALENDAR/NOTES VIEWS: Always auto-send to orchestrator (bypass config)
+        if currentView == .home || currentView == .calendar || currentView == .notes {
+            print("[ChatViewModel] handleFinalTranscript: In home/calendar/notes view - auto-sending to orchestrator")
             Task {
                 do {
                     let orchestrator = Orchestrator(appViewModel: appViewModel)

@@ -11,7 +11,7 @@ enum AppView {
 }
 
 class AppViewModel: ObservableObject {
-    @Published var currentView: AppView = .chat
+    @Published var currentView: AppView = .home
 
     // MARK: - View Models for Orchestrator Access
 
