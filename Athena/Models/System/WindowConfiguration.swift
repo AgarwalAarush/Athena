@@ -52,6 +52,25 @@ struct WindowConfiguration: Codable, Identifiable, FetchableRecord, PersistableR
         case createdAt
         case updatedAt
     }
+    
+    // Custom decoder to handle the structure
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(Int64.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        windows = [] // Default to an empty array, as it's not in the encoded data
+    }
+
+    // Custom encoder
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
+    }
 }
 
 // MARK: - Convenience Methods
