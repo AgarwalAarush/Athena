@@ -801,8 +801,10 @@ class Orchestrator {
         }
     }
 
-    /// Executes create event action
+    /// Executes create event action by navigating to calendar view and presenting creation modal
     private func executeCreateEvent(params: [String: String]) async {
+        print("[Orchestrator] executeCreateEvent: Starting with params: \(params)")
+        
         guard let title = params["title"] else {
             print("[Orchestrator] Create: Missing title parameter")
             return
@@ -822,7 +824,7 @@ class Orchestrator {
             return
         }
 
-        // Combine date and time
+        // Combine date and time for start
         let calendar = Calendar.current
         var startComponents = calendar.dateComponents([.year, .month, .day], from: eventDate)
         startComponents.hour = startTimeComponents.hour
@@ -851,25 +853,29 @@ class Orchestrator {
 
         let notes = params["notes"]
 
-        print("[Orchestrator] Create: Creating event '\(title)' from \(startDate) to \(endDate)")
+        print("[Orchestrator] Create: Preparing event '\(title)' from \(startDate) to \(endDate)")
 
-        // Create the event
-        CalendarService.shared.createEvent(
-            title: title,
-            startDate: startDate,
-            endDate: endDate,
-            notes: notes
-        ) { event, error in
-            if let error = error {
-                print("[Orchestrator] Create: Error creating event: \(error.localizedDescription)")
-            } else if let event = event {
-                print("[Orchestrator] Create: Successfully created event '\(event.title)'")
-                // Navigate to the event's date
-                Task { @MainActor in
-                    self.appViewModel?.dayViewModel.selectedDate = startDate
-                }
-            }
+        // Navigate to calendar view first, showing the event's date
+        await MainActor.run {
+            self.appViewModel?.showCalendar()
+            self.appViewModel?.dayViewModel.selectedDate = eventDate
         }
+
+        // Create pending event data
+        let pendingData = PendingEventData(
+            title: title,
+            date: eventDate,
+            startTime: startDate,
+            endTime: endDate,
+            notes: notes
+        )
+
+        // Present the creation modal
+        await MainActor.run {
+            self.appViewModel?.dayViewModel.presentCreateEvent(with: pendingData)
+        }
+
+        print("[Orchestrator] Create: Modal presented with event data")
     }
 
     /// Executes delete event action
@@ -1101,8 +1107,9 @@ class Orchestrator {
             2. "navigate" - Change visible date
                Required params: targetDate (e.g., "tomorrow", "next week", "friday", "2024-03-15")
             3. "create" - Create new event
-               Required params: title, date (default "today"), startTime (HH:mm format)
-               Optional params: endTime (HH:mm) OR duration (minutes), notes
+               Required params: title, date (default "today"), startTime (HH:mm format in 24-hour time)
+               Optional params: endTime (HH:mm) OR duration (minutes as string), notes
+               IMPORTANT: Convert AM/PM times to 24-hour format (e.g., "2pm" → "14:00", "11:30am" → "11:30")
             4. "update" - Modify existing event
                Required params: eventIdentifier (description of event), changes (what to modify)
             5. "delete" - Delete event
@@ -1126,6 +1133,15 @@ class Orchestrator {
 
             Query: "create a meeting at 3pm called Team Sync"
             Response: {"action": "create", "params": {"title": "Team Sync", "date": "today", "startTime": "15:00", "duration": "60"}}
+
+            Query: "create an event tomorrow from 11:30 to 12:30 pm for lunch with Dave"
+            Response: {"action": "create", "params": {"title": "Lunch with Dave", "date": "tomorrow", "startTime": "11:30", "endTime": "12:30"}}
+
+            Query: "schedule a meeting at 2:30pm for one hour called Team Sync"
+            Response: {"action": "create", "params": {"title": "Team Sync", "date": "today", "startTime": "14:30", "duration": "60"}}
+
+            Query: "create event for coffee at 9am tomorrow"
+            Response: {"action": "create", "params": {"title": "Coffee", "date": "tomorrow", "startTime": "09:00", "duration": "60"}}
 
             Query: "delete my dentist appointment"
             Response: {"action": "delete", "params": {"eventIdentifier": "dentist appointment"}}

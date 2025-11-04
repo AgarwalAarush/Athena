@@ -79,6 +79,23 @@ struct DayView: View {
         .eventDetailOverlay(event: selectedEvent, isPresented: $showEventDetail) {
             selectedEvent = nil
         }
+        .eventCreateOverlay(
+            pendingData: viewModel.pendingEventData,
+            isPresented: $viewModel.showCreateEventModal,
+            onCreate: { title, date, startDate, endDate, notes, calendar in
+                handleCreateEvent(
+                    title: title,
+                    date: date,
+                    startDate: startDate,
+                    endDate: endDate,
+                    notes: notes,
+                    calendar: calendar
+                )
+            },
+            onCancel: {
+                viewModel.dismissCreateEventModal()
+            }
+        )
     }
 
     // MARK: - Navigation Header
@@ -402,6 +419,41 @@ struct DayView: View {
             currentTimeOffset += 0.001
         }
     }
+
+    /// Handle event creation from the modal
+    private func handleCreateEvent(
+        title: String,
+        date: Date,
+        startDate: Date,
+        endDate: Date,
+        notes: String?,
+        calendar: EKCalendar
+    ) {
+        print("[DayView] Creating event '\(title)' from \(startDate) to \(endDate)")
+        
+        CalendarService.shared.createEvent(
+            title: title,
+            startDate: startDate,
+            endDate: endDate,
+            notes: notes,
+            in: calendar
+        ) { event, error in
+            Task { @MainActor in
+                if let error = error {
+                    print("[DayView] Error creating event: \(error.localizedDescription)")
+                    viewModel.errorMessage = "Failed to create event: \(error.localizedDescription)"
+                } else if let event = event {
+                    print("[DayView] Successfully created event '\(event.title)'")
+                    // Navigate to the event's date
+                    viewModel.selectedDate = date
+                    // Refresh events
+                    await viewModel.fetchEvents()
+                }
+                // Dismiss modal
+                viewModel.dismissCreateEventModal()
+            }
+        }
+    }
 }
 
 // MARK: - Supporting Views
@@ -462,6 +514,42 @@ extension View {
                         onDismiss?()
                     }
                     .frame(width: 400, height: 500)
+                    .background(Color.white.opacity(1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.black.opacity(0.08), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.15), radius: 30, y: 10)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isPresented.wrappedValue)
+            }
+        }
+    }
+    
+    func eventCreateOverlay(
+        pendingData: PendingEventData?,
+        isPresented: Binding<Bool>,
+        onCreate: @escaping (String, Date, Date, Date, String?, EKCalendar) -> Void,
+        onCancel: @escaping () -> Void
+    ) -> some View {
+        overlay(alignment: .center) {
+            if isPresented.wrappedValue, let pendingData {
+                ZStack {
+                    Color.black.opacity(0.1)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            // Don't dismiss on background tap for create modal
+                        }
+                    
+                    EventCreateView(
+                        initialData: pendingData,
+                        onCreate: onCreate,
+                        onCancel: onCancel
+                    )
+                    .frame(width: 400, height: 600)
                     .background(Color.white.opacity(1))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(

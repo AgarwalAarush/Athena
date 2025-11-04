@@ -11,6 +11,15 @@ import Combine
 import EventKit
 import AppKit
 
+/// Data structure for holding AI-extracted event details before user confirmation
+struct PendingEventData {
+    var title: String
+    var date: Date
+    var startTime: Date
+    var endTime: Date
+    var notes: String?
+}
+
 /// ViewModel for managing day view calendar state and event fetching
 @MainActor
 class DayViewModel: ObservableObject {
@@ -31,6 +40,12 @@ class DayViewModel: ObservableObject {
 
     /// Whether authorization has been granted
     @Published var isAuthorized: Bool = false
+
+    /// Whether to show the event creation modal
+    @Published var showCreateEventModal: Bool = false
+
+    /// Pending event data for the creation modal
+    @Published var pendingEventData: PendingEventData?
 
     // MARK: - Private Properties
 
@@ -188,5 +203,19 @@ class DayViewModel: ObservableObject {
         formatter.dateStyle = .full
         formatter.timeStyle = .none
         return formatter.string(from: selectedDate)
+    }
+
+    // MARK: - Event Creation
+
+    /// Present the event creation modal with pre-filled data
+    func presentCreateEvent(with data: PendingEventData) {
+        pendingEventData = data
+        showCreateEventModal = true
+    }
+
+    /// Dismiss the event creation modal
+    func dismissCreateEventModal() {
+        showCreateEventModal = false
+        pendingEventData = nil
     }
 }
