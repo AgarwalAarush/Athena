@@ -106,6 +106,16 @@ struct TitleBarView: View {
             Spacer()
 
             HStack(spacing: AppMetrics.spacingSmall) {
+                // Animated Waveform (shown when voice is active)
+                Group {
+                    if chatViewModel.isRecording, let monitor = chatViewModel.amplitudeMonitor {
+                        WaveformView(monitor: monitor)
+                            .transition(.scale.combined(with: .opacity))
+                            .padding(.trailing, AppMetrics.spacingXSmall)
+                    }
+                }
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: chatViewModel.isRecording)
+                
                 // Wakeword Mode Toggle with pulse animation
                 Button(action: {
                     let newValue = !config.wakewordModeEnabled

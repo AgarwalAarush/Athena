@@ -487,7 +487,17 @@ class Orchestrator {
             self.appViewModel?.showCalendar()
         }
 
-        // Parse the calendar query (with automatic fallback to keyword matching)
+        // Try local parsing first for navigation commands
+        if let targetDate = parseNavigationCommand(prompt: prompt) {
+            print("[Orchestrator] handleCalendarTask: Local parse successful, navigating to date")
+            await MainActor.run {
+                self.appViewModel?.dayViewModel.selectedDate = targetDate
+            }
+            print("[Orchestrator] handleCalendarTask: Navigation completed")
+            return
+        }
+
+        // If local parsing failed, use AI parsing (with automatic fallback to keyword matching)
         let result = await parseCalendarQuery(prompt: prompt)
         print("[Orchestrator] handleCalendarTask: Executing action '\(result.action)'")
 
@@ -1288,6 +1298,107 @@ class Orchestrator {
     }
 
     // MARK: Parsing Helpers
+
+    /// Attempts to parse navigation commands locally without AI
+    /// Returns a Date if successful, nil if AI parsing is needed
+    private func parseNavigationCommand(prompt: String) -> Date? {
+        let lowercased = prompt.lowercased().trimmingCharacters(in: .whitespaces)
+        let calendar = Calendar.current
+        let now = Date()
+
+        // Check for "next" or "prev/previous" modifiers
+        let hasNext = lowercased.contains("next")
+        let hasPrev = lowercased.contains("prev") || lowercased.contains("previous")
+
+        // Weekday names
+        let weekdays = [
+            "sunday": 1,
+            "monday": 2,
+            "tuesday": 3,
+            "wednesday": 4,
+            "thursday": 5,
+            "friday": 6,
+            "saturday": 7
+        ]
+
+        // Simple cases: today, tomorrow, yesterday
+        if lowercased == "today" || lowercased == "open" {
+            print("[Orchestrator] Local parse: today")
+            return now
+        }
+
+        if lowercased == "tomorrow" {
+            print("[Orchestrator] Local parse: tomorrow")
+            return calendar.date(byAdding: .day, value: 1, to: now)
+        }
+
+        if lowercased == "yesterday" {
+            print("[Orchestrator] Local parse: yesterday")
+            return calendar.date(byAdding: .day, value: -1, to: now)
+        }
+
+        // Next/prev week
+        if lowercased.contains("week") {
+            if hasNext {
+                print("[Orchestrator] Local parse: next week")
+                return calendar.date(byAdding: .weekOfYear, value: 1, to: now)
+            } else if hasPrev {
+                print("[Orchestrator] Local parse: previous week")
+                return calendar.date(byAdding: .weekOfYear, value: -1, to: now)
+            }
+        }
+
+        // Next/prev month
+        if lowercased.contains("month") {
+            if hasNext {
+                print("[Orchestrator] Local parse: next month")
+                return calendar.date(byAdding: .month, value: 1, to: now)
+            } else if hasPrev {
+                print("[Orchestrator] Local parse: previous month")
+                return calendar.date(byAdding: .month, value: -1, to: now)
+            }
+        }
+
+        // Weekday navigation
+        for (weekdayName, weekdayValue) in weekdays {
+            if lowercased.contains(weekdayName) {
+                let currentWeekday = calendar.component(.weekday, from: now)
+
+                if hasNext {
+                    // Find this weekday in the next week
+                    print("[Orchestrator] Local parse: next \(weekdayName)")
+                    var daysToAdd = (weekdayValue - currentWeekday + 7) % 7
+                    if daysToAdd == 0 {
+                        daysToAdd = 7 // If same weekday, go to next week
+                    }
+                    daysToAdd += 7 // Add another week to ensure it's "next" week
+                    return calendar.date(byAdding: .day, value: daysToAdd, to: now)
+
+                } else if hasPrev {
+                    // Find this weekday in the previous week
+                    print("[Orchestrator] Local parse: previous \(weekdayName)")
+                    var daysToSubtract = (currentWeekday - weekdayValue + 7) % 7
+                    if daysToSubtract == 0 {
+                        daysToSubtract = 7 // If same weekday, go to previous week
+                    }
+                    daysToSubtract += 7 // Subtract another week to ensure it's "previous" week
+                    return calendar.date(byAdding: .day, value: -daysToSubtract, to: now)
+
+                } else {
+                    // Find the next occurrence of this weekday (within next 7 days)
+                    print("[Orchestrator] Local parse: \(weekdayName)")
+                    var daysToAdd = (weekdayValue - currentWeekday + 7) % 7
+                    if daysToAdd == 0 {
+                        daysToAdd = 7 // If today is that weekday, go to next occurrence
+                    }
+                    return calendar.date(byAdding: .day, value: daysToAdd, to: now)
+                }
+            }
+        }
+
+        // Couldn't parse locally
+        return nil
+    }
 
     /// Fallback parser using keyword matching for common calendar queries
     /// Used when AI parsing fails or is unavailable
