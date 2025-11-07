@@ -166,10 +166,8 @@ struct DayView: View {
                 .padding()
             }
             .onAppear {
-                // Scroll to current time if viewing today
-                if viewModel.isToday {
-                    scrollToCurrentTime(scrollProxy)
-                }
+                // Scroll to earliest meeting
+                scrollToEarliestMeeting(scrollProxy)
             }
         }
     }
@@ -274,6 +272,7 @@ struct DayView: View {
         return EventBlockView(event: event)
             .frame(width: position.width, height: position.height)
             .offset(x: position.x, y: position.y)
+            .id(event.id)
             .onTapGesture {
                 selectedEvent = event
                 showEventDetail = true
@@ -402,12 +401,19 @@ struct DayView: View {
         return formatter.string(from: date)
     }
 
-    /// Scroll to current time in the timeline
-    private func scrollToCurrentTime(_ scrollProxy: ScrollViewProxy) {
+    /// Scroll to earliest meeting in the timeline
+    private func scrollToEarliestMeeting(_ scrollProxy: ScrollViewProxy) {
         // Delay slightly to ensure view is rendered
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             withAnimation {
-                scrollProxy.scrollTo("timeline", anchor: .top)
+                // Find the earliest timed event
+                if let earliestEvent = viewModel.timedEvents.min(by: { $0.startDate < $1.startDate }) {
+                    // Scroll to the earliest event's ID
+                    scrollProxy.scrollTo(earliestEvent.id, anchor: .top)
+                } else {
+                    // No events, scroll to top of timeline
+                    scrollProxy.scrollTo("timeline", anchor: .top)
+                }
             }
         }
     }
