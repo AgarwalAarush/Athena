@@ -1,0 +1,196 @@
+---
+alwaysApply: true
+---
+
+# Cursor Rules: SwiftUI Development Best Practices
+
+A comprehensive guide for building robust, maintainable SwiftUI applications on Apple platforms. These principles focus on architecture, state management, async workflows, and native integration patterns.
+
+---
+
+## 1. App Structure & Platform Integration
+
+**Application Lifecycle**
+- Use `NSApplicationDelegate` (macOS) or `UIApplicationDelegate` (iOS) alongside your SwiftUI `App` entry point to access platform-specific hooks like URL handling, Finder/Services integration, and global configuration
+- Keep your scene graph minimal and intentional with clear compositional hierarchy
+- Configure windows centrally using dedicated configurator utilities rather than scattering setup code throughout views
+
+**External Event Routing**
+- Create a unified ingestion API that normalizes all external data sources (Finder services, drag-and-drop, pasteboard, share extensions, URL schemes)
+- Route through a single coordinator to ensure consistent behavior regardless of entry point
+
+---
+
+## 2. ViewModels, State & Persistence
+
+**State Architecture**
+- Use `@MainActor` marked `ObservableObject` classes for centralized state management
+- Break large view models into focused extensions by domain (`+Networking`, `+Storage`, `+Validation`) to maintain readability while keeping a single source of truth
+- Mark all user-facing configuration as `@Published` and group logically by feature area
+
+**Persistence Patterns**
+- Mirror important user preferences to persistent storage (`UserDefaults`, `NSUbiquitousKeyValueStore`, CloudKit) using Combine `sink` observers
+- Load and normalize persisted values during initialization before exposing to UI
+- Treat structured data (presets, configurations, logs) as `Codable` value types with dedicated storage abstractions
+- Always call `synchronize()` on `NSUbiquitousKeyValueStore` before reads/writes when implementing iCloud sync
+
+---
+
+## 3. Async Workflows & Concurrency
+
+**Ingestion Coordination**
+- Build coordinator objects that normalize async data loading across different provider types
+- Use `NSItemProvider` continuations for type-safe async access to dragged/pasted content
+- Stream batches through `AsyncStream` to enable progressive UI updates
+- Implement deduplication logic before appending to state collections
+
+**Concurrency Management**
+- Gate heavy concurrent operations (thumbnail generation, network requests) with `AsyncSemaphore` to prevent thread starvation
+- Track progress counts (total/completed) for accurate UI indicators across mixed batches
+- Use structured concurrency (`TaskGroup`) for coordinated parallel work
+- Tune concurrency limits based on device capabilities (`ProcessInfo.activeProcessorCount`, thermal state, Low Power Mode)
+
+---
+
+## 4. Sandbox & File System Safety
+
+**Security-Scoped Resources**
+- Always start/stop security-scoped access via dedicated token types when touching user files
+- Use an actor-based `SandboxAccessManager` to centralize directory permission tracking and `NSOpenPanel` prompts
+- Write to temporary locations first, then atomically move/replace to final destinations
+- Preflight destructive operations by computing all target URLs and checking for conflicts
+
+**Transactional File Operations**
+- Use `FileManager.replaceItemAt` or atomic move operations to avoid partial writes
+- Create temp files in the same destination directory (not `/tmp`) to ensure same-volume operations
+- Handle file coordination properly when working with iCloud Drive or Documents folder
+
+---
+
+## 5. Processing Pipelines & Data Transformation
+
+**Configuration-Driven Processing**
+- Represent user intent as immutable `Codable` configuration value types
+- Build processing pipelines declaratively from configurations using builder patterns
+- Keep pipelines pure and testable - no side effects within operation chains
+- Generate operation chains that respect format capabilities and constraints
+
+**Pipeline Execution**
+- Run transformations once per item in isolation
+- Use shared contexts (like `CIContext`) across multiple operations to reduce overhead
+- Implement cancellation support throughout async processing chains
+- Separate lightweight layout calculations from heavy data processing
+
+---
+
+## 6. Preview, Estimation & Performance
+
+**Layered Estimation**
+- Implement lightweight estimators for immediate UI feedback (dimensions, layout)
+- Run expensive estimations (file sizes, processing time) on background actors
+- Cancel pending estimations when visibility changes or configuration updates
+- Store estimation results in keyed dictionaries for efficient lookups
+
+**Responsive UI Updates**
+- Debounce live preview renders using `DispatchWorkItem` with `asyncAfter`
+- Load thumbnails immediately, full-resolution assets lazily on detached tasks
+- Verify selection consistency before applying async results to prevent flicker
+- Use placeholder states during async transitions
+
+---
+
+## 7. Bridging SwiftUI & AppKit/UIKit
+
+**Platform Feature Access**
+- Register command handlers (`.onCommand`, `NSApp.servicesProvider`) to integrate native keyboard shortcuts and services
+- Present platform alerts and panels from view models via `@MainActor` functions
+- Use AppKit/UIKit for features SwiftUI doesn't expose: window customization, complex gestures, advanced text editing
+
+**Native Integration Points**
+- Leverage `NSHapticFeedbackManager` (macOS) or `UIFeedbackGenerator` (iOS) for tactile feedback
+- Use `NSWorkspace` or `UIApplication` for system actions (opening URLs, revealing files)
+- Bridge platform-specific pasteboard operations for cross-app data transfer
+- Implement `NSViewRepresentable`/`UIViewRepresentable` wrappers for complex native controls
+
+---
+
+## 8. Configuration & Capability Awareness
+
+**Centralized Constants**
+- Create a static `AppConstants` or `Configuration` struct for bundle identifiers, app metadata, and environment-specific values
+- Build capability singleton objects that query system features at runtime
+- Enumerate available types, formats, and operations dynamically rather than hardcoding assumptions
+
+**Format/Feature Detection**
+- Query `UTType` capabilities to determine read/write support
+- Report per-format constraints (size limits, color space support, compression options)
+- Disable or prefill UI controls based on runtime capabilities
+- Provide validation and normalization helpers for constrained inputs
+
+---
+
+## 9. Design System & Component Architecture
+
+**Theme Organization**
+Create a cohesive `Theme` folder structure:
+- `Theme/Metrics.swift` - Spacing, sizing, corner radii, icon sizes
+- `Theme/Colors.swift` - Semantic color definitions (not literal values)
+- `Theme/Typography.swift` - Font styles and text hierarchies
+- `Theme/Animations.swift` - Duration constants and easing curves
+- `Theme/Effects.swift` - Shadows, blurs, glass materials
+
+**Reusable Components**
+- Build a component library with consistent interaction patterns
+- Implement liquid glass utilities for frosted backgrounds and translucency
+- Create modifier extensions for common styling patterns
+- Use `@Namespace` for matched-geometry transitions
+- Provide accessibility traits on all interactive elements
+
+**Interaction Feedback**
+- Pair visual state changes with haptic feedback for major gestures
+- Use discrete-stop tracking to avoid repeated haptic pulses
+- Implement hover states and press feedback consistently
+- Make drag-and-drop visually obvious with outlines and tint changes
+
+---
+
+## 10. Testing, Tooling & Maintainability
+
+**Test Infrastructure**
+- Commit `.xctestplan` files with structured test organization
+- Use sandbox-friendly temporary directories in tests
+- Keep logic modular with clear test seams (coordinators, processors, validators)
+- Make dependencies injectable for unit test isolation
+
+**Development Tools**
+- Maintain configuration files in version control (StoreKit configs, schemes, plists)
+- Use preview providers extensively during development
+- Create mock implementations for async dependencies
+- Build debug overlays for state inspection
+
+**Code Organization**
+- Group related functionality in folders by feature, not by type
+- Use extensions to separate protocol conformance from primary implementations
+- Keep view files focused on layout; extract logic to view models
+- Document complex async flows and state transitions
+
+---
+
+## Implementation Checklist
+
+Use this condensed reference while coding:
+
+1. **Lifecycle & Routing**: Pair SwiftUI with platform delegates; normalize external events through coordinators
+2. **State Management**: Single source of truth with focused extensions; auto-persist user preferences
+3. **Async Patterns**: Stream data progressively; gate concurrency; track progress accurately
+4. **File Safety**: Security-scoped access tokens; transactional writes; preflight conflicts
+5. **Processing**: Configuration-driven pipelines; shared contexts; cancellation support
+6. **Performance**: Layered estimation; debounced previews; lazy asset loading
+7. **Platform Bridging**: Use native controls for gaps in SwiftUI; integrate system services
+8. **Capabilities**: Runtime feature detection; format-aware validation; constraint enforcement
+9. **Design System**: Centralized theme; liquid glass utilities; reusable components; consistent feedback
+10. **Testing**: Modular seams; injectable dependencies; sandbox-aware patterns
+
+---
+
+Following these patterns keeps SwiftUI applications maintainable, performant, and aligned with platform expectations while remaining adaptable across different product domains.

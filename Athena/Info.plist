@@ -2,21 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSCalendarsUsageDescription</key>
-	<string>Athena needs access to your calendar to display and manage events.</string>
-	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Athena needs full calendar access to read and display your events.</string>
-	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
-	<string>Athena needs write-only access to add events without reading existing ones.</string>
-	<key>UIAppFonts</key>
+	<key>CFBundleURLTypes</key>
 	<array>
-		<string>apercu_regular_pro.otf</string>
+		<dict/>
 	</array>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Athena needs access to your microphone for speech input and voice commands.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Athena uses speech recognition to transcribe your voice into text for AI conversations.</string>
-	<key>NSAppleEventsUsageDescription</key>
-	<string>Athena needs accessibility permissions to manage and position windows on your behalf.</string>
 </dict>
 </plist>

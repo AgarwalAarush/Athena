@@ -12,30 +12,21 @@ struct HomeView: View {
     @EnvironmentObject var appViewModel: AppViewModel
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Main content with white 0.6 opacity background
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    // Greeting Section
-                    greetingSection
-                    
-//                    Divider()
-                    
-                    // Today's Calendar Events
-                    calendarSection
-                    
-//                    Divider()
-                    
-                    // Recent Notes
-                    recentNotesSection
-                }
-                .padding()
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppMetrics.spacingLarge) {
+                // Greeting Section
+                greetingSection
+                
+                // Today's Calendar Events
+                calendarSection
+                
+                // Recent Notes
+                recentNotesSection
             }
+            .padding(AppMetrics.paddingLarge)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.white.opacity(0.6))
-        .cornerRadius(8)
-        .padding()
+        .background(AppMaterial.primaryGlass)
         .onAppear {
             // Ensure events are fetched when the view appears
             Task {
@@ -47,69 +38,86 @@ struct HomeView: View {
     // MARK: - Greeting Section
     
     private var greetingSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Hello, I'm Athena.")
-                .font(.system(size: 24, weight: .bold))
-                .foregroundColor(.black)
+        GlassCard(
+            material: AppMaterial.tertiaryGlass,
+            cornerRadius: AppMetrics.cornerRadiusLarge,
+            padding: AppMetrics.paddingLarge
+        ) {
+            VStack(alignment: .leading, spacing: AppMetrics.spacingSmall) {
+                Text("Hello, I'm Athena.")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(.primary)
+                
+                Text("Your intelligent assistant")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 8)
     }
     
     // MARK: - Calendar Section
     
     private var calendarSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Today's Events")
-                    .font(.headline)
-                    .foregroundColor(.black)
-                
-                Spacer()
-                
-                Button(action: {
-                    appViewModel.showCalendar()
-                }) {
-                    HStack(spacing: 4) {
-                        Text("View All")
-                            .font(.caption)
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                    }
-                    .foregroundColor(.accentColor)
-                }
-                .buttonStyle(.plain)
-            }
-            
-            if appViewModel.dayViewModel.isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding()
-            } else if let errorMessage = appViewModel.dayViewModel.errorMessage {
-                Text(errorMessage)
-                    .font(.caption)
-                    .foregroundColor(.red)
-                    .padding()
-            } else if todayEvents.isEmpty {
-                Text("No events scheduled for today")
-                    .font(.caption)
-                    .foregroundColor(.black.opacity(0.5))
-                    .padding()
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(todayEvents.prefix(5)) { event in
-                        EventSummaryRow(event: event)
+        GlassCard(
+            material: AppMaterial.secondaryGlass,
+            cornerRadius: AppMetrics.cornerRadiusLarge,
+            padding: AppMetrics.padding
+        ) {
+            VStack(alignment: .leading, spacing: AppMetrics.spacingMedium) {
+                HStack {
+                    HStack(spacing: AppMetrics.spacingSmall) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: AppMetrics.iconSize, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        
+                        Text("Today's Events")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.primary)
                     }
                     
-                    if todayEvents.count > 5 {
-                        Button(action: {
-                            appViewModel.showCalendar()
-                        }) {
-                            Text("+ \(todayEvents.count - 5) more events")
-                                .font(.caption)
-                                .foregroundColor(.accentColor)
+                    Spacer()
+                    
+                    GlassButton(
+                        title: "View All",
+                        systemImage: "chevron.right",
+                        action: { appViewModel.showCalendar() },
+                        style: .secondary,
+                        size: .small
+                    )
+                }
+                
+                if appViewModel.dayViewModel.isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AppMetrics.paddingMedium)
+                } else if let errorMessage = appViewModel.dayViewModel.errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.error)
+                        .padding(.vertical, AppMetrics.paddingSmall)
+                } else if todayEvents.isEmpty {
+                    Text("No events scheduled for today")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, AppMetrics.paddingMedium)
+                } else {
+                    VStack(spacing: AppMetrics.spacingSmall) {
+                        ForEach(todayEvents.prefix(5)) { event in
+                            EventSummaryRow(event: event)
                         }
-                        .buttonStyle(.plain)
+                        
+                        if todayEvents.count > 5 {
+                            GlassButton(
+                                title: "+ \(todayEvents.count - 5) more events",
+                                systemImage: nil,
+                                action: { appViewModel.showCalendar() },
+                                style: .secondary,
+                                size: .small
+                            )
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
                 }
             }
@@ -119,41 +127,44 @@ struct HomeView: View {
     // MARK: - Recent Notes Section
     
     private var recentNotesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Recent Notes")
-                    .font(.headline)
-                    .foregroundColor(.black)
-                
-                Spacer()
-                
-                Button(action: {
-                    appViewModel.showNotes()
-                }) {
-                    HStack(spacing: 4) {
-                        Text("View All")
-                            .font(.caption)
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
+        GlassCard(
+            material: AppMaterial.secondaryGlass,
+            cornerRadius: AppMetrics.cornerRadiusLarge,
+            padding: AppMetrics.padding
+        ) {
+            VStack(alignment: .leading, spacing: AppMetrics.spacingMedium) {
+                HStack {
+                    HStack(spacing: AppMetrics.spacingSmall) {
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: AppMetrics.iconSize, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        
+                        Text("Recent Notes")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.primary)
                     }
-                    .foregroundColor(.accentColor)
+                    
+                    Spacer()
+                    
+                    GlassButton(
+                        title: "View All",
+                        systemImage: "chevron.right",
+                        action: { appViewModel.showNotes() },
+                        style: .secondary,
+                        size: .small
+                    )
                 }
-                .buttonStyle(.plain)
-            }
-            
-            if recentNotes.isEmpty {
-                Text("No notes yet")
-                    .font(.caption)
-                    .foregroundColor(.black.opacity(0.5))
-                    .padding()
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(recentNotes) { note in
-                        NoteSummaryRow(note: note)
-                            .onTapGesture {
-                                appViewModel.notesViewModel.selectNote(note)
-                                appViewModel.showNotes()
-                            }
+                
+                if recentNotes.isEmpty {
+                    Text("No notes yet")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, AppMetrics.paddingMedium)
+                } else {
+                    VStack(spacing: AppMetrics.spacingSmall) {
+                        ForEach(recentNotes) { note in
+                            NoteSummaryRow(note: note)
+                        }
                     }
                 }
             }
@@ -179,55 +190,62 @@ struct HomeView: View {
 
 struct EventSummaryRow: View {
     let event: CalendarEvent
+    @State private var isHovering = false
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: AppMetrics.spacingMedium) {
             // Calendar color indicator
-            Rectangle()
+            RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusXSmall, style: .continuous)
                 .fill(Color(event.calendar.cgColor))
                 .frame(width: 4)
-                .cornerRadius(2)
             
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: AppMetrics.spacingXSmall) {
                 Text(event.title)
-                    .font(.body)
-                    .foregroundColor(.black)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                 
-                HStack(spacing: 8) {
+                HStack(spacing: AppMetrics.spacingSmall) {
                     if event.isAllDay {
-                        Text("All Day")
-                            .font(.caption)
-                            .foregroundColor(.black.opacity(0.6))
+                        Label("All Day", systemImage: "clock")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
                     } else {
-                        Text(formatEventTime(event))
-                            .font(.caption)
-                            .foregroundColor(.black.opacity(0.6))
+                        Label(formatEventTime(event), systemImage: "clock")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
                     }
                     
                     if let location = event.location, !location.isEmpty {
-                        HStack(spacing: 2) {
-                            Image(systemName: "location.fill")
-                                .font(.caption2)
-                            Text(location)
-                                .font(.caption)
-                                .lineLimit(1)
-                        }
-                        .foregroundColor(.black.opacity(0.6))
+                        Label(location, systemImage: "location.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
                 }
             }
             
             Spacer()
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
-        .background(Color(event.calendar.cgColor).opacity(0.1))
-        .cornerRadius(6)
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(Color(event.calendar.cgColor).opacity(0.3), lineWidth: 1)
+        .padding(.vertical, AppMetrics.spacingSmall)
+        .padding(.horizontal, AppMetrics.spacingMedium)
+        .background(
+            RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusSmall, style: .continuous)
+                .fill(Color(event.calendar.cgColor).opacity(isHovering ? 0.15 : 0.08))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusSmall, style: .continuous)
+                .strokeBorder(
+                    Color(event.calendar.cgColor).opacity(isHovering ? 0.4 : 0.25),
+                    lineWidth: 1
+                )
+        )
+        .scaleEffect(isHovering ? 1.01 : 1.0)
+        .onHover { hovering in
+            withAnimation(AppAnimations.springEasing) {
+                isHovering = hovering
+            }
+        }
     }
     
     private func formatEventTime(_ event: CalendarEvent) -> String {
@@ -246,34 +264,62 @@ struct EventSummaryRow: View {
 
 struct NoteSummaryRow: View {
     let note: NoteModel
+    @State private var isHovering = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(note.title.isEmpty ? "Untitled" : note.title)
-                .font(.body)
-                .foregroundColor(.black)
-                .lineLimit(1)
-            
-            if !note.body.isEmpty {
-                Text(note.body)
-                    .font(.caption)
-                    .foregroundColor(.black.opacity(0.6))
-                    .lineLimit(2)
-                    .truncationMode(.tail)
+        Button(action: {}) {
+            VStack(alignment: .leading, spacing: AppMetrics.spacingSmall) {
+                HStack {
+                    Text(note.title.isEmpty ? "Untitled" : note.title)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .opacity(isHovering ? 1.0 : 0.0)
+                }
+                
+                if !note.body.isEmpty {
+                    Text(note.body)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                }
+                
+                HStack {
+                    Image(systemName: "clock")
+                        .font(.system(size: 10))
+                    Text(formatNoteDate(note.modifiedAt))
+                        .font(.system(size: 11))
+                }
+                .foregroundStyle(.tertiary)
             }
-            
-            Text(formatNoteDate(note.modifiedAt))
-                .font(.caption2)
-                .foregroundColor(.black.opacity(0.4))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(AppMetrics.paddingMedium)
+            .background(
+                RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusSmall, style: .continuous)
+                    .fill(isHovering ? AppColors.hoverOverlay : AppColors.cardBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusSmall, style: .continuous)
+                    .strokeBorder(
+                        isHovering ? AppColors.accent.opacity(0.3) : AppColors.border,
+                        lineWidth: 1
+                    )
+            )
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(6)
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-        )
+        .buttonStyle(.plain)
+        .scaleEffect(isHovering ? 1.01 : 1.0)
+        .onHover { hovering in
+            withAnimation(AppAnimations.springEasing) {
+                isHovering = hovering
+            }
+        }
     }
     
     private func formatNoteDate(_ date: Date) -> String {

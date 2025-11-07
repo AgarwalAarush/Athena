@@ -277,6 +277,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Athena/Info.plist;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Athena needs full calendar access to read and display your events.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Athena needs access to your calendar to display and manage events.";
 				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "Athena needs write-only access to add events without reading existing ones.";
@@ -315,6 +316,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Athena/Info.plist;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Athena needs full calendar access to read and display your events.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Athena needs access to your calendar to display and manage events.";
 				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "Athena needs write-only access to add events without reading existing ones.";

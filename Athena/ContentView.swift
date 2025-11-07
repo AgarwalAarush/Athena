@@ -32,23 +32,23 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             // Define the rounded shell shape once
-            let shell = RoundedRectangle(cornerRadius: 12, style: .continuous)
+            let shell = RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusLarge, style: .continuous)
 
-            // 1) Background shell with shadow (NOT clipped)
+            // 1) Background shell with glass material and shadow
             shell
-                .fill(Color.white.opacity(0.85))
+                .fill(AppMaterial.primaryGlass)
                 .overlay(
-                    shell.stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    shell.strokeBorder(AppColors.border, lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 10)
+                .shadow(color: Color.black.opacity(0.25), radius: 24, x: 0, y: 12)
 
             // 2) Content clipped to the shell shape
             VStack(spacing: 0) {
                 // Title Bar
                 TitleBarView(chatViewModel: chatViewModel)
-
-//                Divider()
-//                    .opacity(0.5)
+                
+                Divider()
+                    .opacity(0.3)
 
                 // Main Content Area
                 Group {
@@ -90,27 +90,31 @@ struct TitleBarView: View {
     @State private var isPulsing = false
 
     var body: some View {
-        HStack {
+        HStack(spacing: AppMetrics.spacingMedium) {
             // Back button (visible in notes and calendar views)
             if appViewModel.currentView == .notes || appViewModel.currentView == .calendar {
-                Button(action: { appViewModel.showHome() }) {
-                    Image(systemName: "chevron.left")
-                        .foregroundColor(.accentColor)
-                }
-                .buttonStyle(.plain)
+                HoverIconButton(
+                    systemName: "chevron.left",
+                    action: { appViewModel.showHome() },
+                    accent: true,
+                    size: AppMetrics.buttonSizeSmall,
+                    iconSize: AppMetrics.iconSizeSmall
+                )
                 .help("Back to Home")
             }
 
             Spacer()
 
-            HStack(spacing: 12) {
-                // Wakeword Mode Toggle
+            HStack(spacing: AppMetrics.spacingSmall) {
+                // Wakeword Mode Toggle with pulse animation
                 Button(action: {
                     let newValue = !config.wakewordModeEnabled
                     config.set(newValue, for: .wakewordModeEnabled)
                 }) {
                     Image(systemName: "waveform.circle.fill")
+                        .font(.system(size: AppMetrics.iconSize, weight: .medium))
                         .foregroundColor(wakewordModeColor)
+                        .frame(width: AppMetrics.buttonSizeSmall, height: AppMetrics.buttonSizeSmall)
                         .scaleEffect(shouldPulse ? (isPulsing ? 1.15 : 1.0) : 1.0)
                         .animation(
                             shouldPulse ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default,
@@ -128,53 +132,66 @@ struct TitleBarView: View {
                     isPulsing = newValue
                 }
 
-                Button(action: { appViewModel.showHome() }) {
-                    Image(systemName: "house")
-                        .foregroundColor(appViewModel.currentView == .home ? .accentColor : .primary)
-                }
-                .buttonStyle(.plain)
+                HoverIconButton(
+                    systemName: "house",
+                    action: { appViewModel.showHome() },
+                    tint: appViewModel.currentView == .home ? AppColors.accent : AppColors.secondary,
+                    hoverTint: appViewModel.currentView == .home ? AppColors.accent : AppColors.primary,
+                    size: AppMetrics.buttonSizeSmall,
+                    iconSize: AppMetrics.iconSizeSmall
+                )
                 .help("Home")
 
-                Button(action: { appViewModel.showCalendar() }) {
-                    Image(systemName: "calendar")
-                        .foregroundColor(appViewModel.currentView == .calendar ? .accentColor : .primary)
-                }
-                .buttonStyle(.plain)
+                HoverIconButton(
+                    systemName: "calendar",
+                    action: { appViewModel.showCalendar() },
+                    tint: appViewModel.currentView == .calendar ? AppColors.accent : AppColors.secondary,
+                    hoverTint: appViewModel.currentView == .calendar ? AppColors.accent : AppColors.primary,
+                    size: AppMetrics.buttonSizeSmall,
+                    iconSize: AppMetrics.iconSizeSmall
+                )
                 .help("Calendar")
 
-                Button(action: { appViewModel.showNotes() }) {
-                    Image(systemName: "square.and.pencil")
-                        .foregroundColor(appViewModel.currentView == .notes ? .accentColor : .primary)
-                }
-                .buttonStyle(.plain)
+                HoverIconButton(
+                    systemName: "square.and.pencil",
+                    action: { appViewModel.showNotes() },
+                    tint: appViewModel.currentView == .notes ? AppColors.accent : AppColors.secondary,
+                    hoverTint: appViewModel.currentView == .notes ? AppColors.accent : AppColors.primary,
+                    size: AppMetrics.buttonSizeSmall,
+                    iconSize: AppMetrics.iconSizeSmall
+                )
                 .help("Notes")
 
-                Button(action: { appViewModel.showChat() }) {
-                    Image(systemName: "message")
-                        .foregroundColor(appViewModel.currentView == .chat ? .accentColor : .primary)
-                }
-                .buttonStyle(.plain)
+                HoverIconButton(
+                    systemName: "message",
+                    action: { appViewModel.showChat() },
+                    tint: appViewModel.currentView == .chat ? AppColors.accent : AppColors.secondary,
+                    hoverTint: appViewModel.currentView == .chat ? AppColors.accent : AppColors.primary,
+                    size: AppMetrics.buttonSizeSmall,
+                    iconSize: AppMetrics.iconSizeSmall
+                )
                 .help("Chat")
 
-                Button(action: { windowManager.openSettingsWindow() }) {
-                    Image(systemName: "gear")
-                        .foregroundColor(.primary)
-                }
-                .buttonStyle(.plain)
+                HoverIconButton(
+                    systemName: "gear",
+                    action: { windowManager.openSettingsWindow() },
+                    size: AppMetrics.buttonSizeSmall,
+                    iconSize: AppMetrics.iconSizeSmall
+                )
                 .help("Settings")
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.clear)
+        .padding(.horizontal, AppMetrics.padding)
+        .padding(.vertical, AppMetrics.paddingMedium)
+        .background(AppMaterial.tertiaryGlass)
     }
 
     private var wakewordModeColor: Color {
         let isEnabled = config.wakewordModeEnabled
         if !isEnabled {
-            return .secondary
+            return AppColors.secondary
         }
-        return chatViewModel.isRecording ? .green : .blue
+        return chatViewModel.isRecording ? AppColors.success : AppColors.info
     }
 
     private var shouldPulse: Bool {
