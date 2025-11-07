@@ -8,6 +8,7 @@
 import SwiftUI
 import AppKit
 import EventKit
+import ApplicationServices
 
 // MARK: - Color Extensions
 
@@ -488,7 +489,9 @@ struct ProviderSettingsView: View {
 
 struct PermissionsSettingsView: View {
     @State private var calendarStatus: String = CalendarService.shared.authorizationStatusDescription
-    @State private var isRequesting = false
+    @State private var accessibilityStatus: String = AccessibilityManager.shared.isAccessibilityEnabled ? "Granted" : "Not Granted"
+    @State private var isRequestingCalendar = false
+    @State private var isRequestingAccessibility = false
     @State private var showAlert = false
     @State private var alertMessage = ""
 
@@ -527,7 +530,7 @@ struct PermissionsSettingsView: View {
                     HStack(spacing: 12) {
                         Spacer()
                         Button(action: requestCalendarAccess) {
-                            if isRequesting {
+                            if isRequestingCalendar {
                                 ProgressView()
                                     .scaleEffect(0.7)
                                     .frame(width: 20, height: 20)
@@ -536,7 +539,7 @@ struct PermissionsSettingsView: View {
                             }
                         }
                         .buttonStyle(ModernButton(style: .primary))
-                        .disabled(isRequesting)
+                        .disabled(isRequestingCalendar)
                     }
                 } else if CalendarService.shared.authorizationStatus == .denied {
                     HStack(spacing: 12) {
@@ -561,8 +564,58 @@ struct PermissionsSettingsView: View {
                     }
                 }
             }
+
+            // Accessibility Permission Section
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "cursorarrow.click.badge.clock")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("Accessibility Access")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+
+                    Spacer()
+
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(accessibilityStatusColor)
+                            .frame(width: 10, height: 10)
+                        Text(accessibilityStatus)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                    }
+                }
+
+                if !AccessibilityManager.shared.isAccessibilityEnabled {
+                    HStack(spacing: 12) {
+                        Spacer()
+                        Button(action: requestAccessibilityAccess) {
+                            if isRequestingAccessibility {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .frame(width: 20, height: 20)
+                            } else {
+                                Text("Grant Access")
+                            }
+                        }
+                        .buttonStyle(ModernButton(style: .primary))
+                        .disabled(isRequestingAccessibility)
+                    }
+                } else {
+                    Text("Accessibility access is granted. Athena can now move and position windows.")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.7))
+                }
+            }
         }
-        .alert("Calendar Access", isPresented: $showAlert) {
+        .onAppear {
+            // Update accessibility status when view appears
+            accessibilityStatus = AccessibilityManager.shared.isAccessibilityEnabled ? "Granted" : "Not Granted"
+        }
+        .alert("Permission Request", isPresented: $showAlert) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(alertMessage)
@@ -583,12 +636,16 @@ struct PermissionsSettingsView: View {
             return .gray
         }
     }
+
+    private var accessibilityStatusColor: Color {
+        AccessibilityManager.shared.isAccessibilityEnabled ? .green : .red
+    }
     
     private func requestCalendarAccess() {
-        isRequesting = true
-        
+        isRequestingCalendar = true
+
         CalendarService.shared.requestAccessWithActivation { granted, error in
-            isRequesting = false
+            isRequestingCalendar = false
             
             // Update status
             calendarStatus = CalendarService.shared.authorizationStatusDescription
@@ -603,6 +660,26 @@ struct PermissionsSettingsView: View {
                 alertMessage = "Calendar access was denied. You can grant access later in System Settings > Privacy & Security > Calendars."
                 showAlert = true
             }
+        }
+    }
+
+    private func requestAccessibilityAccess() {
+        isRequestingAccessibility = true
+
+        // Request accessibility permissions
+        let granted = AccessibilityManager.shared.requestAccessibilityPermissions(prompt: true)
+
+        isRequestingAccessibility = false
+
+        // Update status
+        accessibilityStatus = AccessibilityManager.shared.isAccessibilityEnabled ? "Granted" : "Not Granted"
+
+        if granted {
+            alertMessage = "Accessibility access granted! Athena can now move and position windows."
+            showAlert = true
+        } else {
+            alertMessage = "Accessibility access was denied. You can grant access later in System Settings > Privacy & Security > Accessibility."
+            showAlert = true
         }
     }
 }

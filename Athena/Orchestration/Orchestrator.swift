@@ -916,6 +916,11 @@ class Orchestrator {
             print("[Orchestrator] executeRestoreWindowConfig: Restored '\(configName)'")
         } catch {
             print("[Orchestrator] executeRestoreWindowConfig: Failed to restore configuration - \(error)")
+            
+            // If it's an accessibility permission error, provide helpful guidance
+            if let nsError = error as NSError?, nsError.code == -2 {
+                print("[Orchestrator] executeRestoreWindowConfig: Permission error - User needs to grant accessibility access in System Settings")
+            }
         }
     }
     
@@ -952,6 +957,19 @@ class Orchestrator {
         guard let appName = appName else {
             print("[Orchestrator] executeTileWindow: No app name provided")
             return
+        }
+        
+        // Check accessibility permission
+        let service = WindowConfigurationService.shared
+        if !service.hasAccessibilityPermission {
+            print("[Orchestrator] executeTileWindow: Accessibility permission not granted, requesting...")
+            service.requestAccessibilityPermission()
+
+            // Check again after requesting
+            guard service.hasAccessibilityPermission else {
+                print("[Orchestrator] executeTileWindow: Accessibility permission denied. Cannot tile window.")
+                return
+            }
         }
         
         let targetPosition = position ?? .leftHalf // Default to left half if not specified
@@ -993,6 +1011,19 @@ class Orchestrator {
         guard let appName = appName else {
             print("[Orchestrator] executeFocusWindow: No app name provided")
             return
+        }
+        
+        // Check accessibility permission (focusing requires accessibility on macOS)
+        let service = WindowConfigurationService.shared
+        if !service.hasAccessibilityPermission {
+            print("[Orchestrator] executeFocusWindow: Accessibility permission not granted, requesting...")
+            service.requestAccessibilityPermission()
+
+            // Check again after requesting
+            guard service.hasAccessibilityPermission else {
+                print("[Orchestrator] executeFocusWindow: Accessibility permission denied. Cannot focus window.")
+                return
+            }
         }
         
         // Find the window's PID

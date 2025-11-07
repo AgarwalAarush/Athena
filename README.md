@@ -12,7 +12,7 @@ Athena is a floating AI assistant that brings together cutting-edge voice proces
 - [x] Edit notes with voice
 - [ ] Create, edit, and delete calendar events with voice
 - [x] Make the home page default
-- [ ] Complete window control along with saving settings
+- [x] Complete window control along with saving settings
 - [ ] Optimize wake word
 - [ ] Make window hide and show itself (listening in background as well, and can open itself automatically when it hears "Athena") -> will have another layer on top of the current ContentView, in that view have it be thin, wth just hte ai listening animation
 
@@ -35,6 +35,14 @@ Athena is a floating AI assistant that brings together cutting-edge voice proces
 - **System Control Integration**: Direct control over brightness, volume, and other system settings via AppleScript
 - **Application Management**: Open, close, activate, and monitor running applications programmatically
 - **Accessibility Integration**: Screen and window information access for intelligent automation
+
+### Window Management & Configuration
+- **Window Configuration Profiles**: Save and restore complete window layouts with named configurations
+- **Direct Window Control**: Move, resize, tile, and focus windows with natural language commands
+- **Multi-Monitor Support**: Intelligently tracks which screen each window belongs to
+- **Auto-Launch Apps**: Automatically launches missing applications when restoring configurations
+- **Smart Permission Handling**: Automatic accessibility permission requests following iOS/macOS patterns
+- **Voice-Controlled Window Tiling**: "Move Chrome to the left", "Put Safari on the right half", etc.
 
 ### Calendar & Productivity
 - **Full Google Calendar Integration**: Complete CRUD operations on calendar events with attendee management

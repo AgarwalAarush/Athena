@@ -16,17 +16,42 @@ final class WindowConfigurationService {
     private let screenManager: ScreenManaging
     private let database: DatabaseManager
     private let systemTool: SystemTool
+    private let accessibilityManager: AccessibilityManaging
     
     init(
         windowManager: SystemWindowManaging = SystemWindowManager.shared,
         screenManager: ScreenManaging = ScreenManager.shared,
         database: DatabaseManager = DatabaseManager.shared,
-        systemTool: SystemTool = SystemTool.shared
+        systemTool: SystemTool = SystemTool.shared,
+        accessibilityManager: AccessibilityManaging = AccessibilityManager.shared
     ) {
         self.windowManager = windowManager
         self.screenManager = screenManager
         self.database = database
         self.systemTool = systemTool
+        self.accessibilityManager = accessibilityManager
+    }
+    
+    // MARK: - Permission Management
+    
+    /// Checks if accessibility permissions are granted
+    var hasAccessibilityPermission: Bool {
+        accessibilityManager.isAccessibilityEnabled
+    }
+    
+    /// Requests accessibility permissions with system prompt
+    @discardableResult
+    func requestAccessibilityPermission() -> Bool {
+        print("[WindowConfigurationService] Requesting accessibility permission")
+        let granted = accessibilityManager.requestAccessibilityPermissions(prompt: true)
+        
+        if granted {
+            print("[WindowConfigurationService] Accessibility permission granted")
+        } else {
+            print("[WindowConfigurationService] Accessibility permission denied or pending")
+        }
+        
+        return granted
     }
     
     // MARK: - Public API
@@ -76,6 +101,23 @@ final class WindowConfigurationService {
     /// Restores a window configuration by name
     func restoreConfiguration(name: String) async throws {
         print("[WindowConfigurationService] Restoring configuration '\(name)'")
+        
+        // Check accessibility permission
+        if !hasAccessibilityPermission {
+            print("[WindowConfigurationService] Accessibility permission not granted, requesting...")
+            requestAccessibilityPermission()
+            
+            // Check again after requesting
+            guard hasAccessibilityPermission else {
+                throw NSError(
+                    domain: "WindowConfigurationService",
+                    code: -2,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "Accessibility permission required to position windows. Please grant permission in System Settings > Privacy & Security > Accessibility and try again."
+                    ]
+                )
+            }
+        }
         
         // Fetch configuration from database
         guard let configuration = try database.fetchWindowConfiguration(name: name) else {

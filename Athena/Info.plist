@@ -16,5 +16,7 @@
 	<string>Athena needs access to your microphone for speech input and voice commands.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Athena uses speech recognition to transcribe your voice into text for AI conversations.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Athena needs accessibility permissions to manage and position windows on your behalf.</string>
 </dict>
 </plist>
