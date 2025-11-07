@@ -17,6 +17,7 @@ Theme/
 └── Components/
     ├── Button/
     │   ├── HoverIconButton.swift    # Icon-only buttons with hover effects
+    │   ├── TextLinkButton.swift     # Minimal text link buttons
     │   └── GlassButton.swift        # Full buttons with glass styling
     └── GlassCard.swift              # Container components
 ```
@@ -139,6 +140,36 @@ HoverIconButton(
     action: { openSettings() }
 )
 ```
+
+### TextLinkButton
+
+Minimal text link button with optional icon and hover effects, perfect for inline actions like "View All".
+
+**Basic Usage:**
+```swift
+// "View All" with chevron
+TextLinkButton(viewAll: { showAllItems() })
+
+// Custom text and icon
+TextLinkButton(
+    title: "Show More",
+    systemImage: "arrow.right",
+    action: { showMore() }
+)
+
+// Text only, no icon
+TextLinkButton(
+    title: "Learn More",
+    systemImage: nil,
+    action: { openDocs() }
+)
+```
+
+**Use Cases:**
+- Section header "View All" links
+- Inline "Show more" actions
+- Footer navigation links
+- Lightweight text actions without button chrome
 
 **Destructive Variant:**
 ```swift

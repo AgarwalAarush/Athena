@@ -26,7 +26,6 @@ struct HomeView: View {
             .padding(AppMetrics.paddingLarge)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(AppMaterial.primaryGlass)
         .onAppear {
             // Ensure events are fetched when the view appears
             Task {
@@ -39,9 +38,11 @@ struct HomeView: View {
     
     private var greetingSection: some View {
         GlassCard(
-            material: AppMaterial.tertiaryGlass,
+            material: .ultraThinMaterial,
             cornerRadius: AppMetrics.cornerRadiusLarge,
-            padding: AppMetrics.paddingLarge
+            padding: AppMetrics.paddingLarge,
+            borderColor: AppColors.border.opacity(0.3),
+            showBorder: true
         ) {
             VStack(alignment: .leading, spacing: AppMetrics.spacingSmall) {
                 Text("Hello, I'm Athena.")
@@ -60,9 +61,11 @@ struct HomeView: View {
     
     private var calendarSection: some View {
         GlassCard(
-            material: AppMaterial.secondaryGlass,
+            material: .ultraThinMaterial,
             cornerRadius: AppMetrics.cornerRadiusLarge,
-            padding: AppMetrics.padding
+            padding: AppMetrics.padding,
+            borderColor: AppColors.border.opacity(0.3),
+            showBorder: true
         ) {
             VStack(alignment: .leading, spacing: AppMetrics.spacingMedium) {
                 HStack {
@@ -78,13 +81,7 @@ struct HomeView: View {
                     
                     Spacer()
                     
-                    GlassButton(
-                        title: "View All",
-                        systemImage: "chevron.right",
-                        action: { appViewModel.showCalendar() },
-                        style: .secondary,
-                        size: .small
-                    )
+                    TextLinkButton(viewAll: { appViewModel.showCalendar() })
                 }
                 
                 if appViewModel.dayViewModel.isLoading {
@@ -109,14 +106,13 @@ struct HomeView: View {
                         }
                         
                         if todayEvents.count > 5 {
-                            GlassButton(
+                            TextLinkButton(
                                 title: "+ \(todayEvents.count - 5) more events",
                                 systemImage: nil,
-                                action: { appViewModel.showCalendar() },
-                                style: .secondary,
-                                size: .small
+                                action: { appViewModel.showCalendar() }
                             )
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, AppMetrics.spacingXSmall)
                         }
                     }
                 }
@@ -128,9 +124,11 @@ struct HomeView: View {
     
     private var recentNotesSection: some View {
         GlassCard(
-            material: AppMaterial.secondaryGlass,
+            material: .ultraThinMaterial,
             cornerRadius: AppMetrics.cornerRadiusLarge,
-            padding: AppMetrics.padding
+            padding: AppMetrics.padding,
+            borderColor: AppColors.border.opacity(0.3),
+            showBorder: true
         ) {
             VStack(alignment: .leading, spacing: AppMetrics.spacingMedium) {
                 HStack {
@@ -146,13 +144,7 @@ struct HomeView: View {
                     
                     Spacer()
                     
-                    GlassButton(
-                        title: "View All",
-                        systemImage: "chevron.right",
-                        action: { appViewModel.showNotes() },
-                        style: .secondary,
-                        size: .small
-                    )
+                    TextLinkButton(viewAll: { appViewModel.showNotes() })
                 }
                 
                 if recentNotes.isEmpty {
@@ -231,12 +223,12 @@ struct EventSummaryRow: View {
         .padding(.horizontal, AppMetrics.spacingMedium)
         .background(
             RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusSmall, style: .continuous)
-                .fill(Color(event.calendar.cgColor).opacity(isHovering ? 0.15 : 0.08))
+                .fill(Color(event.calendar.cgColor).opacity(isHovering ? 0.10 : 0.05))
         )
         .overlay(
             RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusSmall, style: .continuous)
                 .strokeBorder(
-                    Color(event.calendar.cgColor).opacity(isHovering ? 0.4 : 0.25),
+                    Color(event.calendar.cgColor).opacity(isHovering ? 0.35 : 0.20),
                     lineWidth: 1
                 )
         )
@@ -303,12 +295,12 @@ struct NoteSummaryRow: View {
             .padding(AppMetrics.paddingMedium)
             .background(
                 RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusSmall, style: .continuous)
-                    .fill(isHovering ? AppColors.hoverOverlay : AppColors.cardBackground)
+                    .fill(isHovering ? AppColors.hoverOverlay.opacity(0.8) : Color.clear)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusSmall, style: .continuous)
                     .strokeBorder(
-                        isHovering ? AppColors.accent.opacity(0.3) : AppColors.border,
+                        isHovering ? AppColors.accent.opacity(0.4) : AppColors.border.opacity(0.3),
                         lineWidth: 1
                     )
             )
