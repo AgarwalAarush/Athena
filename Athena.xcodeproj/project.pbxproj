@@ -400,6 +400,11 @@
 			package = 9B530D9F2EB40000001C771B /* XCRemoteSwiftPackageReference "GTMAppAuth" */;
 			productName = GTMAppAuth;
 		};
+		9B530DA12EB40002001C771B /* AppAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9B530D9F2EB40000001C771B /* XCRemoteSwiftPackageReference "GTMAppAuth" */;
+			productName = AppAuth;
+		};
 /* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 9B530D312EB2D478001C771B /* Project object */;

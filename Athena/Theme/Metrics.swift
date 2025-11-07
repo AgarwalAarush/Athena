@@ -11,8 +11,8 @@ import SwiftUI
 enum AppMetrics {
     // MARK: - Corner Radii
     
-    /// Extra large corner radius for window shell (16pt)
-    static let cornerRadiusXLarge: CGFloat = 16.0
+    /// Extra large corner radius for window shell (20pt)
+    static let cornerRadiusXLarge: CGFloat = 20.0
     
     /// Standard corner radius for cards and containers (12pt)
     static let cornerRadiusLarge: CGFloat = 12.0

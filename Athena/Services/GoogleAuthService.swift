@@ -7,8 +7,8 @@
 
 import Foundation
 import AppKit
-import GTMAppAuth
 import AppAuth
+@_exported import GTMAppAuth
 
 /// Errors that can occur during Google OAuth operations
 enum GoogleAuthError: Error, LocalizedError {
@@ -40,6 +40,28 @@ enum GoogleAuthError: Error, LocalizedError {
     }
 }
 
+/// Standard Google OAuth scopes
+struct GoogleOAuthScopes {
+    static let openID = OIDScopeOpenID
+    static let profile = OIDScopeProfile
+    static let calendar = "https://www.googleapis.com/auth/calendar"
+    static let calendarReadOnly = "https://www.googleapis.com/auth/calendar.readonly"
+    static let drive = "https://www.googleapis.com/auth/drive"
+    static let driveReadOnly = "https://www.googleapis.com/auth/drive.readonly"
+    static let gmail = "https://mail.google.com/"
+    static let gmailReadOnly = "https://www.googleapis.com/auth/gmail.readonly"
+    
+    /// Default scopes for basic authentication
+    static var defaultScopes: [String] {
+        [openID, profile]
+    }
+    
+    /// All available scopes (for full access)
+    static var allScopes: [String] {
+        [openID, profile, calendar, drive, gmail]
+    }
+}
+
 /// Service for managing Google OAuth authentication and session
 @MainActor
 class GoogleAuthService {
@@ -48,7 +70,7 @@ class GoogleAuthService {
     // MARK: - Properties
     
     private let configManager = ConfigurationManager.shared
-    private var currentAuthSession: GTMAuthSession?
+    private var currentAuthorization: AuthSession?
     
     // Lazy-loaded configuration from plist
     private lazy var clientID: String = {
@@ -97,39 +119,16 @@ class GoogleAuthService {
     
     // MARK: - Authorization Flow
     
-    /// Standard Google OAuth scopes
-    struct Scopes {
-        static let openID = OIDScopeOpenID
-        static let profile = OIDScopeProfile
-        static let calendar = "https://www.googleapis.com/auth/calendar"
-        static let calendarReadOnly = "https://www.googleapis.com/auth/calendar.readonly"
-        static let drive = "https://www.googleapis.com/auth/drive"
-        static let driveReadOnly = "https://www.googleapis.com/auth/drive.readonly"
-        static let gmail = "https://mail.google.com/"
-        static let gmailReadOnly = "https://www.googleapis.com/auth/gmail.readonly"
-        
-        /// Default scopes for basic authentication
-        static var defaultScopes: [String] {
-            [openID, profile]
-        }
-        
-        /// All available scopes (for full access)
-        static var allScopes: [String] {
-            [openID, profile, calendar, drive, gmail]
-        }
-    }
-    
     /// Initiates Google OAuth authorization flow
     /// - Parameters:
     ///   - scopes: Array of OAuth scopes to request (defaults to basic openid and profile)
     ///   - presentingWindow: The NSWindow to present the authorization UI from
-    /// - Returns: Authorized GTMAuthSession
+    /// - Returns: Authorized AuthSession
     /// - Throws: GoogleAuthError on failure
-    func authorize(scopes: [String] = Scopes.defaultScopes, presentingWindow: NSWindow) async throws -> GTMAuthSession {
-        // Get Google's OAuth configuration
-        guard let configuration = GTMAuthSession.configurationForGoogle() else {
-            throw GoogleAuthError.configurationInvalid
-        }
+    func authorize(scopes: [String] = GoogleOAuthScopes.defaultScopes, presentingWindow: NSWindow) async throws -> AuthSession {
+        // Get Google's OAuth configuration using discovery
+        let issuer = URL(string: "https://accounts.google.com")!
+        let configuration = try await discoverConfiguration(issuer: issuer)
         
         // Create authorization request
         let request = OIDAuthorizationRequest(
@@ -167,20 +166,20 @@ class GoogleAuthService {
                         return
                     }
                     
-                    // Create GTMAuthSession from OIDAuthState
-                    let authSession = GTMAuthSession(authState: authState)
+                    // Create AuthSession from OIDAuthState
+                    let authorization = AuthSession(authState: authState)
                     
-                    // Save session
+                    // Save authorization
                     do {
-                        try self?.saveSession(authSession)
+                        try self?.saveAuthorization(authorization)
                         let scopesString = scopes.joined(separator: ",")
                         try self?.configManager.saveGoogleAuthScopes(scopesString)
                         
-                        // Update current session
-                        self?.currentAuthSession = authSession
+                        // Update current authorization
+                        self?.currentAuthorization = authorization
                         
                         print("✓ Google OAuth authorization successful")
-                        continuation.resume(returning: authSession)
+                        continuation.resume(returning: authorization)
                     } catch {
                         continuation.resume(throwing: GoogleAuthError.unknownError(error))
                     }
@@ -196,47 +195,63 @@ class GoogleAuthService {
     
     // MARK: - Session Management
     
-    /// Restores a previously saved authorization session from Keychain
-    /// - Returns: The restored GTMAuthSession if available
+    /// Helper to discover OAuth configuration
+    private func discoverConfiguration(issuer: URL) async throws -> OIDServiceConfiguration {
+        return try await withCheckedThrowingContinuation { continuation in
+            OIDAuthorizationService.discoverConfiguration(forIssuer: issuer) { configuration, error in
+                if let error = error {
+                    continuation.resume(throwing: GoogleAuthError.networkError(error))
+                    return
+                }
+                
+                guard let configuration = configuration else {
+                    continuation.resume(throwing: GoogleAuthError.configurationInvalid)
+                    return
+                }
+                
+                continuation.resume(returning: configuration)
+            }
+        }
+    }
+    
+    /// Restores a previously saved authorization from Keychain
+    /// - Returns: The restored AuthSession if available
     @discardableResult
-    func restoreSession() -> GTMAuthSession? {
-        guard let sessionData = configManager.getGoogleAuthSession() else {
+    func restoreSession() -> AuthSession? {
+        guard let authData = configManager.getGoogleAuthSession() else {
             return nil
         }
         
         do {
-            // Unarchive the GTMAuthSession
-            let unarchiver = try NSKeyedUnarchiver(forReadingFrom: sessionData)
-            unarchiver.requiresSecureCoding = true
-            
-            guard let authSession = try? unarchiver.decodeTopLevelObject(of: GTMAuthSession.self, forKey: NSKeyedArchiveRootObjectKey) else {
-                print("⚠️ Failed to decode GTMAuthSession from Keychain")
+            // Unarchive the entire AuthSession directly
+            guard let authorization = try NSKeyedUnarchiver.unarchivedObject(
+                ofClass: AuthSession.self,
+                from: authData
+            ) else {
+                print("⚠️ Failed to decode AuthSession from Keychain")
                 return nil
             }
             
-            unarchiver.finishDecoding()
-            
-            currentAuthSession = authSession
-            print("✓ Google OAuth session restored from Keychain")
-            return authSession
+            currentAuthorization = authorization
+            print("✓ Google OAuth authorization restored from Keychain")
+            return authorization
             
         } catch {
-            print("⚠️ Error restoring Google OAuth session: \(error.localizedDescription)")
+            print("⚠️ Error restoring Google OAuth authorization: \(error.localizedDescription)")
             return nil
         }
     }
     
-    /// Saves the authorization session to Keychain
-    /// - Parameter session: The GTMAuthSession to save
-    private func saveSession(_ session: GTMAuthSession) throws {
+    /// Saves the authorization to Keychain
+    /// - Parameter authorization: The AuthSession to save
+    private func saveAuthorization(_ authorization: AuthSession) throws {
         do {
-            // Archive the session using NSKeyedArchiver
-            let archiver = NSKeyedArchiver(requiringSecureCoding: true)
-            try archiver.encodeEncodable(session, forKey: NSKeyedArchiveRootObjectKey)
-            archiver.finishEncoding()
-            
-            let sessionData = archiver.encodedData
-            try configManager.saveGoogleAuthSession(sessionData)
+            // Archive the entire AuthSession using NSKeyedArchiver (it conforms to NSSecureCoding)
+            let authData = try NSKeyedArchiver.archivedData(
+                withRootObject: authorization,
+                requiringSecureCoding: true
+            )
+            try configManager.saveGoogleAuthSession(authData)
             
         } catch {
             throw GoogleAuthError.unknownError(error)
@@ -246,27 +261,22 @@ class GoogleAuthService {
     /// Refreshes the access token if it's expired or about to expire
     /// - Throws: GoogleAuthError if refresh fails
     func refreshToken() async throws {
-        guard let session = currentAuthSession else {
+        guard let authorization = currentAuthorization else {
             throw GoogleAuthError.noActiveSession
-        }
-        
-        // Check if token needs refresh
-        guard let authState = session.authState else {
-            throw GoogleAuthError.sessionExpired
         }
         
         // Perform token refresh using continuation
         return try await withCheckedThrowingContinuation { continuation in
-            authState.performAction { accessToken, idToken, error in
+            authorization.authState.performAction { accessToken, idToken, error in
                 Task { @MainActor in
                     if let error = error {
                         continuation.resume(throwing: GoogleAuthError.networkError(error))
                         return
                     }
                     
-                    // Token refreshed successfully, save updated session
+                    // Token refreshed successfully, save updated authorization
                     do {
-                        try self.saveSession(session)
+                        try self.saveAuthorization(authorization)
                         print("✓ Google OAuth token refreshed")
                         continuation.resume()
                     } catch {
@@ -277,12 +287,12 @@ class GoogleAuthService {
         }
     }
     
-    /// Signs out the user and clears the stored session
+    /// Signs out the user and clears the stored authorization
     func signOut() {
         do {
             try configManager.deleteGoogleAuthSession()
             try configManager.saveGoogleAuthScopes("")
-            currentAuthSession = nil
+            currentAuthorization = nil
             print("✓ Google OAuth signed out")
         } catch {
             print("⚠️ Error signing out from Google OAuth: \(error.localizedDescription)")
@@ -291,36 +301,27 @@ class GoogleAuthService {
     
     // MARK: - API Access
     
-    /// Returns an authorized fetcher service for making Google API calls
-    /// - Returns: GTMSessionFetcherService configured with current authorization
-    /// - Throws: GoogleAuthError if no active session
-    func authorizedFetcher() throws -> GTMSessionFetcherService {
-        guard let session = currentAuthSession else {
+    /// Returns the current authorization for making Google API calls
+    /// - Returns: AuthSession configured with current auth state
+    /// - Throws: GoogleAuthError if no active authorization
+    func getAuthorization() throws -> AuthSession {
+        guard let authorization = currentAuthorization else {
             throw GoogleAuthError.noActiveSession
         }
         
-        let fetcherService = GTMSessionFetcherService()
-        fetcherService.authorizer = session
-        
-        return fetcherService
-    }
-    
-    /// Returns the current authorization session
-    /// - Returns: Current GTMAuthSession if available
-    func currentSession() -> GTMAuthSession? {
-        return currentAuthSession
+        return authorization
     }
     
     /// Checks if user is currently authenticated
-    /// - Returns: true if there's an active session
+    /// - Returns: true if there's an active authorization
     func isAuthenticated() -> Bool {
-        return currentAuthSession != nil && configManager.hasGoogleAuth()
+        return currentAuthorization != nil && configManager.hasGoogleAuth()
     }
     
-    /// Gets the user's email from the current session
+    /// Gets the user's email from the current authorization
     /// - Returns: User email if available
     func userEmail() -> String? {
-        guard let authState = currentAuthSession?.authState,
+        guard let authState = currentAuthorization?.authState,
               let idToken = authState.lastTokenResponse?.idToken else {
             return nil
         }
