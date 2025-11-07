@@ -149,6 +149,13 @@ struct TitleBarView: View {
                 .buttonStyle(.plain)
                 .help("Notes")
 
+                Button(action: { appViewModel.showChat() }) {
+                    Image(systemName: "message")
+                        .foregroundColor(appViewModel.currentView == .chat ? .accentColor : .primary)
+                }
+                .buttonStyle(.plain)
+                .help("Chat")
+
                 Button(action: { windowManager.openSettingsWindow() }) {
                     Image(systemName: "gear")
                         .foregroundColor(.primary)

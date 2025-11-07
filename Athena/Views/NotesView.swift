@@ -29,7 +29,7 @@ struct NoteEditorView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header with back button and listen button
+            // Header with back button and listen buttod
             HStack {
                 // Back button
                 Button(action: {
@@ -39,6 +39,7 @@ struct NoteEditorView: View {
                 }) {
                     Image(systemName: "chevron.left")
                         .foregroundColor(.accentColor)
+                    Text("Back").foregroundColor(.accentColor)
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 16)

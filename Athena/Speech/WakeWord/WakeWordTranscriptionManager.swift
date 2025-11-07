@@ -284,8 +284,8 @@ class WakeWordTranscriptionManager: ObservableObject {
         lastSessionTranscript = ""
         print("[WakeWordTranscriptionManager] 🔄 Reset transcript - starting fresh transcription session")
 
-        print("[WakeWordTranscriptionManager] 🏗️ Creating SimplifiedVADTranscriber with 1.25s silence timeout")
-        let transcriber = try SimplifiedVADTranscriber(silenceTimeout: 1.25)
+        print("[WakeWordTranscriptionManager] 🏗️ Creating SimplifiedVADTranscriber with 1s silence timeout")
+        let transcriber = try SimplifiedVADTranscriber(silenceTimeout: 1)
         self.vadTranscriber = transcriber
 
         print("[WakeWordTranscriptionManager] ▶️ Starting VAD transcriber")
