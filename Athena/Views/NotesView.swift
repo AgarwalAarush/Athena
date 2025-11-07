@@ -129,21 +129,29 @@ struct NoteEditorView: View {
         VStack {
             Spacer()
             
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Listening...")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                if !vm.listenModePartialTranscript.isEmpty {
-                    Text(vm.listenModePartialTranscript)
-                        .font(.body)
-                        .foregroundColor(.primary)
-                        .lineLimit(3)
+            VStack(alignment: .center, spacing: 12) {
+                // Waveform visualization
+                if let monitor = vm.listenModeManager?.amplitudeMonitor {
+                    WaveformView(monitor: monitor)
+                        .padding(.bottom, 4)
                 }
                 
-                Text("Say 'Athena stop listening' or tap mic to finish")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Listening...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    if !vm.listenModePartialTranscript.isEmpty {
+                        Text(vm.listenModePartialTranscript)
+                            .font(.body)
+                            .foregroundColor(.primary)
+                            .lineLimit(3)
+                    }
+                    
+                    Text("Say 'Athena stop listening' or tap mic to finish")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -12,6 +12,10 @@ enum ConfigurationKey: String, CaseIterable {
     case openaiAPIKey = "openai_api_key"
     case ollamaBaseURL = "ollama_base_url"
     
+    // Google OAuth (Secure - Keychain)
+    case googleAuthSession = "google_auth_session"
+    case googleAuthScopes = "google_auth_scopes"
+    
     // Provider Selection (UserDefaults)
     case selectedProvider = "selected_provider"
     case selectedModel = "selected_model"
@@ -98,15 +102,19 @@ enum ConfigurationKey: String, CaseIterable {
         case .wakewordModeEnabled:
             return false
 
+        // Google OAuth defaults
+        case .googleAuthScopes:
+            return ""
+            
         // Secure keys have no defaults
-        case .openaiAPIKey:
+        case .openaiAPIKey, .googleAuthSession:
             return ""
         }
     }
     
     var isSecure: Bool {
         switch self {
-        case .openaiAPIKey:
+        case .openaiAPIKey, .googleAuthSession:
             return true
         default:
             return false
@@ -117,6 +125,8 @@ enum ConfigurationKey: String, CaseIterable {
         switch self {
         case .openaiAPIKey, .ollamaBaseURL, .selectedProvider, .selectedModel:
             return .aiProvider
+        case .googleAuthSession, .googleAuthScopes:
+            return .authentication
         case .topP:
             return .modelParameters
         case .theme, .fontSize, .showTimestamps, .enableAnimations:
@@ -135,6 +145,7 @@ enum ConfigurationKey: String, CaseIterable {
 
 enum ConfigurationCategory: String, CaseIterable {
     case aiProvider = "AI Provider"
+    case authentication = "Authentication"
     case modelParameters = "Model Parameters"
     case userInterface = "User Interface"
     case window = "Window"

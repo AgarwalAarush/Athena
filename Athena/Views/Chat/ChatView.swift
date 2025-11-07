@@ -46,7 +46,8 @@ struct ChatView: View {
                         onStopVoiceInput: {
                             viewModel.stopVoiceInput()
                         },
-                        wakewordModeEnabled: viewModel.wakewordModeEnabled
+                        wakewordModeEnabled: viewModel.wakewordModeEnabled,
+                        amplitudeMonitor: viewModel.amplitudeMonitor
                     )
                 }
             }

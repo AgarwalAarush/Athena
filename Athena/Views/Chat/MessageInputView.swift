@@ -19,6 +19,7 @@ struct MessageInputView: View {
     let onStartVoiceInput: () -> Void
     let onStopVoiceInput: () -> Void
     let wakewordModeEnabled: Bool
+    let amplitudeMonitor: AudioAmplitudeMonitor?
 
     @FocusState private var isFocused: Bool
     @State private var textHeight: CGFloat = 32
@@ -76,7 +77,15 @@ struct MessageInputView: View {
 
                 // Microphone button with tap-to-toggle recording (hidden in wakeword mode)
                 if !wakewordModeEnabled {
-                    microphoneButton
+                    HStack(spacing: AppMetrics.spacingSmall) {
+                        // Show waveform when recording
+                        if isRecording, let monitor = amplitudeMonitor {
+                            WaveformView(monitor: monitor)
+                                .transition(.scale.combined(with: .opacity))
+                        }
+                        microphoneButton
+                    }
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isRecording)
                 }
             }
             .padding(.horizontal, 16)
@@ -246,7 +255,8 @@ struct CustomTextEditor: NSViewRepresentable {
             isProcessingTranscript: false,
             onStartVoiceInput: {},
             onStopVoiceInput: {},
-            wakewordModeEnabled: false
+            wakewordModeEnabled: false,
+            amplitudeMonitor: nil
         )
     }
     .frame(width: 470)

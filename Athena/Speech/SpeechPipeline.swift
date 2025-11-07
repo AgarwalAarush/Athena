@@ -148,6 +148,10 @@ final class SpeechPipeline: ObservableObject {
         // Cancel transcriber
         print("[SpeechPipeline] cancelListening: Cancelling transcriber")
         transcriber.cancel()
+        
+        // Stop amplitude monitor
+        print("[SpeechPipeline] cancelListening: Stopping amplitude monitor")
+        _amplitudeMonitor.stop()
 
         // Reset state
         print("[SpeechPipeline] cancelListening: Resetting state to idle")
@@ -173,6 +177,7 @@ final class SpeechPipeline: ObservableObject {
                     print("[SpeechPipeline] startAudioForwarding: Processed \(frameCount) audio frames")
                 }
                 await transcriber.feed(frame)
+                await _amplitudeMonitor.process(frame)
             }
             print("[SpeechPipeline] startAudioForwarding: Audio forwarding task ended (processed \(frameCount) frames)")
         }
@@ -227,6 +232,8 @@ final class SpeechPipeline: ObservableObject {
             audioTask = nil
             transcriptTask?.cancel()
             transcriptTask = nil
+            print("[SpeechPipeline] handleTranscriptEvent: Stopping amplitude monitor due to error")
+            _amplitudeMonitor.stop()
 
         case .ended:
             print("[SpeechPipeline] handleTranscriptEvent: Transcription session ended - RECEIVED .ended EVENT")

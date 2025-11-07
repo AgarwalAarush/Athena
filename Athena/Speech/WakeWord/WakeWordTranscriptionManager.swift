@@ -38,6 +38,13 @@ class WakeWordTranscriptionManager: ObservableObject {
 
     private var detectorTask: Task<Void, Never>?
     private var transcriberTask: Task<Void, Never>?
+    
+    private let _amplitudeMonitor = AudioAmplitudeMonitor()
+    
+    /// Public read-only access to amplitude monitor for UI visualization
+    var amplitudeMonitor: AudioAmplitudeMonitor {
+        _amplitudeMonitor
+    }
 
     // Current transcript from the speech recognizer
     private var lastSessionTranscript: String = ""
@@ -94,6 +101,9 @@ class WakeWordTranscriptionManager: ObservableObject {
 
         wakeWordDetector?.stop()
         vadTranscriber?.stop()
+        
+        // Stop amplitude monitor
+        _amplitudeMonitor.stop()
 
         stopAudioEngine()
 
@@ -165,6 +175,21 @@ class WakeWordTranscriptionManager: ObservableObject {
     }
 
     private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) async {
+        // Process amplitude for waveform visualization (in all active states)
+        if state == .listeningForWakeWord || state == .transcribing {
+            if let channelData = buffer.floatChannelData {
+                let frameCount = Int(buffer.frameLength)
+                let samples = Array(UnsafeBufferPointer(start: channelData[0], count: frameCount))
+                
+                let audioFrame = AudioFrame(
+                    samples: samples,
+                    sampleRate: buffer.format.sampleRate,
+                    timestamp: AVAudioTime(hostTime: mach_absolute_time())
+                )
+                await _amplitudeMonitor.process(audioFrame)
+            }
+        }
+        
         switch state {
         case .listeningForWakeWord:
             // Add to ring buffer for smooth handoff
