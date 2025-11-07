@@ -47,20 +47,36 @@ final class SystemWindowManager: SystemWindowManaging {
     }
 
     func moveWindow(pid: pid_t, to origin: CGPoint, size: CGSize?) -> Result<Void, WindowManagerError> {
-        windowElement(for: pid)
-            .flatMap { windowElement in
-                accessibilityManager.setPoint(origin, for: kAXPositionAttribute as CFString, of: windowElement)
-                    .mapError(self.mapAccessibilityError)
-                    .flatMap { _ in
-                        if let size {
-                            return accessibilityManager.setSize(size, for: kAXSizeAttribute as CFString, of: windowElement)
-                                .mapError(self.mapAccessibilityError)
-                        } else {
-                            return .success(())
-                        }
+        print("[SystemWindowManager] moveWindow called with pid: \(pid), origin: \(origin), size: \(String(describing: size))")
+        
+        let elementResult = windowElement(for: pid)
+        print("[SystemWindowManager] windowElement result: \(elementResult)")
+        
+        return elementResult.flatMap { windowElement in
+            print("[SystemWindowManager] Got window element for pid \(pid), attempting to set position to \(origin)")
+            
+            let positionResult = accessibilityManager.setPoint(origin, for: kAXPositionAttribute as CFString, of: windowElement)
+            print("[SystemWindowManager] setPoint result: \(positionResult)")
+            
+            return positionResult
+                .mapError(self.mapAccessibilityError)
+                .flatMap { _ in
+                    print("[SystemWindowManager] Position set successfully, now checking size")
+                    if let size {
+                        print("[SystemWindowManager] Setting size to \(size)")
+                        let sizeResult = accessibilityManager.setSize(size, for: kAXSizeAttribute as CFString, of: windowElement)
+                        print("[SystemWindowManager] setSize result: \(sizeResult)")
+                        return sizeResult.mapError(self.mapAccessibilityError)
+                    } else {
+                        print("[SystemWindowManager] No size specified, skipping resize")
+                        return .success(())
                     }
-                    .map { _ in () }
-            }
+                }
+                .map { _ in
+                    print("[SystemWindowManager] moveWindow completed successfully")
+                    return ()
+                }
+        }
     }
 
     func resizeWindow(pid: pid_t, to size: CGSize) -> Result<Void, WindowManagerError> {
@@ -99,24 +115,38 @@ final class SystemWindowManager: SystemWindowManaging {
     // MARK: - Private Helpers
 
     private func windowElement(for pid: pid_t) -> Result<AXUIElement, WindowManagerError> {
+        print("[SystemWindowManager] windowElement: Getting window element for pid \(pid)")
+        
         let appElement = accessibilityManager.applicationElement(for: pid)
+        print("[SystemWindowManager] windowElement: Created app element for pid \(pid)")
 
+        print("[SystemWindowManager] windowElement: Attempting to get focused window")
         switch accessibilityManager.focusedWindow(of: appElement) {
         case .success(let window):
+            print("[SystemWindowManager] windowElement: Got focused window successfully")
             return .success(window)
         case .failure(let error):
+            print("[SystemWindowManager] windowElement: Failed to get focused window, error: \(error)")
             switch error {
             case .attributeMissing:
+                print("[SystemWindowManager] windowElement: Attribute missing, trying to get all windows")
                 // Try falling back to the first window in the list.
-                return accessibilityManager.allWindows(of: appElement)
+                let allWindowsResult = accessibilityManager.allWindows(of: appElement)
+                print("[SystemWindowManager] windowElement: allWindows result: \(allWindowsResult)")
+                
+                return allWindowsResult
                     .mapError(mapAccessibilityError)
                     .flatMap { windows in
+                        print("[SystemWindowManager] windowElement: Got \(windows.count) windows")
                         guard let window = windows.first else {
+                            print("[SystemWindowManager] windowElement: ERROR - No windows found")
                             return .failure(.windowNotFound)
                         }
+                        print("[SystemWindowManager] windowElement: Using first window from list")
                         return .success(window)
                     }
             default:
+                print("[SystemWindowManager] windowElement: ERROR - Non-recoverable error: \(error)")
                 return .failure(mapAccessibilityError(error))
             }
         }

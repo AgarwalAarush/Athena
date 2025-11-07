@@ -103,29 +103,47 @@ final class AccessibilityManager: AccessibilityManaging {
     }
 
     func setPoint(_ point: CGPoint, for attribute: CFString, of element: AXUIElement) -> Result<Void, AccessibilityError> {
+        print("[AccessibilityManager] setPoint called with point: \(point), attribute: \(attribute)")
+        print("[AccessibilityManager] Accessibility enabled: \(isAccessibilityEnabled)")
+        
         var mutablePoint = point
         guard let value = AXValueCreate(.cgPoint, &mutablePoint) else {
+            print("[AccessibilityManager] ERROR: Failed to create AXValue from point \(point)")
             return .failure(.conversionFailed)
         }
-
+        
+        print("[AccessibilityManager] Created AXValue, calling AXUIElementSetAttributeValue")
         let error = AXUIElementSetAttributeValue(element, attribute, value)
+        print("[AccessibilityManager] AXUIElementSetAttributeValue returned error code: \(error.rawValue)")
+        
         if error == .success {
+            print("[AccessibilityManager] setPoint succeeded")
             return .success(())
         } else {
+            print("[AccessibilityManager] ERROR: setPoint failed with AXError: \(error) (rawValue: \(error.rawValue))")
             return .failure(.fromAXError(error))
         }
     }
 
     func setSize(_ size: CGSize, for attribute: CFString, of element: AXUIElement) -> Result<Void, AccessibilityError> {
+        print("[AccessibilityManager] setSize called with size: \(size), attribute: \(attribute)")
+        print("[AccessibilityManager] Accessibility enabled: \(isAccessibilityEnabled)")
+        
         var mutableSize = size
         guard let value = AXValueCreate(.cgSize, &mutableSize) else {
+            print("[AccessibilityManager] ERROR: Failed to create AXValue from size \(size)")
             return .failure(.conversionFailed)
         }
-
+        
+        print("[AccessibilityManager] Created AXValue, calling AXUIElementSetAttributeValue")
         let error = AXUIElementSetAttributeValue(element, attribute, value)
+        print("[AccessibilityManager] AXUIElementSetAttributeValue returned error code: \(error.rawValue)")
+        
         if error == .success {
+            print("[AccessibilityManager] setSize succeeded")
             return .success(())
         } else {
+            print("[AccessibilityManager] ERROR: setSize failed with AXError: \(error) (rawValue: \(error.rawValue))")
             return .failure(.fromAXError(error))
         }
     }
@@ -155,6 +173,45 @@ final class AccessibilityManager: AccessibilityManaging {
 
 private extension AccessibilityError {
     static func fromAXError(_ error: AXError) -> AccessibilityError {
-        .operationFailed("AXError rawValue: \(error.rawValue)")
+        let errorDescription: String
+        switch error {
+        case .success:
+            errorDescription = "success"
+        case .failure:
+            errorDescription = "failure (-25200)"
+        case .illegalArgument:
+            errorDescription = "illegalArgument (-25201)"
+        case .invalidUIElement:
+            errorDescription = "invalidUIElement (-25202)"
+        case .invalidUIElementObserver:
+            errorDescription = "invalidUIElementObserver (-25203)"
+        case .cannotComplete:
+            errorDescription = "cannotComplete (-25204) - A fundamental error occurred, such as memory allocation failure"
+        case .attributeUnsupported:
+            errorDescription = "attributeUnsupported (-25205)"
+        case .actionUnsupported:
+            errorDescription = "actionUnsupported (-25206)"
+        case .notificationUnsupported:
+            errorDescription = "notificationUnsupported (-25207)"
+        case .notImplemented:
+            errorDescription = "notImplemented (-25208)"
+        case .notificationAlreadyRegistered:
+            errorDescription = "notificationAlreadyRegistered (-25209)"
+        case .notificationNotRegistered:
+            errorDescription = "notificationNotRegistered (-25210)"
+        case .apiDisabled:
+            errorDescription = "apiDisabled (-25211) - Assistive applications not enabled"
+        case .noValue:
+            errorDescription = "noValue (-25212)"
+        case .parameterizedAttributeUnsupported:
+            errorDescription = "parameterizedAttributeUnsupported (-25213)"
+        case .notEnoughPrecision:
+            errorDescription = "notEnoughPrecision (-25214)"
+        @unknown default:
+            errorDescription = "unknown error (rawValue: \(error.rawValue))"
+        }
+        
+        print("[AccessibilityError] Converting AXError to AccessibilityError: \(errorDescription)")
+        return .operationFailed("AXError: \(errorDescription)")
     }
 }

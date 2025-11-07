@@ -604,11 +604,12 @@ struct PermissionsSettingsView: View {
                         .buttonStyle(ModernButton(style: .primary))
                         .disabled(isRequestingAccessibility)
                     }
-                } else {
-                    Text("Accessibility access is granted. Athena can now move and position windows.")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.7))
                 }
+//                else {
+//                    Text("Accessibility access is granted. Athena can now move and position windows.")
+//                        .font(.caption)
+//                        .foregroundColor(.white.opacity(0.7))
+//                }
             }
         }
         .onAppear {

@@ -158,12 +158,26 @@ final class WindowConfigurationService {
         }
         
         // Position each window
-        for savedWindow in configuration.windows {
-            print("[WindowConfigurationService] Positioning window: \(savedWindow.appName) - \(savedWindow.windowTitle)")
+        for (index, savedWindow) in configuration.windows.enumerated() {
+            print("[WindowConfigurationService] ========================================")
+            print("[WindowConfigurationService] Processing window \(index + 1) of \(configuration.windows.count)")
+            print("[WindowConfigurationService] App: \(savedWindow.appName)")
+            print("[WindowConfigurationService] Title: \(savedWindow.windowTitle)")
+            print("[WindowConfigurationService] Position: \(savedWindow.origin)")
+            print("[WindowConfigurationService] Size: \(savedWindow.size)")
+            print("[WindowConfigurationService] Screen Index: \(savedWindow.screenIndex)")
+            print("[WindowConfigurationService] ========================================")
             
             // Find the window's PID
             if let pid = try await findPID(for: savedWindow.appName) {
+                print("[WindowConfigurationService] Found PID: \(pid) for app '\(savedWindow.appName)'")
+                
                 // Move and resize the window
+                print("[WindowConfigurationService] Calling moveWindow with:")
+                print("  - pid: \(pid)")
+                print("  - origin: \(savedWindow.origin)")
+                print("  - size: \(savedWindow.size)")
+                
                 let moveResult = windowManager.moveWindow(
                     pid: pid,
                     to: savedWindow.origin,
@@ -172,16 +186,16 @@ final class WindowConfigurationService {
                 
                 switch moveResult {
                 case .success:
-                    print("[WindowConfigurationService] Successfully positioned window")
+                    print("[WindowConfigurationService] ✅ Successfully positioned window")
                 case .failure(let error):
-                    print("[WindowConfigurationService] Warning: Failed to position window - \(error)")
+                    print("[WindowConfigurationService] ❌ Failed to position window - Error: \(error)")
                     // Continue with other windows even if one fails
                 }
                 
                 // Small delay between positioning windows
                 try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
             } else {
-                print("[WindowConfigurationService] Warning: Could not find PID for '\(savedWindow.appName)'")
+                print("[WindowConfigurationService] ❌ Could not find PID for '\(savedWindow.appName)'")
             }
         }
         
@@ -224,26 +238,39 @@ final class WindowConfigurationService {
     
     /// Finds the PID for a given app name
     private func findPID(for appName: String) async throws -> pid_t? {
+        print("[WindowConfigurationService] findPID: Searching for app '\(appName)'")
+        
         let windowsResult = windowManager.listAllWindows()
         guard case .success(let windows) = windowsResult else {
+            print("[WindowConfigurationService] findPID: Failed to list windows")
             return nil
         }
         
+        print("[WindowConfigurationService] findPID: Found \(windows.count) total windows")
+        print("[WindowConfigurationService] findPID: Available apps: \(Set(windows.map { $0.ownerName }).sorted())")
+        
         // Try exact match first
         if let window = windows.first(where: { $0.ownerName == appName }) {
+            print("[WindowConfigurationService] findPID: Found exact match - PID: \(window.ownerPID)")
             return window.ownerPID
         }
+        print("[WindowConfigurationService] findPID: No exact match for '\(appName)'")
         
         // Try case-insensitive match
         if let window = windows.first(where: { $0.ownerName.lowercased() == appName.lowercased() }) {
+            print("[WindowConfigurationService] findPID: Found case-insensitive match '\(window.ownerName)' - PID: \(window.ownerPID)")
             return window.ownerPID
         }
+        print("[WindowConfigurationService] findPID: No case-insensitive match")
         
         // Try partial match
         if let window = windows.first(where: { $0.ownerName.contains(appName) || appName.contains($0.ownerName) }) {
+            print("[WindowConfigurationService] findPID: Found partial match '\(window.ownerName)' - PID: \(window.ownerPID)")
             return window.ownerPID
         }
+        print("[WindowConfigurationService] findPID: No partial match")
         
+        print("[WindowConfigurationService] findPID: Could not find app '\(appName)'")
         return nil
     }
 }
