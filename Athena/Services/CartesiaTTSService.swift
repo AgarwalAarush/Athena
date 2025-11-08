@@ -9,7 +9,7 @@ import Foundation
 
 /// Service for generating speech using Cartesia's TTS API
 @MainActor
-final class CartesiaTTSService: ObservableObject {
+final class CartesiaTTSService {
     // MARK: - Singleton
     
     static let shared = CartesiaTTSService()

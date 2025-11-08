@@ -26,8 +26,14 @@ final class SpeechPipeline: ObservableObject {
 
     private let audioInput: AudioInput
     private let transcriber: Transcriber
+    private let _amplitudeMonitor = AudioAmplitudeMonitor()
     private var audioTask: Task<Void, Never>?
     private var transcriptTask: Task<Void, Never>?
+
+    /// Public read-only access to amplitude monitor for UI visualization
+    var amplitudeMonitor: AudioAmplitudeMonitor {
+        _amplitudeMonitor
+    }
 
     // MARK: - Initialization
 
