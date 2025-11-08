@@ -84,6 +84,9 @@ struct ContentView: View {
                         case .messaging:
                             MessagingView(viewModel: appViewModel.messagingViewModel)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        case .gmail:
+                            GmailView(viewModel: appViewModel.gmailViewModel)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                     }
                     .animation(nil, value: appViewModel.currentView)

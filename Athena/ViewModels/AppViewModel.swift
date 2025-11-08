@@ -9,6 +9,7 @@ enum AppView {
     case calendar
     case notes
     case messaging
+    case gmail
 }
 
 struct AlertInfo: Identifiable {
@@ -48,6 +49,9 @@ class AppViewModel: ObservableObject {
 
     /// Messaging status for user feedback - set by orchestrator after sending messages
     @Published var messagingStatus: String?
+    
+    /// GmailViewModel for Gmail view - accessible to orchestrator for executing email actions
+    @Published var gmailViewModel = GmailViewModel()
 
     // MARK: - Private Properties
 
@@ -72,6 +76,9 @@ class AppViewModel: ObservableObject {
         
         // Setup messaging view model
         messagingViewModel.setup(appViewModel: self)
+        
+        // Setup Gmail view model
+        gmailViewModel.setup(appViewModel: self)
         
         print("[AppViewModel] ✅ setup() completed - windowManager and appDelegate stored")
     }
@@ -116,6 +123,17 @@ class AppViewModel: ObservableObject {
         transaction.disablesAnimations = true
         withTransaction(transaction) {
             currentView = .home
+        }
+        windowManager?.expandToContentView()
+    }
+    
+    func showGmail() {
+        stopListenModeIfActive()
+        isContentExpanded = true
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            currentView = .gmail
         }
         windowManager?.expandToContentView()
     }

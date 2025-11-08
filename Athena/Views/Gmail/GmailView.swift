@@ -1,18 +1,18 @@
 //
-//  MessagingView.swift
+//  GmailView.swift
 //  Athena
 //
-//  Created by Cursor on 11/8/25.
+//  Main Gmail composition view where users can compose and send emails
 //
 
 import SwiftUI
 
-/// Main messaging confirmation view where users can review and edit messages before sending
-struct MessagingView: View {
+/// Main Gmail composition view with form-based interface
+struct GmailView: View {
     
     // MARK: - Properties
     
-    @ObservedObject var viewModel: MessagingViewModel
+    @ObservedObject var viewModel: GmailViewModel
     @EnvironmentObject var appViewModel: AppViewModel
     @FocusState private var focusedField: Field?
     
@@ -20,7 +20,8 @@ struct MessagingView: View {
     
     private enum Field {
         case recipient
-        case message
+        case subject
+        case body
     }
     
     // MARK: - Body
@@ -29,7 +30,7 @@ struct MessagingView: View {
         VStack(spacing: 0) {
             // Header with action buttons
             FormHeader(
-                title: "Send Message",
+                title: "Send Email",
                 cancelAction: {
                     Task {
                         await viewModel.cancel()
@@ -37,7 +38,7 @@ struct MessagingView: View {
                 },
                 primaryAction: {
                     Task {
-                        await viewModel.sendMessage()
+                        await viewModel.sendEmail()
                     }
                 },
                 primaryLabel: "Send",
@@ -60,24 +61,16 @@ struct MessagingView: View {
                         // Recipient field
                         FormGroupContainer {
                             FormFieldRow(
-                                icon: "person.circle.fill",
+                                icon: "envelope.fill",
                                 iconColor: .blue,
                                 label: "To"
                             ) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    TextField("Recipient name or number", text: $viewModel.recipient)
-                                        .textFieldStyle(.plain)
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                        .focused($focusedField, equals: .recipient)
-                                        .disabled(viewModel.isSending)
-                                    
-                                    if let resolved = viewModel.resolvedContact, resolved != viewModel.recipient {
-                                        Text("→ \(resolved)")
-                                            .font(.caption)
-                                            .foregroundColor(.green)
-                                    }
-                                }
+                                TextField("recipient@example.com", text: $viewModel.recipient)
+                                    .textFieldStyle(.plain)
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .focused($focusedField, equals: .recipient)
+                                    .disabled(viewModel.isSending)
                             }
                         }
                         .contentShape(Rectangle())
@@ -85,11 +78,31 @@ struct MessagingView: View {
                             focusedField = .recipient
                         }
                         
-                        // Message field
+                        // Subject field
+                        FormGroupContainer {
+                            FormFieldRow(
+                                icon: "text.alignleft",
+                                iconColor: .orange,
+                                label: "Subject"
+                            ) {
+                                TextField("Email subject", text: $viewModel.subject)
+                                    .textFieldStyle(.plain)
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .focused($focusedField, equals: .subject)
+                                    .disabled(viewModel.isSending)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            focusedField = .subject
+                        }
+                        
+                        // Body field
                         FormGroupContainer {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack(spacing: AppMetrics.spacingMedium) {
-                                    Image(systemName: "message.fill")
+                                    Image(systemName: "doc.text.fill")
                                         .font(.system(size: 20))
                                         .foregroundColor(.green)
                                         .frame(width: 24)
@@ -103,22 +116,22 @@ struct MessagingView: View {
                                 .padding(.horizontal, AppMetrics.paddingLarge)
                                 .padding(.top, 12)
                                 
-                                // Multi-line message input
+                                // Multi-line body input
                                 MultiLineTextInput(
-                                    text: $viewModel.message,
-                                    placeholder: "Enter your message...",
+                                    text: $viewModel.body,
+                                    placeholder: "Enter your email message...",
                                     minHeight: 100,
                                     maxHeight: 200
                                 )
                                 .padding(.horizontal, AppMetrics.paddingLarge - 5)
-                                .focused($focusedField, equals: .message)
+                                .focused($focusedField, equals: .body)
                                 .disabled(viewModel.isSending)
                                 .padding(.bottom, 12)
                             }
                         }
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            focusedField = .message
+                            focusedField = .body
                         }
                     }
                     .padding(.horizontal, AppMetrics.padding)
@@ -142,10 +155,14 @@ struct MessagingView: View {
 // MARK: - Preview
 
 #Preview {
-    let viewModel = MessagingViewModel()
-    viewModel.prepareMessage(recipient: "John Doe", message: "Hey, how are you?")
+    let viewModel = GmailViewModel()
+    viewModel.prepareEmail(
+        recipient: "john@example.com",
+        subject: "Meeting Follow-up",
+        body: "Hi John,\n\nThanks for the great meeting today. Here are the key takeaways..."
+    )
     
-    return MessagingView(viewModel: viewModel)
+    return GmailView(viewModel: viewModel)
         .environmentObject(AppViewModel())
         .frame(width: 600, height: 500)
 }
