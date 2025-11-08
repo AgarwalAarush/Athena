@@ -17,9 +17,9 @@ final class AudioAmplitudeMonitor: ObservableObject {
     @Published private(set) var amplitudes: [Float] = []
     
     // MARK: - Private Properties
-    
+
     /// Number of bars to display in the waveform
-    private let barCount: Int = 10
+    private let barCount: Int = 30
     
     /// Smoothing factor (0.0 = no smoothing, 1.0 = maximum smoothing)
     private let smoothingFactor: Float = 0.7

@@ -95,6 +95,17 @@ class AppViewModel: ObservableObject {
     func setWakeWordManager(_ manager: WakeWordTranscriptionManager?) {
         print("[AppViewModel] Setting wake word manager: \(manager != nil ? "present" : "nil")")
         self.wakeWordManager = manager
+
+        // Set up callback to show window when wake word is detected (if hidden)
+        manager?.onWakeWordDetectedCallback = { [weak self] in
+            guard let self = self,
+                  let windowManager = self.windowManager,
+                  let window = windowManager.window,
+                  !window.isVisible else { return }
+
+            print("[AppViewModel] 🪟 Wake word detected - showing hidden window")
+            windowManager.toggleWindowVisibility()
+        }
     }
     
     /// Pause wake word detection (used when entering listen mode)

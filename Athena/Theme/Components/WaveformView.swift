@@ -28,10 +28,10 @@ struct WaveformView: View {
     // MARK: - Body
 
     var body: some View {
-        HStack(alignment: .center, spacing: AppMetrics.spacingXSmall) {
+        HStack(alignment: .center, spacing: 2) {
             ForEach(Array(monitor.amplitudes.enumerated()), id: \.offset) { index, amplitude in
                 Capsule()
-                    .fill(Color.accentColor.opacity(0.8))
+                    .fill(Color.white)
                     .frame(
                         width: barWidth,
                         height: barHeight(for: amplitude)
@@ -59,7 +59,7 @@ struct WaveformView: View {
     /// Width of each bar
     private var barWidth: CGFloat {
         let barCount = CGFloat(monitor.amplitudes.count)
-        let totalSpacing = AppMetrics.spacingXSmall * (barCount - 1)
+        let totalSpacing = 2 * (barCount - 1)
         return (width - totalSpacing) / barCount
     }
     

@@ -32,7 +32,7 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             // Define the rounded shell shape once
-            let shell = RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusLarge, style: .continuous)
+            let shell = RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusXLarge, style: .continuous)
 
             // 1) Background shell with glass material and shadow
             shell

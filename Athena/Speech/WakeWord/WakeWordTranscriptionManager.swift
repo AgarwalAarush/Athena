@@ -54,6 +54,9 @@ class WakeWordTranscriptionManager: ObservableObject {
     private let maxRingBufferDuration: TimeInterval = 1.0 // 1 second of audio
     private var currentRingBufferDuration: TimeInterval = 0.0
 
+    // Callback invoked when wake word is detected (e.g., to show hidden window)
+    var onWakeWordDetectedCallback: (() -> Void)?
+
     // MARK: - Initialization
 
     init() {
@@ -289,6 +292,9 @@ class WakeWordTranscriptionManager: ObservableObject {
     private func onWakeWordDetected() async {
         print("[WakeWordTranscriptionManager] 🎤 Wake word detected! Transitioning to transcription mode...")
         print("[WakeWordTranscriptionManager] 📊 Current state: \(state)")
+
+        // Notify external listeners (e.g., to show hidden window)
+        onWakeWordDetectedCallback?()
 
         // Stop wake word detection and clear its buffer
         print("[WakeWordTranscriptionManager] 🛑 Stopping wake word detector and clearing buffer")
