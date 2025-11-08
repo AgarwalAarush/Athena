@@ -536,13 +536,15 @@ class Orchestrator {
         }
 
         // Try local parsing first for navigation commands
-        if let targetDate = parseNavigationCommand(prompt: prompt) {
-            print("[Orchestrator] handleCalendarTask: Local parse successful, navigating to date")
-            await MainActor.run {
-                self.appViewModel?.dayViewModel.selectedDate = targetDate
+        if prompt.lowercased().contains("open") {
+            if let targetDate = parseNavigationCommand(prompt: prompt) {
+                print("[Orchestrator] handleCalendarTask: Local parse successful, navigating to date")
+                await MainActor.run {
+                    self.appViewModel?.dayViewModel.selectedDate = targetDate
+                }
+                print("[Orchestrator] handleCalendarTask: Navigation completed")
+                return
             }
-            print("[Orchestrator] handleCalendarTask: Navigation completed")
-            return
         }
 
         // If local parsing failed, use AI parsing (with automatic fallback to keyword matching)
@@ -1426,12 +1428,13 @@ class Orchestrator {
     /// Returns a Date if successful, nil if AI parsing is needed
     private func parseNavigationCommand(prompt: String) -> Date? {
         let lowercased = prompt.lowercased().trimmingCharacters(in: .whitespaces)
+        let tokens = Set(lowercased.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty })
         let calendar = Calendar.current
         let now = Date()
 
         // Check for "next" or "prev/previous" modifiers
-        let hasNext = lowercased.contains("next")
-        let hasPrev = lowercased.contains("prev") || lowercased.contains("previous")
+        let hasNext = tokens.contains("next")
+        let hasPrev = tokens.contains("prev") || tokens.contains("previous")
 
         // Weekday names
         let weekdays = [
@@ -1445,23 +1448,23 @@ class Orchestrator {
         ]
 
         // Simple cases: today, tomorrow, yesterday
-        if lowercased == "today" || lowercased == "open" {
+        if tokens.contains("today") || lowercased == "open" {
             print("[Orchestrator] Local parse: today")
             return now
         }
 
-        if lowercased == "tomorrow" {
+        if tokens.contains("tomorrow") {
             print("[Orchestrator] Local parse: tomorrow")
             return calendar.date(byAdding: .day, value: 1, to: now)
         }
 
-        if lowercased == "yesterday" {
+        if tokens.contains("yesterday") {
             print("[Orchestrator] Local parse: yesterday")
             return calendar.date(byAdding: .day, value: -1, to: now)
         }
 
         // Next/prev week
-        if lowercased.contains("week") {
+        if tokens.contains("week") {
             if hasNext {
                 print("[Orchestrator] Local parse: next week")
                 return calendar.date(byAdding: .weekOfYear, value: 1, to: now)
@@ -1472,7 +1475,7 @@ class Orchestrator {
         }
 
         // Next/prev month
-        if lowercased.contains("month") {
+        if tokens.contains("month") {
             if hasNext {
                 print("[Orchestrator] Local parse: next month")
                 return calendar.date(byAdding: .month, value: 1, to: now)
@@ -1484,7 +1487,7 @@ class Orchestrator {
 
         // Weekday navigation
         for (weekdayName, weekdayValue) in weekdays {
-            if lowercased.contains(weekdayName) {
+            if tokens.contains(weekdayName) {
                 let currentWeekday = calendar.component(.weekday, from: now)
 
                 if hasNext {
