@@ -8,12 +8,17 @@
 import AppKit
 import SwiftUI
 import AppAuth
+import Combine
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var windowManager: WindowManager?
     var statusItem: NSStatusItem?
     private var eventMonitor: Any?
     private var settingsShortcutMonitor: Any?
+    private var cancellables = Set<AnyCancellable>()
+    
+    // Menu items that need to be updated dynamically
+    private var wakewordToggleMenuItem: NSMenuItem?
     
     // OAuth flow session - stored globally to be accessible from URL handler
     static var currentAuthorizationFlow: OIDExternalUserAgentSession?
@@ -25,10 +30,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem?.button {
             button.image = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: "Athena")
-            button.action = #selector(toggleWindow)
-            button.target = self
         }
-        print("[AppDelegate] ✅ Status bar item created")
+        
+        // Setup menu bar menu
+        setupMenuBar()
+        setupMenuBarStateObservers()
+        print("[AppDelegate] ✅ Status bar item created with menu")
 
         // Initialize window manager with floating utility window configuration
         windowManager = WindowManager()
@@ -52,6 +59,74 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         print("[AppDelegate] ✅ Application launch completed")
+    }
+    
+    // MARK: - Menu Bar Setup
+    
+    private func setupMenuBar() {
+        let menu = NSMenu()
+        
+        // Show/Hide Window
+        let showHideItem = NSMenuItem(title: "Show/Hide Window", action: #selector(toggleWindow), keyEquivalent: "")
+        showHideItem.target = self
+        menu.addItem(showHideItem)
+        
+        menu.addItem(NSMenuItem.separator())
+        
+        // Toggle Wakeword Mode
+        let wakewordItem = NSMenuItem(title: "Wakeword Mode", action: #selector(toggleWakewordMode), keyEquivalent: "")
+        wakewordItem.target = self
+        // Set initial state based on current configuration
+        wakewordItem.state = ConfigurationManager.shared.wakewordModeEnabled ? .on : .off
+        wakewordToggleMenuItem = wakewordItem
+        menu.addItem(wakewordItem)
+        
+        menu.addItem(NSMenuItem.separator())
+        
+        // Settings
+        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+        
+        menu.addItem(NSMenuItem.separator())
+        
+        // Quit
+        let quitItem = NSMenuItem(title: "Quit Athena", action: #selector(quitApplication), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+        
+        statusItem?.menu = menu
+    }
+    
+    private func setupMenuBarStateObservers() {
+        // Subscribe to wakeword mode changes to update menu state
+        ConfigurationManager.shared.$wakewordModeEnabled
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                guard let self = self else { return }
+                self.wakewordToggleMenuItem?.state = enabled ? .on : .off
+                print("[AppDelegate] 🔄 Menu bar wakeword state updated: \(enabled)")
+            }
+            .store(in: &cancellables)
+    }
+    
+    // MARK: - Menu Actions
+    
+    @objc private func toggleWakewordMode() {
+        let config = ConfigurationManager.shared
+        let newValue = !config.wakewordModeEnabled
+        print("[AppDelegate] 🎙️ Toggling wakeword mode: \(config.wakewordModeEnabled) -> \(newValue)")
+        config.set(newValue, for: .wakewordModeEnabled)
+    }
+    
+    @objc private func openSettings() {
+        print("[AppDelegate] ⚙️ Opening settings from menu bar")
+        windowManager?.openSettingsWindow()
+    }
+    
+    @objc private func quitApplication() {
+        print("[AppDelegate] 👋 Quitting application from menu bar")
+        NSApplication.shared.terminate(nil)
     }
 
     @objc func toggleWindow() {
@@ -157,6 +232,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSEvent.removeMonitor(monitor)
             settingsShortcutMonitor = nil
         }
+        cancellables.removeAll()
     }
     
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

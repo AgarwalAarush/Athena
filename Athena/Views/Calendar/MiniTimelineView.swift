@@ -21,8 +21,8 @@ struct MiniTimelineView: View {
     
     // MARK: - Constants
     
-    private let hourHeight: CGFloat = 50
-    private let hourLabelWidth: CGFloat = 50
+    private let hourHeight: CGFloat = 60
+    private let hourLabelWidth: CGFloat = 60
     
     // MARK: - Computed Properties
     
@@ -87,10 +87,10 @@ struct MiniTimelineView: View {
                 HStack(alignment: .top, spacing: 0) {
                     // Hour label
                     Text(formatHour(hour))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption)
+                        .foregroundColor(.white)
                         .frame(width: hourLabelWidth, alignment: .trailing)
-                        .padding(.trailing, AppMetrics.spacingSmall)
+                        .padding(.trailing, 8)
                     
                     // Hour line
                     VStack(spacing: 0) {
@@ -129,9 +129,9 @@ struct MiniTimelineView: View {
         .padding(4)
         .frame(width: position.width, height: position.height)
         .background(Color(event.calendar.cgColor).opacity(0.5))
-        .cornerRadius(AppMetrics.cornerRadiusXSmall)
+        .cornerRadius(4)
         .overlay(
-            RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusXSmall)
+            RoundedRectangle(cornerRadius: 4)
                 .stroke(Color(event.calendar.cgColor).opacity(0.7), lineWidth: 1)
         )
         .offset(x: position.x, y: position.y)
@@ -165,9 +165,9 @@ struct MiniTimelineView: View {
                 endPoint: .bottomTrailing
             )
         )
-        .cornerRadius(AppMetrics.cornerRadiusSmall)
+        .cornerRadius(4)
         .overlay(
-            RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusSmall)
+            RoundedRectangle(cornerRadius: 4)
                 .stroke(AppColors.accent, lineWidth: 2)
         )
         .shadow(color: AppColors.accent.opacity(0.3), radius: 8, y: 4)

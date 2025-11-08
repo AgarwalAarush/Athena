@@ -21,7 +21,6 @@ struct EventCreateSplitView: View {
     
     // MARK: - State
     
-    @State private var eventType: EventType = .event
     @State private var title: String
     @State private var date: Date
     @State private var startTime: Date
@@ -30,13 +29,6 @@ struct EventCreateSplitView: View {
     @State private var location: String
     @State private var selectedCalendar: EKCalendar
     @State private var showDatePicker = false
-    
-    // MARK: - Event Type
-    
-    enum EventType {
-        case event
-        case reminder
-    }
     
     // MARK: - Initialization
     
@@ -91,7 +83,7 @@ struct EventCreateSplitView: View {
     
     private var formSection: some View {
         VStack(spacing: 0) {
-            // Event/Reminder toggle and action buttons
+            // Action buttons
             headerSection
             
             Divider()
@@ -99,15 +91,20 @@ struct EventCreateSplitView: View {
             
             // Form fields
             ScrollView {
-                VStack(spacing: AppMetrics.spacing) {
+                VStack(spacing: 0) {
                     titleField
+                    Divider()
                     locationField
-                    dateField
-                    timeFields
-                    calendarField
+                    Divider()
+                    dateTimeDisplayField
+                    Divider()
+                    alertRepeatField
+                    Divider()
+                    inviteesField
+                    Divider()
                     notesField
+                    Divider()
                 }
-                .padding(AppMetrics.padding)
             }
         }
     }
@@ -116,13 +113,6 @@ struct EventCreateSplitView: View {
     
     private var headerSection: some View {
         HStack(spacing: AppMetrics.spacing) {
-            // Event/Reminder toggle
-            HStack(spacing: 0) {
-                toggleButton(type: .event, title: "Event")
-                toggleButton(type: .reminder, title: "Reminder")
-            }
-            .clipShape(RoundedRectangle(cornerRadius: AppMetrics.cornerRadiusMedium, style: .continuous))
-            
             Spacer()
             
             // Cancel button
@@ -149,189 +139,141 @@ struct EventCreateSplitView: View {
         .padding(AppMetrics.padding)
     }
     
-    private func toggleButton(type: EventType, title: String) -> some View {
-        Button(action: {
-            withAnimation(AppAnimations.standardEasing) {
-                eventType = type
-            }
-        }) {
-            Text(title)
-                .font(.headline)
-                .foregroundColor(eventType == type ? .white : .primary)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 8)
-                .background(eventType == type ? Color(red: 1.0, green: 0.38, blue: 0.35) : Color.clear)
-        }
-        .buttonStyle(.plain)
-    }
-    
     // MARK: - Form Fields
     
     private var titleField: some View {
-        VStack(alignment: .leading, spacing: AppMetrics.spacingSmall) {
-            HStack(spacing: AppMetrics.spacingSmall) {
-                Circle()
-                    .fill(Color(selectedCalendar.cgColor))
-                    .frame(width: 16, height: 16)
-                
-                Image(systemName: "arrow.up.arrow.down")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+        HStack(spacing: AppMetrics.spacingMedium) {
+            Circle()
+                .fill(Color(selectedCalendar.cgColor))
+                .frame(width: 12, height: 12)
+            
+            Image(systemName: "arrow.up.arrow.down")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .frame(width: 20)
             
             CustomStyledTextField(text: $title, placeholder: "New Event")
+                .frame(height: 36)
         }
+        .padding(AppMetrics.padding)
     }
     
     private var locationField: some View {
         HStack(spacing: AppMetrics.spacingMedium) {
-            Image(systemName: "mappin.circle.fill")
-                .foregroundColor(.secondary)
-                .frame(width: 20)
+            HStack(spacing: 4) {
+                Image(systemName: "mappin.circle.fill")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .frame(width: 32)
             
             CustomStyledTextField(text: $location, placeholder: "Add Location or Video Call")
+                .frame(height: 36)
         }
+        .padding(AppMetrics.padding)
     }
     
-    private var dateField: some View {
-        HStack(spacing: AppMetrics.spacingMedium) {
-            Image(systemName: "calendar")
-                .foregroundColor(.secondary)
-                .frame(width: 20)
-            
-            Button(action: { showDatePicker.toggle() }) {
-                HStack {
-                    Text(formatDate(date))
-                        .font(.body)
-                        .foregroundColor(.primary)
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal, AppMetrics.paddingMedium)
-                .padding(.vertical, 8)
-                .background(Color.gray.opacity(0.08))
-                .cornerRadius(AppMetrics.cornerRadiusSmall)
+    private var dateTimeDisplayField: some View {
+        Button(action: { showDatePicker.toggle() }) {
+            HStack {
+                Text(formatDateTimeRange())
+                    .font(.body)
+                    .foregroundColor(.primary)
+                
+                Spacer()
             }
-            .buttonStyle(.plain)
-            .popover(isPresented: $showDatePicker, arrowEdge: .bottom) {
+            .frame(height: 36)
+            .padding(.horizontal, AppMetrics.padding)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showDatePicker, arrowEdge: .bottom) {
+            VStack(spacing: 0) {
+                // Date picker
                 DatePicker("", selection: $date, displayedComponents: [.date])
                     .datePickerStyle(.graphical)
                     .padding()
                     .onChange(of: date) { _ in
                         updateTimesForNewDate()
                     }
-            }
-        }
-    }
-    
-    private var timeFields: some View {
-        HStack(spacing: AppMetrics.spacingMedium) {
-            Image(systemName: "clock")
-                .foregroundColor(.secondary)
-                .frame(width: 20)
-            
-            // Start time
-            DatePicker(
-                "",
-                selection: $startTime,
-                displayedComponents: [.hourAndMinute]
-            )
-            .datePickerStyle(.field)
-            .labelsHidden()
-            .padding(.horizontal, AppMetrics.paddingMedium)
-            .padding(.vertical, 8)
-            .background(Color.gray.opacity(0.08))
-            .cornerRadius(AppMetrics.cornerRadiusSmall)
-            .onChange(of: startTime) { _ in
-                validateTimes()
-            }
-            
-            Text("–")
-                .foregroundColor(.secondary)
-            
-            // End time
-            DatePicker(
-                "",
-                selection: $endTime,
-                displayedComponents: [.hourAndMinute]
-            )
-            .datePickerStyle(.field)
-            .labelsHidden()
-            .padding(.horizontal, AppMetrics.paddingMedium)
-            .padding(.vertical, 8)
-            .background(Color.gray.opacity(0.08))
-            .cornerRadius(AppMetrics.cornerRadiusSmall)
-            .onChange(of: endTime) { _ in
-                validateTimes()
-            }
-        }
-    }
-    
-    private var calendarField: some View {
-        HStack(spacing: AppMetrics.spacingMedium) {
-            Image(systemName: "calendar.badge.clock")
-                .foregroundColor(.secondary)
-                .frame(width: 20)
-            
-            if !calendarService.selectedCalendars.isEmpty {
-                Menu {
-                    ForEach(calendarService.selectedCalendars, id: \.calendarIdentifier) { calendar in
-                        Button(action: {
-                            selectedCalendar = calendar
-                        }) {
-                            HStack {
-                                Circle()
-                                    .fill(Color(calendar.cgColor))
-                                    .frame(width: 12, height: 12)
-                                Text(calendar.title)
-                            }
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Circle()
-                            .fill(Color(selectedCalendar.cgColor))
-                            .frame(width: 12, height: 12)
-                        
-                        Text(selectedCalendar.title)
-                            .font(.body)
-                            .foregroundColor(.primary)
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.up.chevron.down")
+                
+                Divider()
+                
+                // Time pickers
+                HStack {
+                    VStack {
+                        Text("Start")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        DatePicker(
+                            "",
+                            selection: $startTime,
+                            displayedComponents: [.hourAndMinute]
+                        )
+                        .datePickerStyle(.field)
+                        .labelsHidden()
+                        .onChange(of: startTime) { _ in
+                            validateTimes()
+                        }
                     }
-                    .padding(.horizontal, AppMetrics.paddingMedium)
-                    .padding(.vertical, 8)
-                    .background(Color.gray.opacity(0.08))
-                    .cornerRadius(AppMetrics.cornerRadiusSmall)
+                    
+                    Text("–")
+                        .foregroundColor(.secondary)
+                    
+                    VStack {
+                        Text("End")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        DatePicker(
+                            "",
+                            selection: $endTime,
+                            displayedComponents: [.hourAndMinute]
+                        )
+                        .datePickerStyle(.field)
+                        .labelsHidden()
+                        .onChange(of: endTime) { _ in
+                            validateTimes()
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
+                .padding()
             }
         }
+    }
+    
+    private var alertRepeatField: some View {
+        HStack {
+            Text("Add Alert, Repeat, or Travel Time")
+                .font(.body)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+        }
+        .frame(height: 36)
+        .padding(.horizontal, AppMetrics.padding)
+    }
+    
+    private var inviteesField: some View {
+        HStack {
+            Text("Add Invitees")
+                .font(.body)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+        }
+        .frame(height: 36)
+        .padding(.horizontal, AppMetrics.padding)
     }
     
     private var notesField: some View {
-        VStack(alignment: .leading, spacing: AppMetrics.spacingSmall) {
-            HStack(spacing: AppMetrics.spacingMedium) {
-                Image(systemName: "note.text")
-                    .foregroundColor(.secondary)
-                    .frame(width: 20)
-                
-                Text("Add Notes or URL")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-            }
-            
-            CustomMultiLineStyledTextField(text: $notes, placeholder: "")
-                .frame(height: 60)
+        VStack(alignment: .leading, spacing: 0) {
+            CustomMultiLineStyledTextField(text: $notes, placeholder: "Add Notes or URL")
+                .frame(height: 80)
         }
+        .padding(AppMetrics.padding)
     }
     
     // MARK: - Calendar Preview Section
@@ -370,10 +312,21 @@ struct EventCreateSplitView: View {
     
     // MARK: - Helper Methods
     
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
-        return formatter.string(from: date)
+    private func formatDateTimeRange() -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMM d, yyyy"
+        
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "h:mma"
+        
+        let finalStart = combineDateWithTime(date: date, time: startTime)
+        let finalEnd = combineDateWithTime(date: date, time: endTime)
+        
+        let dateString = dateFormatter.string(from: date)
+        let startString = timeFormatter.string(from: finalStart)
+        let endString = timeFormatter.string(from: finalEnd)
+        
+        return "\(dateString)  \(startString) – \(endString)"
     }
     
     private func validateTimes() {
@@ -440,9 +393,15 @@ struct CustomStyledTextField: NSViewRepresentable {
         textView.string = text
         textView.delegate = context.coordinator
         
-        // Padding configuration
+        // Set placeholder
+        if text.isEmpty {
+            textView.string = ""
+            // We'll handle placeholder display in the coordinator
+        }
+        
+        // Padding configuration - adjusted for better vertical centering
         textView.textContainer?.lineFragmentPadding = 0
-        textView.textContainerInset = NSSize(width: 12, height: 8)
+        textView.textContainerInset = NSSize(width: 12, height: 10)
         textView.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.heightTracksTextView = false
@@ -458,11 +417,17 @@ struct CustomStyledTextField: NSViewRepresentable {
         // Add scroll view to container
         containerView.addSubview(scrollView)
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        
+        // Set minimum height constraint for the container
+        let heightConstraint = containerView.heightAnchor.constraint(greaterThanOrEqualToConstant: 36)
+        heightConstraint.priority = .required
+        
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: containerView.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
+            scrollView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+            heightConstraint
         ])
         
         // Style container
@@ -471,6 +436,8 @@ struct CustomStyledTextField: NSViewRepresentable {
         containerView.layer?.cornerRadius = 6
         
         context.coordinator.textView = textView
+        context.coordinator.placeholder = placeholder
+        context.coordinator.updatePlaceholder()
         
         return containerView
     }
@@ -491,13 +458,42 @@ struct CustomStyledTextField: NSViewRepresentable {
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: CustomStyledTextField
         var textView: NSTextView?
+        var placeholder: String = ""
         
         init(_ parent: CustomStyledTextField) {
             self.parent = parent
         }
         
+        func updatePlaceholder() {
+            guard let textView = textView else { return }
+            if parent.text.isEmpty {
+                textView.string = placeholder
+                textView.textColor = NSColor.placeholderTextColor
+            } else {
+                textView.textColor = NSColor.labelColor
+            }
+        }
+        
+        func textDidBeginEditing(_ notification: Notification) {
+            guard let textView = textView else { return }
+            if parent.text.isEmpty && textView.string == placeholder {
+                textView.string = ""
+                textView.textColor = NSColor.labelColor
+            }
+        }
+        
+        func textDidEndEditing(_ notification: Notification) {
+            guard let textView = textView else { return }
+            if textView.string.isEmpty {
+                parent.text = ""
+                updatePlaceholder()
+            }
+        }
+        
         func textDidChange(_ notification: Notification) {
-            if let textView = textView {
+            guard let textView = textView else { return }
+            // Don't update if showing placeholder
+            if textView.textColor != NSColor.placeholderTextColor {
                 parent.text = textView.string
             }
         }
@@ -534,7 +530,7 @@ struct CustomMultiLineStyledTextField: NSViewRepresentable {
         
         // Padding configuration
         textView.textContainer?.lineFragmentPadding = 0
-        textView.textContainerInset = NSSize(width: 12, height: 8)
+        textView.textContainerInset = NSSize(width: 12, height: 10)
         textView.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.heightTracksTextView = false
@@ -550,11 +546,17 @@ struct CustomMultiLineStyledTextField: NSViewRepresentable {
         // Add scroll view to container
         containerView.addSubview(scrollView)
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        
+        // Set minimum height constraint
+        let heightConstraint = containerView.heightAnchor.constraint(greaterThanOrEqualToConstant: 60)
+        heightConstraint.priority = .required
+        
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: containerView.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
+            scrollView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+            heightConstraint
         ])
         
         // Style container
@@ -563,6 +565,8 @@ struct CustomMultiLineStyledTextField: NSViewRepresentable {
         containerView.layer?.cornerRadius = 6
         
         context.coordinator.textView = textView
+        context.coordinator.placeholder = placeholder
+        context.coordinator.updatePlaceholder()
         
         return containerView
     }
@@ -583,13 +587,42 @@ struct CustomMultiLineStyledTextField: NSViewRepresentable {
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: CustomMultiLineStyledTextField
         var textView: NSTextView?
+        var placeholder: String = ""
         
         init(_ parent: CustomMultiLineStyledTextField) {
             self.parent = parent
         }
         
+        func updatePlaceholder() {
+            guard let textView = textView else { return }
+            if parent.text.isEmpty {
+                textView.string = placeholder
+                textView.textColor = NSColor.placeholderTextColor
+            } else {
+                textView.textColor = NSColor.labelColor
+            }
+        }
+        
+        func textDidBeginEditing(_ notification: Notification) {
+            guard let textView = textView else { return }
+            if parent.text.isEmpty && textView.string == placeholder {
+                textView.string = ""
+                textView.textColor = NSColor.labelColor
+            }
+        }
+        
+        func textDidEndEditing(_ notification: Notification) {
+            guard let textView = textView else { return }
+            if textView.string.isEmpty {
+                parent.text = ""
+                updatePlaceholder()
+            }
+        }
+        
         func textDidChange(_ notification: Notification) {
-            if let textView = textView {
+            guard let textView = textView else { return }
+            // Don't update if showing placeholder
+            if textView.textColor != NSColor.placeholderTextColor {
                 parent.text = textView.string
             }
         }

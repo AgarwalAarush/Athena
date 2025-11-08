@@ -135,7 +135,7 @@ struct DayView: View {
                 Label("Previous", systemImage: "chevron.left")
             }
             .buttonStyle(.borderless)
-            .foregroundColor(.black)
+            .foregroundColor(.white)
             .help("Previous day (⌘←)")
 
             Spacer()
@@ -144,11 +144,11 @@ struct DayView: View {
             VStack(spacing: 2) {
                 Text(viewModel.formattedDate)
                     .font(.headline)
-                    .foregroundColor(.black) // Explicitly set to black
+                    .foregroundColor(.white)
                 if viewModel.isToday {
                     Text("Today")
                         .font(.caption)
-                        .foregroundColor(.black) // Explicitly set to black
+                        .foregroundColor(.white)
                 }
             }
 
@@ -159,7 +159,7 @@ struct DayView: View {
                 Text("Today")
             }
             .buttonStyle(.borderless)
-            .foregroundColor(.black)
+            .foregroundColor(.white)
             .disabled(viewModel.isToday)
 
             // Next Day button
@@ -168,7 +168,7 @@ struct DayView: View {
                     .labelStyle(.iconOnly)
             }
             .buttonStyle(.borderless)
-            .foregroundColor(.black)
+            .foregroundColor(.white)
             .help("Next day (⌘→)")
         }
         .padding()
@@ -206,7 +206,7 @@ struct DayView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("All-Day Events")
                 .font(.caption)
-                .foregroundColor(.black) // Explicitly set to black
+                .foregroundColor(.white)
                 .padding(.horizontal, 4)
 
             VStack(spacing: 4) {
@@ -250,7 +250,7 @@ struct DayView: View {
                     // Hour label
                     Text(formatHour(hour))
                         .font(.caption)
-                        .foregroundColor(.black) // Explicitly set to black
+                        .foregroundColor(.white)
                         .frame(width: hourLabelWidth, alignment: .trailing)
                         .padding(.trailing, 8)
 
@@ -339,7 +339,7 @@ struct DayView: View {
                 .font(.largeTitle)
                 .foregroundColor(.orange)
             Text(message)
-                .foregroundColor(.black) // Explicitly set to black
+                .foregroundColor(.white)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
@@ -508,7 +508,7 @@ struct AllDayEventRow: View {
             Text(event.title)
                 .font(.body)
                 .lineLimit(1)
-                .foregroundColor(.black)
+                .foregroundColor(.white)
 
             Spacer()
         }
