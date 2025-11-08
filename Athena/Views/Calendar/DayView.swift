@@ -550,17 +550,10 @@ extension View {
                             onDismiss?()
                         }
                     
-                    EventDetailView(event: event) {
+                    EventDetailPopupView(event: event) {
                         isPresented.wrappedValue = false
                         onDismiss?()
                     }
-                    .frame(width: 400, height: 500)
-                    .background(Color.white.opacity(1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.black.opacity(0.08), lineWidth: 1)
-                    )
                     .shadow(color: .black.opacity(0.15), radius: 30, y: 10)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -173,7 +173,7 @@ struct EventCreateSplitView: View {
             // Borderless text field
             TextField("New Event", text: $title)
                 .textFieldStyle(.plain)
-                .font(.system(size: 17))
+                .font(.headline)
                 .foregroundColor(.primary)
             
             Spacer()
@@ -219,7 +219,7 @@ struct EventCreateSplitView: View {
             // Borderless text field
             TextField("Add Location or Video Call", text: $location)
                 .textFieldStyle(.plain)
-                .font(.system(size: 15))
+                .font(.headline)
                 .foregroundColor(location.isEmpty ? .secondary : .primary)
             
             Spacer()
@@ -244,7 +244,7 @@ struct EventCreateSplitView: View {
         Button(action: { showDatePicker.toggle() }) {
             HStack {
                 Text(formatDateTimeRange())
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.headline)
                     .foregroundColor(.primary)
                 
                 Spacer()
@@ -327,7 +327,7 @@ struct EventCreateSplitView: View {
         Button(action: { /* Future: Open notes editor */ }) {
             HStack {
                 Text(notes.isEmpty ? "Add Notes or URL" : notes)
-                    .font(.system(size: 15))
+                    .font(.headline)
                     .foregroundColor(notes.isEmpty ? .secondary : .primary)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -447,7 +447,7 @@ struct TappableOptionRow: View {
         Button(action: action) {
             HStack {
                 Text(title)
-                    .font(.system(size: 15))
+                    .font(.headline)
                     .foregroundColor(.secondary)
                 
                 Spacer()
@@ -587,6 +587,196 @@ struct CustomMultiLineStyledTextField: NSViewRepresentable {
             if textView.textColor != NSColor.placeholderTextColor {
                 parent.text = textView.string
             }
+        }
+    }
+}
+
+// MARK: - Event Detail Popup View
+
+/// Compact popup view for displaying event details with grouped form styling
+struct EventDetailPopupView: View {
+    let event: CalendarEvent
+    let onClose: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header with close button
+            headerSection
+            
+            // Content with grouped styling
+            ScrollView {
+                VStack(spacing: 12) {
+                    // Group 1: Event title with calendar indicator
+                    titleSection
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(10)
+                    
+                    // Group 2: Date/Time information
+                    dateTimeSection
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(10)
+                    
+                    // Group 3: Location and Notes (conditionally)
+                    if hasSupplementaryInfo {
+                        supplementarySection
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(10)
+                    }
+                }
+                .padding(.horizontal, AppMetrics.padding)
+                .padding(.top, 8)
+                .padding(.bottom, AppMetrics.padding)
+            }
+        }
+        .frame(width: 420)
+        .glassBackground(
+            material: AppMaterial.primaryGlass,
+            cornerRadius: AppMetrics.cornerRadiusLarge
+        )
+    }
+    
+    // MARK: - Header Section
+    
+    private var headerSection: some View {
+        HStack {
+            Text("Event Details")
+                .font(.headline)
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
+            Button(action: onClose) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+                    .imageScale(.large)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(AppMetrics.padding)
+    }
+    
+    // MARK: - Title Section
+    
+    private var titleSection: some View {
+        HStack(spacing: AppMetrics.spacingMedium) {
+            Circle()
+                .fill(Color(event.calendar.cgColor))
+                .frame(width: 10, height: 10)
+            
+            Text(event.title)
+                .font(.headline)
+                .foregroundColor(.primary)
+                .lineLimit(2)
+            
+            Spacer()
+        }
+        .padding(.horizontal, AppMetrics.paddingLarge)
+        .fieldRowBackground()
+    }
+    
+    // MARK: - Date/Time Section
+    
+    private var dateTimeSection: some View {
+        VStack(spacing: 0) {
+            // Date row
+            infoRow(label: formatDate(), icon: "calendar")
+            
+            if !event.isAllDay {
+                Divider()
+                    .padding(.leading, AppMetrics.paddingLarge)
+                
+                // Time row
+                infoRow(label: formatTimeRange(), icon: "clock")
+                
+                Divider()
+                    .padding(.leading, AppMetrics.paddingLarge)
+                
+                // Duration row
+                infoRow(label: formatDuration(), icon: "hourglass")
+            } else {
+                Divider()
+                    .padding(.leading, AppMetrics.paddingLarge)
+                
+                infoRow(label: "All Day", icon: "sun.max")
+            }
+        }
+    }
+    
+    // MARK: - Supplementary Section
+    
+    private var supplementarySection: some View {
+        VStack(spacing: 0) {
+            if let location = event.location, !location.isEmpty {
+                infoRow(label: location, icon: "mappin.circle")
+                
+                if let notes = event.notes, !notes.isEmpty {
+                    Divider()
+                        .padding(.leading, AppMetrics.paddingLarge)
+                }
+            }
+            
+            if let notes = event.notes, !notes.isEmpty {
+                infoRow(label: notes, icon: "note.text", allowMultiline: true)
+            }
+        }
+    }
+    
+    // MARK: - Helper Views
+    
+    private func infoRow(label: String, icon: String, allowMultiline: Bool = false) -> some View {
+        HStack(spacing: AppMetrics.spacingMedium) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundColor(.secondary)
+                .frame(width: 20)
+            
+            Text(label)
+                .font(.headline)
+                .foregroundColor(.primary)
+                .lineLimit(allowMultiline ? nil : 1)
+            
+            Spacer()
+        }
+        .padding(.horizontal, AppMetrics.paddingLarge)
+        .fieldRowBackground()
+    }
+    
+    // MARK: - Computed Properties
+    
+    private var hasSupplementaryInfo: Bool {
+        let hasLocation = (event.location?.isEmpty == false)
+        let hasNotes = (event.notes?.isEmpty == false)
+        return hasLocation || hasNotes
+    }
+    
+    // MARK: - Formatting Methods
+    
+    private func formatDate() -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .full
+        formatter.timeStyle = .none
+        return formatter.string(from: event.startDate)
+    }
+    
+    private func formatTimeRange() -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        let start = formatter.string(from: event.startDate)
+        let end = formatter.string(from: event.endDate)
+        return "\(start) – \(end)"
+    }
+    
+    private func formatDuration() -> String {
+        let duration = event.endDate.timeIntervalSince(event.startDate)
+        let hours = Int(duration) / 3600
+        let minutes = (Int(duration) % 3600) / 60
+        
+        if hours > 0 && minutes > 0 {
+            return "\(hours)h \(minutes)m"
+        } else if hours > 0 {
+            return "\(hours)h"
+        } else {
+            return "\(minutes)m"
         }
     }
 }
