@@ -87,25 +87,51 @@ struct EventCreateSplitView: View {
             // Action buttons
             headerSection
             
-            Divider()
-                .padding(.vertical, AppMetrics.spacingSmall)
-            
-            // Form fields
+            // Form fields with grouped styling
             ScrollView {
-                VStack(spacing: 0) {
-                    titleField
-                    Divider()
-                    locationField
-                    Divider()
+                VStack(spacing: 12) {
+                    // Group 1: Title and Location
+                    VStack(spacing: 0) {
+                        titleField
+                            .fieldRowBackground()
+                        
+                        Divider()
+                            .padding(.leading, AppMetrics.paddingLarge)
+                        
+                        locationField
+                            .fieldRowBackground()
+                    }
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(10)
+                    
+                    // Group 2: Date/Time
                     dateTimeDisplayField
-                    Divider()
-                    alertRepeatField
-                    Divider()
-                    inviteesField
-                    Divider()
-                    notesField
-                    Divider()
+                        .fieldRowBackground()
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(10)
+                    
+                    // Group 3: Additional options
+                    VStack(spacing: 0) {
+                        alertRepeatField
+                            .fieldRowBackground()
+                        
+                        Divider()
+                            .padding(.leading, AppMetrics.paddingLarge)
+                        
+                        inviteesField
+                            .fieldRowBackground()
+                        
+                        Divider()
+                            .padding(.leading, AppMetrics.paddingLarge)
+                        
+                        notesField
+                            .fieldRowBackground()
+                    }
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(10)
                 }
+                .padding(.horizontal, AppMetrics.padding)
+                .padding(.top, 8)
             }
         }
     }
@@ -147,12 +173,12 @@ struct EventCreateSplitView: View {
             // Borderless text field
             TextField("New Event", text: $title)
                 .textFieldStyle(.plain)
-                .font(.system(size: 15))
-                .frame(height: 36)
+                .font(.system(size: 17))
+                .foregroundColor(.primary)
             
             Spacer()
             
-            // Calendar selector button
+            // Calendar selector button with pill background
             Menu {
                 ForEach(calendarService.allEventCalendars, id: \.calendarIdentifier) { calendar in
                     Button(action: {
@@ -161,7 +187,7 @@ struct EventCreateSplitView: View {
                         HStack {
                             Circle()
                                 .fill(Color(calendar.cgColor))
-                                .frame(width: 12, height: 12)
+                                .frame(width: 10, height: 10)
                             Text(calendar.title)
                             if calendar.calendarIdentifier == selectedCalendar.calendarIdentifier {
                                 Image(systemName: "checkmark")
@@ -170,19 +196,22 @@ struct EventCreateSplitView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: 4) {
                     Circle()
                         .fill(Color(selectedCalendar.cgColor))
-                        .frame(width: 12, height: 12)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 10, height: 10)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 12))
                         .foregroundColor(.secondary)
                 }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .background(Color.gray.opacity(0.15))
+                .cornerRadius(6)
             }
             .buttonStyle(.plain)
         }
         .padding(.horizontal, AppMetrics.paddingLarge)
-        .frame(height: 36)
     }
     
     private var locationField: some View {
@@ -191,39 +220,44 @@ struct EventCreateSplitView: View {
             TextField("Add Location or Video Call", text: $location)
                 .textFieldStyle(.plain)
                 .font(.system(size: 15))
-                .frame(height: 36)
+                .foregroundColor(location.isEmpty ? .secondary : .primary)
             
             Spacer()
             
-            // Video icon and chevron
-            HStack(spacing: 6) {
-                Image(systemName: "video")
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.secondary)
+            // Video button
+            Button(action: { /* Future: Show video call options */ }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "video.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
             }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, AppMetrics.paddingLarge)
-        .frame(height: 36)
     }
     
     private var dateTimeDisplayField: some View {
         Button(action: { showDatePicker.toggle() }) {
             HStack {
                 Text(formatDateTimeRange())
-                    .font(.body)
+                    .font(.system(size: 15, weight: .medium))
                     .foregroundColor(.primary)
                 
                 Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary.opacity(0.6))
             }
-            .frame(height: 36)
-            .padding(.horizontal, AppMetrics.padding)
+            .padding(.horizontal, AppMetrics.paddingLarge)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .popover(isPresented: $showDatePicker, arrowEdge: .bottom) {
+        .popover(isPresented: $showDatePicker, arrowEdge: .trailing) {
             VStack(spacing: 0) {
                 // Date picker
                 DatePicker("", selection: $date, displayedComponents: [.date])
@@ -290,11 +324,23 @@ struct EventCreateSplitView: View {
     }
     
     private var notesField: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            CustomMultiLineStyledTextField(text: $notes, placeholder: "Add Notes or URL")
-                .frame(height: 80)
+        Button(action: { /* Future: Open notes editor */ }) {
+            HStack {
+                Text(notes.isEmpty ? "Add Notes or URL" : notes)
+                    .font(.system(size: 15))
+                    .foregroundColor(notes.isEmpty ? .secondary : .primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary.opacity(0.6))
+            }
+            .padding(.horizontal, AppMetrics.paddingLarge)
         }
-        .padding(AppMetrics.padding)
+        .buttonStyle(.plain)
     }
     
     // MARK: - Calendar Preview Section
@@ -377,13 +423,24 @@ struct EventCreateSplitView: View {
     }
 }
 
+// MARK: - View Modifiers
+
+extension View {
+    /// Consistent field row background styling
+    func fieldRowBackground() -> some View {
+        self
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+    }
+}
+
 // MARK: - Supporting Components
 
-/// Tappable option row with hover state
+/// Tappable option row with press state
 struct TappableOptionRow: View {
     let title: String
     let action: () -> Void
-    @State private var isHovering = false
+    @State private var isPressed = false
     
     var body: some View {
         Button(action: action) {
@@ -393,16 +450,19 @@ struct TappableOptionRow: View {
                     .foregroundColor(.secondary)
                 
                 Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary.opacity(0.6))
             }
-            .frame(height: 36)
             .padding(.horizontal, AppMetrics.paddingLarge)
             .contentShape(Rectangle())
-            .background(isHovering ? AppColors.hoverOverlay : Color.clear)
+            .background(isPressed ? Color.gray.opacity(0.2) : Color.clear)
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovering = hovering
-        }
+        .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
+            isPressed = pressing
+        }, perform: {})
     }
 }
 
