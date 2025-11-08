@@ -103,6 +103,18 @@ class Orchestrator {
     ///   }
     ///   ```
     func route(prompt: String, context: AppView? = nil) async throws {
+        // Set orchestrator running state to prevent auto-hide during processing
+        await MainActor.run {
+            appViewModel?.isOrchestratorRunning = true
+        }
+        
+        // Use defer to ensure we always reset the state, even if an error occurs
+        defer {
+            Task { @MainActor in
+                appViewModel?.isOrchestratorRunning = false
+            }
+        }
+        
         // 1. Check for wakeword control (highest priority)
         if let wakewordAction = detectWakewordControlAction(from: prompt) {
             await handleWakewordControlTask(prompt: prompt, inferredAction: wakewordAction)

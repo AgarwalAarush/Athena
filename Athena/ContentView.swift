@@ -12,6 +12,7 @@ struct ContentView: View {
     @EnvironmentObject var windowManager: WindowManager
     @StateObject private var appViewModel: AppViewModel
     @StateObject private var chatViewModel: ChatViewModel
+    @StateObject private var interactionTracker = UserInteractionTracker()
 
     init() {
         // Create a single AppViewModel instance
@@ -123,6 +124,17 @@ struct ContentView: View {
             } else {
                 print("[ContentView] ❌ Failed to retrieve AppDelegate from NSApp.delegate")
             }
+            
+            // Set up interaction tracker
+            print("[ContentView] 🎯 Setting up UserInteractionTracker")
+            interactionTracker.windowManager = windowManager
+            interactionTracker.appViewModel = appViewModel
+            interactionTracker.startTracking()
+        }
+        .onDisappear {
+            print("[ContentView] 👋 View disappeared - stopping interaction tracker")
+            // Clean up interaction tracker
+            interactionTracker.stopTracking()
         }
     }
 }
