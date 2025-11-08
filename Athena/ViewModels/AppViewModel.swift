@@ -40,6 +40,7 @@ class AppViewModel: ObservableObject {
     // MARK: - Private Properties
 
     private var windowManager: WindowManager?
+    private weak var appDelegate: AppDelegate?
     
     // MARK: - Wake Word Management
     
@@ -49,8 +50,15 @@ class AppViewModel: ObservableObject {
     /// Flag to track if wake word was paused (to resume it later)
     private var wakeWordWasPaused: Bool = false
 
-    func setup(windowManager: WindowManager) {
+    func setup(windowManager: WindowManager, appDelegate: AppDelegate) {
+        print("[AppViewModel] 🔧 setup() called")
+        print("[AppViewModel] 📊 windowManager: \(windowManager)")
+        print("[AppViewModel] 📊 appDelegate: \(appDelegate)")
+        
         self.windowManager = windowManager
+        self.appDelegate = appDelegate
+        
+        print("[AppViewModel] ✅ setup() completed - windowManager and appDelegate stored")
     }
 
     func showCalendar() {
@@ -105,19 +113,49 @@ class AppViewModel: ObservableObject {
     
     /// Set the wake word manager reference (called by ChatViewModel)
     func setWakeWordManager(_ manager: WakeWordTranscriptionManager?) {
-        print("[AppViewModel] Setting wake word manager: \(manager != nil ? "present" : "nil")")
+        print("[AppViewModel] 🔧 Setting wake word manager: \(manager != nil ? "present" : "nil")")
         self.wakeWordManager = manager
 
         // Set up callback to show window when wake word is detected (if hidden)
         manager?.onWakeWordDetectedCallback = { [weak self] in
-            guard let self = self,
-                  let windowManager = self.windowManager,
-                  let window = windowManager.window,
-                  !window.isVisible else { return }
+            print("[AppViewModel] 🎤 ⚡️ WAKE WORD CALLBACK TRIGGERED!")
+            
+            guard let self = self else {
+                print("[AppViewModel] ❌ Wake word callback: self is nil")
+                return
+            }
+            
+            print("[AppViewModel] ✅ Wake word callback: self exists")
+            print("[AppViewModel] 📊 appDelegate: \(self.appDelegate != nil ? "present" : "nil")")
+            print("[AppViewModel] 📊 windowManager: \(self.windowManager != nil ? "present" : "nil")")
+            print("[AppViewModel] 📊 window: \(self.windowManager?.window != nil ? "present" : "nil")")
+            
+            guard let appDelegate = self.appDelegate else {
+                print("[AppViewModel] ❌ Wake word callback: appDelegate is nil - cannot show window")
+                return
+            }
+            
+            guard let window = self.windowManager?.window else {
+                print("[AppViewModel] ❌ Wake word callback: window is nil - cannot check visibility")
+                return
+            }
+            
+            print("[AppViewModel] 📊 Window visibility: \(window.isVisible ? "visible" : "hidden")")
 
-            print("[AppViewModel] 🪟 Wake word detected - showing hidden window")
-            windowManager.toggleWindowVisibility()
+            if !window.isVisible {
+                print("[AppViewModel] 🪟 Wake word detected - window is hidden, attempting to show it")
+                // Use AppDelegate's toggleWindow method for proper window positioning and app activation
+                DispatchQueue.main.async {
+                    print("[AppViewModel] 🎯 Calling appDelegate.toggleWindow() on main thread")
+                    appDelegate.toggleWindow()
+                    print("[AppViewModel] ✅ toggleWindow() called")
+                }
+            } else {
+                print("[AppViewModel] ℹ️ Wake word detected but window is already visible, not showing")
+            }
         }
+        
+        print("[AppViewModel] ✅ Wake word callback configured successfully")
     }
     
     /// Pause wake word detection (used when entering listen mode)

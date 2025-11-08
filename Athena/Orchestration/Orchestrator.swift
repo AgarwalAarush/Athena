@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 import GoogleAPIClientForREST_Gmail
 import GoogleAPIClientForREST_Calendar
 import AppKit

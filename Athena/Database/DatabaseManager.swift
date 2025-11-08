@@ -31,7 +31,7 @@ class DatabaseManager {
             
             try migrator.migrate(dbQueue)
             
-            print("Database initialized at: \(dbPath)")
+//            print("Database initialized at: \(dbPath)")
         } catch {
             fatalError("Failed to initialize database: \(error)")
         }

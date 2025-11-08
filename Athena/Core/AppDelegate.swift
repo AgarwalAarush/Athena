@@ -19,6 +19,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     static var currentAuthorizationFlow: OIDExternalUserAgentSession?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        print("[AppDelegate] 🚀 Application launching")
+        
         // Create the status bar item (menu bar icon)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem?.button {
@@ -26,16 +28,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.action = #selector(toggleWindow)
             button.target = self
         }
+        print("[AppDelegate] ✅ Status bar item created")
 
         // Initialize window manager with floating utility window configuration
         windowManager = WindowManager()
         windowManager?.setupFloatingWindow()
+        print("[AppDelegate] ✅ Window manager initialized")
 
         // Hide dock icon for floating utility window
         NSApp.setActivationPolicy(.accessory)
+        print("[AppDelegate] ✅ Activation policy set to .accessory")
 
-        // Initially hide the window - it will be shown when menu bar icon is clicked
-        windowManager?.toggleWindowVisibility()
+        // Explicitly hide the window - it will be shown when menu bar icon is clicked
+        windowManager?.window?.orderOut(nil)
+        print("[AppDelegate] ✅ Window explicitly hidden on startup")
 
         setupGlobalShortcutMonitor()
         setupSettingsShortcutMonitor()
@@ -43,34 +49,57 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in
             await SpeechService.shared.requestAuthorization()
         }
+        
+        print("[AppDelegate] ✅ Application launch completed")
     }
 
     @objc func toggleWindow() {
-        guard let windowManager = windowManager else { return }
+        print("[AppDelegate] 🔔 toggleWindow() called")
+        
+        guard let windowManager = windowManager else {
+            print("[AppDelegate] ❌ windowManager is nil")
+            return
+        }
+        
+        guard let window = windowManager.window else {
+            print("[AppDelegate] ❌ window is nil")
+            return
+        }
+        
+        print("[AppDelegate] 📊 Window current state: \(window.isVisible ? "visible" : "hidden")")
 
-        // Position window near the status bar item before showing
-        if let button = statusItem?.button,
-           let window = windowManager.window {
-
-            if !window.isVisible {
-                // Calculate position below the status bar item
+        if !window.isVisible {
+            // Window is hidden, show it
+            print("[AppDelegate] 🪟 Window is hidden, positioning near menu bar and showing")
+            
+            // Position window near menu bar
+            if let button = statusItem?.button {
                 let buttonFrame = button.window?.frame ?? .zero
                 let screen = NSScreen.main?.visibleFrame ?? .zero
                 let windowSize = window.frame.size
 
                 let x = buttonFrame.origin.x + (buttonFrame.width / 2) - (windowSize.width / 2)
-                let y = screen.maxY - buttonFrame.height - windowSize.height - 5 // A little below the menu bar
-
+                let y = screen.maxY - 5 - windowSize.height
+                
+                print("[AppDelegate] 📍 Setting window position: x=\(x), y=\(y)")
                 window.setFrameOrigin(NSPoint(x: x, y: y))
             }
+            
+            // Show the window
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            print("[AppDelegate] ✅ Window shown and activated")
+        } else {
+            // Window is visible, hide it
+            print("[AppDelegate] 🪟 Window is visible, hiding it")
+            window.orderOut(nil)
+            print("[AppDelegate] ✅ Window hidden")
         }
-
-        windowManager.toggleWindowVisibility()
     }
     
     private func setupGlobalShortcutMonitor() {
-        let shortcutMask: NSEvent.ModifierFlags = [.command, .control]
-        let shortcutKeyCode: UInt16 = 38 // Key code for the "J" key on macOS keyboards
+        let shortcutMask: NSEvent.ModifierFlags = [.option]
+        let shortcutKeyCode: UInt16 = 0 // Key code for the "A" key on macOS keyboards
 
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self else { return }

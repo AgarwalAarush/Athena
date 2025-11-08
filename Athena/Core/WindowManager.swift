@@ -9,7 +9,7 @@ import AppKit
 import SwiftUI
 import Combine
 
-class WindowManager: NSObject, ObservableObject {
+class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
     var window: NSWindow?
     var settingsWindow: NSWindow?
 
@@ -24,6 +24,8 @@ class WindowManager: NSObject, ObservableObject {
     private var originalWindowSize: CGSize?
 
     func setupFloatingWindow() {
+        print("[WindowManager] 🏗️ Setting up floating window")
+        
         // Create borderless floating window
         let window = FloatingWindow(
             contentRect: NSRect(x: 0, y: 0, width: windowSize.width, height: windowSize.height),
@@ -31,13 +33,16 @@ class WindowManager: NSObject, ObservableObject {
             backing: .buffered,
             defer: false
         )
+        print("[WindowManager] ✅ Window created")
 
         // Set size constraints
         window.minSize = CGSize(width: minWidth, height: minHeight)
         window.maxSize = CGSize(width: maxWidth, height: maxHeight)
+        print("[WindowManager] ✅ Size constraints set")
 
         // Center window on screen
         window.center()
+        print("[WindowManager] ✅ Window centered")
 
         // Set content view with SwiftUI
         let contentView = ContentView()
@@ -49,9 +54,11 @@ class WindowManager: NSObject, ObservableObject {
         hostingView.layer?.backgroundColor = .clear
 
         window.contentView = hostingView
+        print("[WindowManager] ✅ Content view configured")
 
-        // Make window key and order front
-        window.makeKeyAndOrderFront(nil)
+        // Set delegate for debugging
+        window.delegate = self
+        print("[WindowManager] ✅ Window delegate set")
 
         // Store window reference
         self.window = window
@@ -61,6 +68,10 @@ class WindowManager: NSObject, ObservableObject {
         
         // Store original size
         self.originalWindowSize = window.frame.size
+        
+        // Start with window hidden (will be shown by menu bar icon or wake word)
+        window.orderOut(nil)
+        print("[WindowManager] ✅ Window setup complete - starting hidden")
     }
 
     func openSettingsWindow() {
@@ -144,13 +155,20 @@ class WindowManager: NSObject, ObservableObject {
     }
     
     func toggleWindowVisibility() {
-        guard let window = window else { return }
+        guard let window = window else {
+            print("[WindowManager] ❌ Window is nil in toggleWindowVisibility")
+            return
+        }
+        
+        print("[WindowManager] 🔄 toggleWindowVisibility called - current state: \(window.isVisible ? "visible" : "hidden")")
         
         if window.isVisible {
             window.orderOut(nil)
+            print("[WindowManager] ✅ Window hidden")
         } else {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            print("[WindowManager] ✅ Window shown and activated")
         }
     }
     

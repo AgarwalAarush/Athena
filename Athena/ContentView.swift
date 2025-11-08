@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct ContentView: View {
     @EnvironmentObject var windowManager: WindowManager
@@ -76,15 +77,36 @@ struct ContentView: View {
         .frame(width: windowManager.windowSize.width, height: windowManager.windowSize.height)
         .environmentObject(appViewModel)
         .alert(item: $appViewModel.alertInfo) { info in
-            Alert(
-                title: Text(info.title),
-                message: Text(info.message),
-                primaryButton: info.primaryButton ?? .default(Text("OK")),
-                secondaryButton: info.secondaryButton
-            )
+            if let primaryButton = info.primaryButton, let secondaryButton = info.secondaryButton {
+                Alert(
+                    title: Text(info.title),
+                    message: Text(info.message),
+                    primaryButton: primaryButton,
+                    secondaryButton: secondaryButton
+                )
+            } else if let primaryButton = info.primaryButton {
+                Alert(
+                    title: Text(info.title),
+                    message: Text(info.message),
+                    dismissButton: primaryButton
+                )
+            } else {
+                Alert(
+                    title: Text(info.title),
+                    message: Text(info.message)
+                )
+            }
         }
         .onAppear {
-            appViewModel.setup(windowManager: windowManager)
+            print("[ContentView] 🎬 onAppear called - setting up AppViewModel")
+            // Get AppDelegate from NSApp
+            if let appDelegate = NSApp.delegate as? AppDelegate {
+                print("[ContentView] ✅ AppDelegate retrieved successfully")
+                appViewModel.setup(windowManager: windowManager, appDelegate: appDelegate)
+                print("[ContentView] ✅ AppViewModel setup completed with windowManager and appDelegate")
+            } else {
+                print("[ContentView] ❌ Failed to retrieve AppDelegate from NSApp.delegate")
+            }
         }
     }
 }

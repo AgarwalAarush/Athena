@@ -9,6 +9,7 @@ import SwiftUI
 import AppKit
 import EventKit
 import ApplicationServices
+internal import Contacts
 
 // MARK: - Color Extensions
 

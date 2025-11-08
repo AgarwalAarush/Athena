@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import Contacts
+internal import Contacts
 
 /// Errors that can occur when using the ContactsService
 enum ContactsError: Error, LocalizedError {

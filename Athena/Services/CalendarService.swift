@@ -47,9 +47,9 @@ class CalendarService: ObservableObject {
     
     private init() {
         // Debug: Verify Info.plist strings are loaded
-        print("📅 CalendarService initialized")
-        print("NSCalendarsUsageDescription:", Bundle.main.object(forInfoDictionaryKey: "NSCalendarsUsageDescription") as Any)
-        print("NSCalendarsFullAccessUsageDescription:", Bundle.main.object(forInfoDictionaryKey: "NSCalendarsFullAccessUsageDescription") as Any)
+//        print("📅 CalendarService initialized")
+//        print("NSCalendarsUsageDescription:", Bundle.main.object(forInfoDictionaryKey: "NSCalendarsUsageDescription") as Any)
+//        print("NSCalendarsFullAccessUsageDescription:", Bundle.main.object(forInfoDictionaryKey: "NSCalendarsFullAccessUsageDescription") as Any)
         
         // Subscribe to EventKit change notifications
         NotificationCenter.default.addObserver(

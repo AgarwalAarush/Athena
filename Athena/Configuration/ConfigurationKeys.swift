@@ -101,7 +101,7 @@ enum ConfigurationKey: String, CaseIterable {
         case .autoSendVoiceTranscription:
             return true
         case .wakewordModeEnabled:
-            return false
+            return true
 
         // Google OAuth defaults
         case .googleAuthScopes:
