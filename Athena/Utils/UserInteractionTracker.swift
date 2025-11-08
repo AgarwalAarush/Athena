@@ -10,7 +10,7 @@ import Foundation
 
 /// Tracks user interactions (clicks, typing, scrolling) and auto-hides the window after a period of inactivity
 @MainActor
-class UserInteractionTracker: ObservableObject {
+class UserInteractionTracker {
     // MARK: - Properties
     
     /// Timer for auto-hide delay
@@ -65,21 +65,25 @@ class UserInteractionTracker: ObservableObject {
     }
     
     /// Stops monitoring user interactions
-    func stopTracking() {
-        guard isTracking else { return }
-        
-        print("[UserInteractionTracker] 🛑 Stopping interaction tracking")
-        isTracking = false
-        
-        // Remove event monitor
-        if let monitor = eventMonitor {
-            NSEvent.removeMonitor(monitor)
-            eventMonitor = nil
+    /// Can be called from any context (including deinit)
+    nonisolated func stopTracking() {
+        // Use Task to access main-actor isolated properties
+        Task { @MainActor [weak self] in
+            guard let self = self, self.isTracking else { return }
+            
+            print("[UserInteractionTracker] 🛑 Stopping interaction tracking")
+            self.isTracking = false
+            
+            // Remove event monitor (thread-safe)
+            if let monitor = self.eventMonitor {
+                NSEvent.removeMonitor(monitor)
+                self.eventMonitor = nil
+            }
+            
+            // Invalidate timer on main thread
+            self.hideTimer?.invalidate()
+            self.hideTimer = nil
         }
-        
-        // Invalidate timer
-        hideTimer?.invalidate()
-        hideTimer = nil
     }
     
     /// Records a user interaction and resets the auto-hide timer

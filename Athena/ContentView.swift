@@ -12,7 +12,7 @@ struct ContentView: View {
     @EnvironmentObject var windowManager: WindowManager
     @StateObject private var appViewModel: AppViewModel
     @StateObject private var chatViewModel: ChatViewModel
-    @StateObject private var interactionTracker = UserInteractionTracker()
+    @State private var interactionTracker = UserInteractionTracker()
 
     init() {
         // Create a single AppViewModel instance
