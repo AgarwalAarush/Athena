@@ -1,5 +1,5 @@
 {
-  "originHash" : "7adaf2ea66a4f47ed55590d51fb5bdd50a1bd6f63ea9b5d8c081d2007c8ceef4",
+  "originHash" : "f7dc5de228b4abe38508690d74d08eaf844652865ecd245da97548ff84d5744a",
   "pins" : [
     {
       "identity" : "appauth-ios",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "2781038865a80e2c425a1da12cc1327bcd56501f",
         "version" : "1.7.6"
+      }
+    },
+    {
+      "identity" : "google-api-objectivec-client-for-rest",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/google/google-api-objectivec-client-for-rest",
+      "state" : {
+        "branch" : "main",
+        "revision" : "08c9d93c558c4b6e1d85fa5988e0b74befe1a05c"
       }
     },
     {

@@ -10,6 +10,11 @@
 		9B530D8A2EB323EA001C771B /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 9B530D892EB323EA001C771B /* GRDB */; };
 		9B530DA22EB40002001C771B /* AppAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 9B530DA12EB40002001C771B /* AppAuth */; };
 		9BA988822EBEB75C001714B9 /* GTMAppAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 9B530DA02EB40001001C771B /* GTMAppAuth */; };
+		9BF319D92EBEF9250066C5DA /* GoogleAPIClientForRESTCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9BF319D82EBEF9250066C5DA /* GoogleAPIClientForRESTCore */; };
+		9BF319DB2EBEF9250066C5DA /* GoogleAPIClientForREST_ACMEDNS in Frameworks */ = {isa = PBXBuildFile; productRef = 9BF319DA2EBEF9250066C5DA /* GoogleAPIClientForREST_ACMEDNS */; };
+		9BF319DD2EBEF9250066C5DA /* GoogleAPIClientForREST_AIPlatformNotebooks in Frameworks */ = {isa = PBXBuildFile; productRef = 9BF319DC2EBEF9250066C5DA /* GoogleAPIClientForREST_AIPlatformNotebooks */; };
+		9BF319DF2EBEF9250066C5DA /* GoogleAPIClientForREST_APIGateway in Frameworks */ = {isa = PBXBuildFile; productRef = 9BF319DE2EBEF9250066C5DA /* GoogleAPIClientForREST_APIGateway */; };
+		9BF319E12EBEF9250066C5DA /* GoogleAPIClientForREST_APIManagement in Frameworks */ = {isa = PBXBuildFile; productRef = 9BF319E02EBEF9250066C5DA /* GoogleAPIClientForREST_APIManagement */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,9 +34,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9BF319DF2EBEF9250066C5DA /* GoogleAPIClientForREST_APIGateway in Frameworks */,
 				9BA988822EBEB75C001714B9 /* GTMAppAuth in Frameworks */,
+				9BF319DD2EBEF9250066C5DA /* GoogleAPIClientForREST_AIPlatformNotebooks in Frameworks */,
 				9B530D8A2EB323EA001C771B /* GRDB in Frameworks */,
+				9BF319D92EBEF9250066C5DA /* GoogleAPIClientForRESTCore in Frameworks */,
+				9BF319E12EBEF9250066C5DA /* GoogleAPIClientForREST_APIManagement in Frameworks */,
 				9B530DA22EB40002001C771B /* AppAuth in Frameworks */,
+				9BF319DB2EBEF9250066C5DA /* GoogleAPIClientForREST_ACMEDNS in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -85,6 +95,11 @@
 				9B530D892EB323EA001C771B /* GRDB */,
 				9B530DA02EB40001001C771B /* GTMAppAuth */,
 				9B530DA12EB40002001C771B /* AppAuth */,
+				9BF319D82EBEF9250066C5DA /* GoogleAPIClientForRESTCore */,
+				9BF319DA2EBEF9250066C5DA /* GoogleAPIClientForREST_ACMEDNS */,
+				9BF319DC2EBEF9250066C5DA /* GoogleAPIClientForREST_AIPlatformNotebooks */,
+				9BF319DE2EBEF9250066C5DA /* GoogleAPIClientForREST_APIGateway */,
+				9BF319E02EBEF9250066C5DA /* GoogleAPIClientForREST_APIManagement */,
 			);
 			productName = Athena;
 			productReference = 9B530D392EB2D478001C771B /* Athena.app */;
@@ -117,6 +132,7 @@
 			packageReferences = (
 				9B530D832EB30A18001C771B /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 				9B530D9F2EB40000001C771B /* XCRemoteSwiftPackageReference "GTMAppAuth" */,
+				9BF319D72EBEF9250066C5DA /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9B530D3A2EB2D478001C771B /* Products */;
@@ -387,6 +403,14 @@
 				minimumVersion = 4.0.0;
 			};
 		};
+		9BF319D72EBEF9250066C5DA /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/google-api-objectivec-client-for-rest";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -404,6 +428,31 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9B530D9F2EB40000001C771B /* XCRemoteSwiftPackageReference "GTMAppAuth" */;
 			productName = AppAuth;
+		};
+		9BF319D82EBEF9250066C5DA /* GoogleAPIClientForRESTCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9BF319D72EBEF9250066C5DA /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */;
+			productName = GoogleAPIClientForRESTCore;
+		};
+		9BF319DA2EBEF9250066C5DA /* GoogleAPIClientForREST_ACMEDNS */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9BF319D72EBEF9250066C5DA /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */;
+			productName = GoogleAPIClientForREST_ACMEDNS;
+		};
+		9BF319DC2EBEF9250066C5DA /* GoogleAPIClientForREST_AIPlatformNotebooks */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9BF319D72EBEF9250066C5DA /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */;
+			productName = GoogleAPIClientForREST_AIPlatformNotebooks;
+		};
+		9BF319DE2EBEF9250066C5DA /* GoogleAPIClientForREST_APIGateway */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9BF319D72EBEF9250066C5DA /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */;
+			productName = GoogleAPIClientForREST_APIGateway;
+		};
+		9BF319E02EBEF9250066C5DA /* GoogleAPIClientForREST_APIManagement */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9BF319D72EBEF9250066C5DA /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */;
+			productName = GoogleAPIClientForREST_APIManagement;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

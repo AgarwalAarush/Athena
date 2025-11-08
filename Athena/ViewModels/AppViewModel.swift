@@ -25,6 +25,9 @@ class AppViewModel: ObservableObject {
     /// Note content for notes view - accessible to orchestrator for executing notes actions
     @Published var noteContent: String = ""
 
+    /// Messaging status for user feedback - set by orchestrator after sending messages
+    @Published var messagingStatus: String?
+
     // MARK: - Private Properties
 
     private var windowManager: WindowManager?
@@ -150,7 +153,14 @@ class AppViewModel: ObservableObject {
                 print("[AppViewModel] ❌ Error resuming wake word: \(error)")
             }
         }
-        
+
         wakeWordWasPaused = false
+    }
+
+    // MARK: - Messaging Status Control
+
+    /// Clears the current messaging status message
+    func clearMessagingStatus() {
+        messagingStatus = nil
     }
 }

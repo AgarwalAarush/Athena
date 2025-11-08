@@ -15,5 +15,7 @@
 	</array>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Athena needs to control Messages to send messages automatically on your behalf.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Athena needs access to your contacts to send messages to people by name.</string>
 </dict>
 </plist>

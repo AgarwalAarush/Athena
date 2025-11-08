@@ -717,34 +717,81 @@ class Orchestrator {
     ///
     /// **Implementation:**
     /// - Parse the prompt to extract recipient and message
-    /// - Use MessagingService to send the message
+    /// - Resolve contact names to phone numbers using ContactsService
+    /// - Use MessagingService to send the message via AppleScript
     /// - Provide user confirmation
     private func handleMessagingTask(prompt: String) async {
         print("[Orchestrator] handleMessagingTask: Processing query '\(prompt)'")
 
-        // TODO: Implement messaging integration
-        // For now, this would:
-        // 1. Parse prompt for recipient and message content using AI
-        // 2. Extract phone number or contact name
-        // 3. Use MessagingService.shared.sendMessage() with appropriate method
-        // 4. Present confirmation to user
+        do {
+            // 1. Parse the prompt to extract recipient and message
+            let parsedResult = try await parseMessagingQuery(prompt: prompt)
+            print("[Orchestrator] handleMessagingTask: Parsed - recipient: '\(parsedResult.recipient)', message: '\(parsedResult.message)'")
 
-        print("[Orchestrator] handleMessagingTask: Messaging integration not yet implemented")
-        print("[Orchestrator] handleMessagingTask: Would send message based on: '\(prompt)'")
+            // 2. Resolve recipient (contact name or phone number)
+            var phoneNumber: String
 
-        // Example of how this would work:
-        // let result = try await parseMessagingQuery(prompt: prompt)
-        // let messagingResult = await MessagingService.shared.sendMessage(
-        //     result.message,
-        //     to: result.recipient,
-        //     using: .appleScript  // or .shareSheet for user confirmation
-        // )
-        // switch messagingResult {
-        // case .success:
-        //     print("[Orchestrator] Message sent successfully")
-        // case .failure(let error):
-        //     print("[Orchestrator] Failed to send message: \(error)")
-        // }
+            do {
+                phoneNumber = try await ContactsService.shared.lookupPhoneNumber(for: parsedResult.recipient)
+                print("[Orchestrator] handleMessagingTask: Resolved '\(parsedResult.recipient)' to phone number: \(phoneNumber)")
+            } catch ContactsError.authorizationDenied {
+                print("[Orchestrator] handleMessagingTask: ❌ Contacts access denied")
+                await updateMessagingStatus("Failed to send message: Contacts access denied. Please grant permission in System Settings.")
+                return
+            } catch ContactsError.contactNotFound(let name) {
+                print("[Orchestrator] handleMessagingTask: ❌ Contact '\(name)' not found")
+                await updateMessagingStatus("Failed to send message: Contact '\(name)' not found in your contacts.")
+                return
+            } catch ContactsError.noPhoneNumber(let name) {
+                print("[Orchestrator] handleMessagingTask: ❌ Contact '\(name)' has no phone number")
+                await updateMessagingStatus("Failed to send message: '\(name)' has no phone number in contacts.")
+                return
+            } catch {
+                print("[Orchestrator] handleMessagingTask: ⚠️ Contact lookup failed, using recipient as-is: \(error.localizedDescription)")
+                phoneNumber = parsedResult.recipient
+            }
+
+            // 3. Send the message via MessagingService using AppleScript method
+            print("[Orchestrator] handleMessagingTask: Sending message to \(phoneNumber)...")
+            let messagingResult = await MessagingService.shared.sendMessage(
+                parsedResult.message,
+                to: phoneNumber,
+                using: .appleScript
+            )
+
+            // 4. Handle the result and provide user feedback
+            switch messagingResult {
+            case .success:
+                print("[Orchestrator] handleMessagingTask: ✅ Message sent successfully")
+                await updateMessagingStatus("Message sent to \(parsedResult.recipient)")
+            case .failure(let error):
+                print("[Orchestrator] handleMessagingTask: ❌ Failed to send message: \(error.localizedDescription)")
+
+                // Provide specific error messages
+                switch error {
+                case .appleScriptFailed(let details):
+                    await updateMessagingStatus("Failed to send message: AppleScript error - \(details)")
+                case .invalidRecipient:
+                    await updateMessagingStatus("Failed to send message: Invalid recipient '\(phoneNumber)'")
+                case .messagesAppNotAvailable:
+                    await updateMessagingStatus("Failed to send message: Messages app not available")
+                default:
+                    await updateMessagingStatus("Failed to send message: \(error.localizedDescription)")
+                }
+            }
+
+        } catch {
+            print("[Orchestrator] handleMessagingTask: ❌ Error parsing messaging query: \(error.localizedDescription)")
+            await updateMessagingStatus("Failed to send message: Could not understand the message request")
+        }
+    }
+
+    /// Updates the messaging status in AppViewModel for user feedback
+    /// - Parameter status: The status message to display
+    private func updateMessagingStatus(_ status: String) async {
+        await MainActor.run {
+            appViewModel?.messagingStatus = status
+        }
     }
 
     /// Handles general computer use tasks (e.g., "open Safari", "take a screenshot").
@@ -951,6 +998,71 @@ class Orchestrator {
         if let title = title {
             notesViewModel.currentNote?.title = title
         }
+    }
+
+    // MARK: - Messaging Action Helpers
+
+    /// Result of parsing a messaging query
+    private struct MessagingActionResult {
+        let recipient: String  // Contact name or phone number
+        let message: String    // Message content to send
+    }
+
+    /// Parses a messaging query to extract the recipient and message content
+    /// - Parameter prompt: The user's messaging request
+    /// - Returns: MessagingActionResult with recipient and message
+    /// - Throws: Error if parsing fails
+    private func parseMessagingQuery(prompt: String) async throws -> MessagingActionResult {
+        let systemPrompt = """
+        You are a messaging action parser. Analyze the user's query and extract the recipient and message content.
+
+        The recipient can be:
+        - A contact name (e.g., "mom", "John", "Sarah Smith")
+        - A phone number (e.g., "+15551234567", "555-1234")
+        - An email address (e.g., "john@example.com")
+
+        Respond ONLY with valid JSON in this exact format:
+        {
+          "recipient": "recipient_name_or_number",
+          "message": "message_content"
+        }
+
+        Examples:
+        Query: "text mom that I'll be late"
+        Response: {"recipient": "mom", "message": "I'll be late"}
+
+        Query: "send a message to John saying let's meet at 3pm"
+        Response: {"recipient": "John", "message": "let's meet at 3pm"}
+
+        Query: "message +15551234567 hello from Athena"
+        Response: {"recipient": "+15551234567", "message": "hello from Athena"}
+
+        Query: "text Sarah I'm on my way"
+        Response: {"recipient": "Sarah", "message": "I'm on my way"}
+
+        Query: "send an iMessage to dad that dinner is ready"
+        Response: {"recipient": "dad", "message": "dinner is ready"}
+
+        Now parse this query: "\(prompt)"
+        """
+
+        let response = try await aiService.getCompletion(
+            prompt: prompt,
+            systemPrompt: systemPrompt,
+            provider: .openai,
+            model: "gpt-5-nano"
+        )
+
+        print("[Orchestrator] parseMessagingQuery: AI response: \(response)")
+
+        guard let jsonData = response.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let recipient = json["recipient"] as? String,
+              let message = json["message"] as? String else {
+            throw NSError(domain: "Orchestrator", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to parse messaging query"])
+        }
+
+        return MessagingActionResult(recipient: recipient, message: message)
     }
 
     // MARK: - Window Management Action Helpers
