@@ -103,9 +103,18 @@ struct DayView: View {
                 selectedEvent = nil
             }
         }
-        .eventDetailOverlay(event: selectedEvent, isPresented: $showEventDetail) {
-            selectedEvent = nil
-        }
+        .eventDetailOverlay(
+            event: selectedEvent,
+            isPresented: $showEventDetail,
+            onDismiss: {
+                selectedEvent = nil
+            },
+            onRefresh: {
+                Task {
+                    await viewModel.fetchEvents()
+                }
+            }
+        )
         .eventCreateOverlay(
             pendingData: viewModel.pendingEventData,
             isPresented: $viewModel.showCreateEventModal,
@@ -539,7 +548,7 @@ struct AllDayEventRow: View {
 // MARK: - Event Detail Overlay
 
 extension View {
-    func eventDetailOverlay(event: CalendarEvent?, isPresented: Binding<Bool>, onDismiss: (() -> Void)? = nil) -> some View {
+    func eventDetailOverlay(event: CalendarEvent?, isPresented: Binding<Bool>, onDismiss: (() -> Void)? = nil, onRefresh: (() -> Void)? = nil) -> some View {
         overlay(alignment: .center) {
             if isPresented.wrappedValue, let event {
                 ZStack {
@@ -550,10 +559,19 @@ extension View {
                             onDismiss?()
                         }
                     
-                    EventDetailPopupView(event: event) {
-                        isPresented.wrappedValue = false
-                        onDismiss?()
-                    }
+                    EventDetailPopupView(
+                        event: event,
+                        onClose: {
+                            isPresented.wrappedValue = false
+                            onDismiss?()
+                        },
+                        onDelete: {
+                            onRefresh?()
+                        },
+                        onUpdate: {
+                            onRefresh?()
+                        }
+                    )
                     .shadow(color: .black.opacity(0.15), radius: 30, y: 10)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

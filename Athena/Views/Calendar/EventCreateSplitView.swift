@@ -664,7 +664,8 @@ struct EventDetailPopupView: View {
                 .padding(.bottom, AppMetrics.padding)
             }
         }
-        .frame(width: 420, maxHeight: 600)
+        .frame(width: 420)
+        .frame(maxHeight: 600)
         .glassBackground(
             material: AppMaterial.primaryGlass,
             cornerRadius: AppMetrics.cornerRadiusLarge

@@ -7,10 +7,10 @@
 
 import Foundation
 import SwiftUI
+import Combine
 
 /// ViewModel for the messaging confirmation view
 /// Manages the state of a pending message before it's sent
-@MainActor
 class MessagingViewModel: ObservableObject {
     
     // MARK: - Published Properties
