@@ -81,6 +81,11 @@ final class SpeechPipeline: ObservableObject {
             startTranscriptProcessing(with: eventStream)
             print("[SpeechPipeline] startListening: Transcript processing started")
 
+            // Start amplitude monitor
+            print("[SpeechPipeline] startListening: Starting amplitude monitor")
+            _amplitudeMonitor.start()
+            print("[SpeechPipeline] startListening: Amplitude monitor started")
+
             // Start audio input
             print("[SpeechPipeline] startListening: Starting audio input")
             try await audioInput.start()
@@ -179,13 +184,18 @@ final class SpeechPipeline: ObservableObject {
                     break
                 }
                 frameCount += 1
+                let currentFrameCount = frameCount // Capture for Task closure
                 if frameCount % 50 == 0 { // Log every 50 frames to avoid spam
                     print("[SpeechPipeline] startAudioForwarding: Processed \(frameCount) audio frames")
                 }
                 await transcriber.feed(frame)
-                
+
+                // Feed audio to amplitude monitor for waveform visualization
                 // Fire-and-forget: Don't await to prevent audio stream backpressure
                 Task { @MainActor in
+                    if currentFrameCount % 50 == 0 {
+                        print("[SpeechPipeline] 🎵 Forwarding frame #\(currentFrameCount) to amplitude monitor (samples: \(frame.samples.count))")
+                    }
                     await _amplitudeMonitor.process(frame)
                 }
             }

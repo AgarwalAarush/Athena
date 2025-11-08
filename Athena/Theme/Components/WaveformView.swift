@@ -10,20 +10,23 @@ import SwiftUI
 /// Real-time audio waveform visualization with animated vertical bars
 struct WaveformView: View {
     // MARK: - Properties
-    
+
     @ObservedObject var monitor: AudioAmplitudeMonitor
-    
+
     /// Width of the waveform view
     private let width: CGFloat = 120
-    
+
     /// Height of the waveform view
     private let height: CGFloat = 40
-    
+
     /// Minimum bar height (in points)
     private let minBarHeight: CGFloat = 4
-    
+
+    /// State to track render count for debugging
+    @State private var renderCount = 0
+
     // MARK: - Body
-    
+
     var body: some View {
         HStack(alignment: .center, spacing: AppMetrics.spacingXSmall) {
             ForEach(Array(monitor.amplitudes.enumerated()), id: \.offset) { index, amplitude in
@@ -40,6 +43,15 @@ struct WaveformView: View {
             }
         }
         .frame(width: width, height: height)
+        .onAppear {
+            print("[WaveformView] 👁️ View appeared, initial amplitudes count: \(monitor.amplitudes.count)")
+        }
+        .onChange(of: monitor.amplitudes) { newAmplitudes in
+            renderCount += 1
+            if renderCount % 20 == 0 {
+                print("[WaveformView] 🎨 Amplitudes changed (render #\(renderCount)): \(newAmplitudes.map { String(format: "%.2f", $0) }.joined(separator: ", "))")
+            }
+        }
     }
     
     // MARK: - Private Computed Properties

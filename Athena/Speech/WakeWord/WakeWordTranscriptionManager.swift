@@ -87,6 +87,10 @@ class WakeWordTranscriptionManager: ObservableObject {
         // Start audio engine
         try startAudioEngine()
 
+        // Start amplitude monitor
+        print("[WakeWordTranscriptionManager] ⚡ Starting amplitude monitor")
+        _amplitudeMonitor.start()
+
         // Start listening for wake word
         try await startWakeWordDetection()
 
@@ -174,6 +178,8 @@ class WakeWordTranscriptionManager: ObservableObject {
         print("[WakeWordTranscriptionManager] Audio engine stopped")
     }
 
+    private var bufferCount = 0
+
     private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) async {
         // Process amplitude for waveform visualization (in all active states)
         // CRITICAL: Use fire-and-forget Task to prevent blocking audio thread
@@ -181,15 +187,19 @@ class WakeWordTranscriptionManager: ObservableObject {
             if let channelData = buffer.floatChannelData {
                 let frameCount = Int(buffer.frameLength)
                 let samples = Array(UnsafeBufferPointer(start: channelData[0], count: frameCount))
-                
+
                 let audioFrame = AudioFrame(
                     samples: samples,
                     sampleRate: buffer.format.sampleRate,
                     timestamp: AVAudioTime(hostTime: mach_absolute_time())
                 )
-                
+
+                bufferCount += 1
                 // Fire-and-forget: Don't await to prevent audio thread blocking
                 Task { @MainActor in
+                    if bufferCount % 50 == 0 {
+                        print("[WakeWordTranscriptionManager] 🎵 Processing audio buffer #\(bufferCount) for amplitude monitor (samples: \(samples.count))")
+                    }
                     await _amplitudeMonitor.process(audioFrame)
                 }
             }
