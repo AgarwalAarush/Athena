@@ -13,5 +13,7 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Athena needs to control Messages to send messages automatically on your behalf.</string>
 </dict>
 </plist>
