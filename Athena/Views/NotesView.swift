@@ -17,6 +17,10 @@ struct NotesView: View {
                 NoteListView(vm: vm)
             }
         }
+        .glassBackground(
+            material: AppMaterial.primaryGlass,
+            cornerRadius: AppMetrics.cornerRadiusLarge
+        )
         .task {
             await vm.bootstrap()
         }

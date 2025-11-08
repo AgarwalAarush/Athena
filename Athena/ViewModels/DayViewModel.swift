@@ -41,10 +41,13 @@ class DayViewModel: ObservableObject {
     /// Whether authorization has been granted
     @Published var isAuthorized: Bool = false
 
-    /// Whether to show the event creation modal
+    /// Whether to show the event creation modal (legacy)
     @Published var showCreateEventModal: Bool = false
+    
+    /// Whether to show the event creation split view
+    @Published var showCreateEventSplitView: Bool = false
 
-    /// Pending event data for the creation modal
+    /// Pending event data for the creation modal/split view
     @Published var pendingEventData: PendingEventData?
 
     // MARK: - Private Properties
@@ -207,15 +210,22 @@ class DayViewModel: ObservableObject {
 
     // MARK: - Event Creation
 
-    /// Present the event creation modal with pre-filled data
+    /// Present the event creation modal with pre-filled data (legacy)
     func presentCreateEvent(with data: PendingEventData) {
         pendingEventData = data
         showCreateEventModal = true
+    }
+    
+    /// Present the event creation split view with pre-filled data
+    func presentCreateEventSplit(with data: PendingEventData) {
+        pendingEventData = data
+        showCreateEventSplitView = true
     }
 
     /// Dismiss the event creation modal
     func dismissCreateEventModal() {
         showCreateEventModal = false
+        showCreateEventSplitView = false
         pendingEventData = nil
     }
 }

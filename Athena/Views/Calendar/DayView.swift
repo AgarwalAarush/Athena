@@ -30,29 +30,55 @@ struct DayView: View {
 
     var body: some View {
         ZStack {
-            // Rounded container for calendar content
-            VStack(spacing: 0) {
-                // Navigation header
-                navigationHeader
+            if viewModel.showCreateEventSplitView, let pendingData = viewModel.pendingEventData {
+                // Split-screen event creation view
+                EventCreateSplitView(
+                    viewModel: viewModel,
+                    initialData: pendingData,
+                    onCreate: { title, date, startDate, endDate, notes, location, calendar in
+                        handleCreateEvent(
+                            title: title,
+                            date: date,
+                            startDate: startDate,
+                            endDate: endDate,
+                            notes: notes,
+                            location: location,
+                            calendar: calendar
+                        )
+                    },
+                    onCancel: {
+                        viewModel.dismissCreateEventModal()
+                    }
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            } else {
+                // Normal calendar view
+                VStack(spacing: 0) {
+                    // Navigation header
+                    navigationHeader
 
-                Divider()
+                    Divider()
 
-                // Content area
-                if viewModel.isLoading {
-                    Spacer()
-                    ProgressView("Loading events...")
-                    Spacer()
-                } else if let errorMessage = viewModel.errorMessage {
-                    Spacer()
-                    errorView(message: errorMessage)
-                    Spacer()
-                } else {
-                    calendarContent
+                    // Content area
+                    if viewModel.isLoading {
+                        Spacer()
+                        ProgressView("Loading events...")
+                        Spacer()
+                    } else if let errorMessage = viewModel.errorMessage {
+                        Spacer()
+                        errorView(message: errorMessage)
+                        Spacer()
+                    } else {
+                        calendarContent
+                    }
                 }
+                .glassBackground(
+                    material: AppMaterial.primaryGlass,
+                    cornerRadius: AppMetrics.cornerRadiusLarge
+                )
+                .padding()
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
-            .background(Color.white.opacity(0.6))
-            .cornerRadius(8)
-            .padding()
 
             // Invisible buttons for keyboard shortcuts
             VStack {
@@ -68,6 +94,7 @@ struct DayView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.clear)
+        .animation(AppAnimations.standardEasing, value: viewModel.showCreateEventSplitView)
         .onAppear {
             startCurrentTimeTimer()
         }
@@ -89,6 +116,7 @@ struct DayView: View {
                     startDate: startDate,
                     endDate: endDate,
                     notes: notes,
+                    location: nil,
                     calendar: calendar
                 )
             },
@@ -426,13 +454,14 @@ struct DayView: View {
         }
     }
 
-    /// Handle event creation from the modal
+    /// Handle event creation from the modal/split view
     private func handleCreateEvent(
         title: String,
         date: Date,
         startDate: Date,
         endDate: Date,
         notes: String?,
+        location: String?,
         calendar: EKCalendar
     ) {
         print("[DayView] Creating event '\(title)' from \(startDate) to \(endDate)")
@@ -442,6 +471,7 @@ struct DayView: View {
             startDate: startDate,
             endDate: endDate,
             notes: notes,
+            location: location,
             in: calendar
         ) { event, error in
             Task { @MainActor in
@@ -455,7 +485,7 @@ struct DayView: View {
                     // Refresh events
                     await viewModel.fetchEvents()
                 }
-                // Dismiss modal
+                // Dismiss modal/split view
                 viewModel.dismissCreateEventModal()
             }
         }

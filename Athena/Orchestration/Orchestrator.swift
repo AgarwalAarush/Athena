@@ -1420,12 +1420,12 @@ class Orchestrator {
             notes: notes
         )
 
-        // Present the creation modal
+        // Present the creation split view
         await MainActor.run {
-            self.appViewModel?.dayViewModel.presentCreateEvent(with: pendingData)
+            self.appViewModel?.dayViewModel.presentCreateEventSplit(with: pendingData)
         }
 
-        print("[Orchestrator] Create: Modal presented with event data")
+        print("[Orchestrator] Create: Split view presented with event data")
     }
 
     /// Executes delete event action

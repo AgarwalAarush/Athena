@@ -334,7 +334,7 @@ class CalendarService: ObservableObject {
     ///   - notes: Optional notes for the event.
     ///   - calendar: The calendar to add the event to. If nil, the default calendar is used.
     ///   - completion: A closure that is called with the created `CalendarEvent` or an error.
-    func createEvent(title: String, startDate: Date, endDate: Date, notes: String?, in calendar: EKCalendar? = nil, completion: @escaping (CalendarEvent?, Error?) -> Void) {
+    func createEvent(title: String, startDate: Date, endDate: Date, notes: String?, location: String? = nil, in calendar: EKCalendar? = nil, completion: @escaping (CalendarEvent?, Error?) -> Void) {
         guard isAuthorized else {
             completion(nil, NSError(domain: "CalendarService", code: 401, userInfo: [NSLocalizedDescriptionKey: "Not authorized to access calendar."]))
             return
@@ -345,6 +345,7 @@ class CalendarService: ObservableObject {
         newEvent.startDate = startDate
         newEvent.endDate = endDate
         newEvent.notes = notes
+        newEvent.location = location
         newEvent.calendar = calendar ?? eventStore.defaultCalendarForNewEvents
         
         do {
