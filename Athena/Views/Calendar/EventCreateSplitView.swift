@@ -29,6 +29,7 @@ struct EventCreateSplitView: View {
     @State private var location: String
     @State private var selectedCalendar: EKCalendar
     @State private var showDatePicker = false
+    @State private var showCalendarPicker = false
     
     // MARK: - Initialization
     
@@ -143,37 +144,69 @@ struct EventCreateSplitView: View {
     
     private var titleField: some View {
         HStack(spacing: AppMetrics.spacingMedium) {
-            Circle()
-                .fill(Color(selectedCalendar.cgColor))
-                .frame(width: 12, height: 12)
-            
-            Image(systemName: "arrow.up.arrow.down")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .frame(width: 20)
-            
-            CustomStyledTextField(text: $title, placeholder: "New Event")
+            // Borderless text field
+            TextField("New Event", text: $title)
+                .textFieldStyle(.plain)
+                .font(.system(size: 15))
                 .frame(height: 36)
+            
+            Spacer()
+            
+            // Calendar selector button
+            Menu {
+                ForEach(calendarService.allEventCalendars, id: \.calendarIdentifier) { calendar in
+                    Button(action: {
+                        selectedCalendar = calendar
+                    }) {
+                        HStack {
+                            Circle()
+                                .fill(Color(calendar.cgColor))
+                                .frame(width: 12, height: 12)
+                            Text(calendar.title)
+                            if calendar.calendarIdentifier == selectedCalendar.calendarIdentifier {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color(selectedCalendar.cgColor))
+                        .frame(width: 12, height: 12)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
         }
-        .padding(AppMetrics.padding)
+        .padding(.horizontal, AppMetrics.paddingLarge)
+        .frame(height: 36)
     }
     
     private var locationField: some View {
         HStack(spacing: AppMetrics.spacingMedium) {
-            HStack(spacing: 4) {
-                Image(systemName: "mappin.circle.fill")
-                    .font(.body)
+            // Borderless text field
+            TextField("Add Location or Video Call", text: $location)
+                .textFieldStyle(.plain)
+                .font(.system(size: 15))
+                .frame(height: 36)
+            
+            Spacer()
+            
+            // Video icon and chevron
+            HStack(spacing: 6) {
+                Image(systemName: "video")
+                    .font(.system(size: 14))
                     .foregroundColor(.secondary)
-                Image(systemName: "arrow.up.arrow.down")
-                    .font(.caption)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.secondary)
             }
-            .frame(width: 32)
-            
-            CustomStyledTextField(text: $location, placeholder: "Add Location or Video Call")
-                .frame(height: 36)
         }
-        .padding(AppMetrics.padding)
+        .padding(.horizontal, AppMetrics.paddingLarge)
+        .frame(height: 36)
     }
     
     private var dateTimeDisplayField: some View {
@@ -245,27 +278,15 @@ struct EventCreateSplitView: View {
     }
     
     private var alertRepeatField: some View {
-        HStack {
-            Text("Add Alert, Repeat, or Travel Time")
-                .font(.body)
-                .foregroundColor(.secondary)
-            
-            Spacer()
+        TappableOptionRow(title: "Add Alert, Repeat, or Travel Time") {
+            // Future: Show alert/repeat configuration
         }
-        .frame(height: 36)
-        .padding(.horizontal, AppMetrics.padding)
     }
     
     private var inviteesField: some View {
-        HStack {
-            Text("Add Invitees")
-                .font(.body)
-                .foregroundColor(.secondary)
-            
-            Spacer()
+        TappableOptionRow(title: "Add Invitees") {
+            // Future: Show invitees picker
         }
-        .frame(height: 36)
-        .padding(.horizontal, AppMetrics.padding)
     }
     
     private var notesField: some View {
@@ -279,28 +300,14 @@ struct EventCreateSplitView: View {
     // MARK: - Calendar Preview Section
     
     private var calendarPreviewSection: some View {
-        VStack(spacing: 0) {
-            // Section header
-            HStack {
-                Text("Calendar Preview")
-                    .font(.headline)
-                    .foregroundColor(.secondary)
-                
-                Spacer()
-            }
-            .padding(AppMetrics.padding)
-            
-            Divider()
-            
-            // Mini timeline
-            MiniTimelineView(
-                date: date,
-                startTime: combineDateWithTime(date: date, time: startTime),
-                endTime: combineDateWithTime(date: date, time: endTime),
-                existingEvents: viewModel.events.filter { Calendar.current.isDate($0.startDate, inSameDayAs: date) },
-                focusWindowHours: 2
-            )
-        }
+        MiniTimelineView(
+            date: date,
+            startTime: combineDateWithTime(date: date, time: startTime),
+            endTime: combineDateWithTime(date: date, time: endTime),
+            existingEvents: viewModel.events.filter { Calendar.current.isDate($0.startDate, inSameDayAs: date) },
+            focusWindowHours: 2
+        )
+        .padding(AppMetrics.padding)
     }
     
     // MARK: - Helper Properties
@@ -323,8 +330,8 @@ struct EventCreateSplitView: View {
         let finalEnd = combineDateWithTime(date: date, time: endTime)
         
         let dateString = dateFormatter.string(from: date)
-        let startString = timeFormatter.string(from: finalStart)
-        let endString = timeFormatter.string(from: finalEnd)
+        let startString = timeFormatter.string(from: finalStart).uppercased()
+        let endString = timeFormatter.string(from: finalEnd).uppercased()
         
         return "\(dateString)  \(startString) – \(endString)"
     }
@@ -370,142 +377,36 @@ struct EventCreateSplitView: View {
     }
 }
 
-// MARK: - Custom Text Field Components
+// MARK: - Supporting Components
 
-/// Single-line styled text field with subtle background
-struct CustomStyledTextField: NSViewRepresentable {
-    @Binding var text: String
-    let placeholder: String
+/// Tappable option row with hover state
+struct TappableOptionRow: View {
+    let title: String
+    let action: () -> Void
+    @State private var isHovering = false
     
-    func makeNSView(context: Context) -> NSView {
-        let containerView = NSView()
-        let scrollView = NSScrollView()
-        let textView = NSTextView()
-        
-        // Configure text view
-        textView.font = NSFont.systemFont(ofSize: 15)
-        textView.textColor = NSColor.labelColor
-        textView.backgroundColor = .clear
-        textView.drawsBackground = false
-        textView.isRichText = false
-        textView.isEditable = true
-        textView.isSelectable = true
-        textView.string = text
-        textView.delegate = context.coordinator
-        
-        // Set placeholder
-        if text.isEmpty {
-            textView.string = ""
-            // We'll handle placeholder display in the coordinator
-        }
-        
-        // Padding configuration - adjusted for better vertical centering
-        textView.textContainer?.lineFragmentPadding = 0
-        textView.textContainerInset = NSSize(width: 12, height: 10)
-        textView.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        textView.textContainer?.widthTracksTextView = true
-        textView.textContainer?.heightTracksTextView = false
-        
-        // Configure scroll view
-        scrollView.hasVerticalScroller = false
-        scrollView.hasHorizontalScroller = false
-        scrollView.documentView = textView
-        scrollView.borderType = .noBorder
-        scrollView.backgroundColor = .clear
-        scrollView.drawsBackground = false
-        
-        // Add scroll view to container
-        containerView.addSubview(scrollView)
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        
-        // Set minimum height constraint for the container
-        let heightConstraint = containerView.heightAnchor.constraint(greaterThanOrEqualToConstant: 36)
-        heightConstraint.priority = .required
-        
-        NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: containerView.topAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
-            heightConstraint
-        ])
-        
-        // Style container
-        containerView.wantsLayer = true
-        containerView.layer?.backgroundColor = NSColor(Color.gray.opacity(0.08)).cgColor
-        containerView.layer?.cornerRadius = 6
-        
-        context.coordinator.textView = textView
-        context.coordinator.placeholder = placeholder
-        context.coordinator.updatePlaceholder()
-        
-        return containerView
-    }
-    
-    func updateNSView(_ nsView: NSView, context: Context) {
-        if let scrollView = nsView.subviews.first as? NSScrollView,
-           let textView = scrollView.documentView as? NSTextView {
-            if textView.string != text {
-                textView.string = text
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 15))
+                    .foregroundColor(.secondary)
+                
+                Spacer()
             }
+            .frame(height: 36)
+            .padding(.horizontal, AppMetrics.paddingLarge)
+            .contentShape(Rectangle())
+            .background(isHovering ? AppColors.hoverOverlay : Color.clear)
         }
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject, NSTextViewDelegate {
-        var parent: CustomStyledTextField
-        var textView: NSTextView?
-        var placeholder: String = ""
-        
-        init(_ parent: CustomStyledTextField) {
-            self.parent = parent
-        }
-        
-        func updatePlaceholder() {
-            guard let textView = textView else { return }
-            if parent.text.isEmpty {
-                textView.string = placeholder
-                textView.textColor = NSColor.placeholderTextColor
-            } else {
-                textView.textColor = NSColor.labelColor
-            }
-        }
-        
-        func textDidBeginEditing(_ notification: Notification) {
-            guard let textView = textView else { return }
-            if parent.text.isEmpty && textView.string == placeholder {
-                textView.string = ""
-                textView.textColor = NSColor.labelColor
-            }
-        }
-        
-        func textDidEndEditing(_ notification: Notification) {
-            guard let textView = textView else { return }
-            if textView.string.isEmpty {
-                parent.text = ""
-                updatePlaceholder()
-            }
-        }
-        
-        func textDidChange(_ notification: Notification) {
-            guard let textView = textView else { return }
-            // Don't update if showing placeholder
-            if textView.textColor != NSColor.placeholderTextColor {
-                parent.text = textView.string
-            }
-        }
-        
-        func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-                return true // Prevent newlines
-            }
-            return false
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovering = hovering
         }
     }
 }
+
+// MARK: - Custom Text Field Components
 
 /// Multi-line styled text field with subtle background
 struct CustomMultiLineStyledTextField: NSViewRepresentable {

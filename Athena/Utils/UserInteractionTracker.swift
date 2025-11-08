@@ -17,7 +17,7 @@ class UserInteractionTracker {
     private var hideTimer: Timer?
     
     /// Delay before auto-hiding (3 seconds)
-    private let hideDelay: TimeInterval = 3.0
+    private let hideDelay: TimeInterval = 6.0
     
     /// Reference to WindowManager for controlling window visibility
     weak var windowManager: WindowManager?
