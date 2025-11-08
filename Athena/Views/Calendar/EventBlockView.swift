@@ -68,8 +68,7 @@ struct EventBlockView: View {
 
     /// Text color that contrasts with background
     private var textColor: Color {
-        // Use a darker text color for better readability
-        .black // Changed from .primary
+        .white
     }
 }
 

@@ -18,6 +18,7 @@ struct MiniTimelineView: View {
     let endTime: Date
     let existingEvents: [CalendarEvent]
     let focusWindowHours: Int
+    let newEventCalendar: EKCalendar?
     
     // MARK: - Constants
     
@@ -42,6 +43,21 @@ struct MiniTimelineView: View {
         return Array(range.start..<range.end)
     }
     
+    /// Check if current time falls within the display range
+    private var isCurrentTimeInRange: Bool {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        // Check if today
+        guard calendar.isDate(now, inSameDayAs: date) else {
+            return false
+        }
+        
+        let currentHour = calendar.component(.hour, from: now)
+        let range = displayTimeRange
+        return currentHour >= range.start && currentHour < range.end
+    }
+    
     // MARK: - Body
     
     var body: some View {
@@ -57,6 +73,11 @@ struct MiniTimelineView: View {
                         
                         // New event placeholder (highlighted)
                         newEventPlaceholder(in: geometry)
+                        
+                        // Current time indicator
+                        if isCurrentTimeInRange {
+                            currentTimeIndicator(in: geometry)
+                        }
                     }
                     .frame(height: CGFloat(hoursToDisplay.count) * hourHeight)
                     .id("mini-timeline")
@@ -122,18 +143,20 @@ struct MiniTimelineView: View {
         
         return VStack(alignment: .leading, spacing: 2) {
             Text(event.title)
-                .font(.caption2)
+                .font(.caption)
+                .fontWeight(.medium)
                 .lineLimit(1)
                 .foregroundColor(.white)
         }
-        .padding(4)
-        .frame(width: position.width, height: position.height)
-        .background(Color(event.calendar.cgColor).opacity(0.5))
+        .padding(6)
+        .frame(width: position.width, height: position.height, alignment: .topLeading)
+        .background(Color(event.calendar.cgColor).opacity(0.2))
         .cornerRadius(4)
         .overlay(
             RoundedRectangle(cornerRadius: 4)
-                .stroke(Color(event.calendar.cgColor).opacity(0.7), lineWidth: 1)
+                .stroke(Color(event.calendar.cgColor), lineWidth: 1.5)
         )
+        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
         .offset(x: position.x, y: position.y)
     }
     
@@ -145,6 +168,8 @@ struct MiniTimelineView: View {
             endDate: endTime,
             geometry: geometry
         )
+        
+        let calendarColor = newEventCalendar.map { Color($0.cgColor) } ?? AppColors.accent
         
         return VStack(alignment: .leading, spacing: 4) {
             Text("New Event")
@@ -160,7 +185,7 @@ struct MiniTimelineView: View {
         .frame(width: position.width, height: position.height)
         .background(
             LinearGradient(
-                colors: [AppColors.accent.opacity(0.8), AppColors.accent.opacity(0.6)],
+                colors: [calendarColor.opacity(0.8), calendarColor.opacity(0.6)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -168,10 +193,40 @@ struct MiniTimelineView: View {
         .cornerRadius(4)
         .overlay(
             RoundedRectangle(cornerRadius: 4)
-                .stroke(AppColors.accent, lineWidth: 2)
+                .stroke(calendarColor, lineWidth: 2)
         )
-        .shadow(color: AppColors.accent.opacity(0.3), radius: 8, y: 4)
+        .shadow(color: calendarColor.opacity(0.3), radius: 8, y: 4)
         .offset(x: position.x, y: position.y)
+    }
+    
+    // MARK: - Current Time Indicator
+    
+    private func currentTimeIndicator(in geometry: GeometryProxy) -> some View {
+        let now = Date()
+        let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: now)
+        let minute = calendar.component(.minute, from: now)
+        
+        let range = displayTimeRange
+        let displayStartHour = range.start
+        
+        // Calculate minutes from display start
+        let minutesFromStart = (hour - displayStartHour) * 60 + minute
+        let totalMinutesInRange = hoursToDisplay.count * 60
+        let yOffset = (Double(minutesFromStart) / Double(totalMinutesInRange)) * (hourHeight * CGFloat(hoursToDisplay.count))
+        
+        return HStack(spacing: 0) {
+            Circle()
+                .fill(Color.red)
+                .frame(width: 8, height: 8)
+                .offset(x: hourLabelWidth + 4)
+            
+            Rectangle()
+                .fill(Color.red)
+                .frame(height: 2)
+                .padding(.leading, hourLabelWidth + 8)
+        }
+        .offset(y: yOffset)
     }
     
     // MARK: - Helper Methods
@@ -265,7 +320,8 @@ struct MiniTimelineView: View {
         startTime: now,
         endTime: Calendar.current.date(byAdding: .hour, value: 1, to: now) ?? now,
         existingEvents: mockEvents,
-        focusWindowHours: 2
+        focusWindowHours: 2,
+        newEventCalendar: mockCalendar
     )
     .frame(width: 400, height: 300)
     .padding()

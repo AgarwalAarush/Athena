@@ -464,10 +464,15 @@ struct DayView: View {
         location: String?,
         calendar: EKCalendar
     ) {
-        print("[DayView] Creating event '\(title)' from \(startDate) to \(endDate)")
+        // Format title: capitalize first letter of each word (title case)
+        let formattedTitle = title
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .capitalized
+        
+        print("[DayView] Creating event '\(formattedTitle)' from \(startDate) to \(endDate)")
         
         CalendarService.shared.createEvent(
-            title: title,
+            title: formattedTitle,
             startDate: startDate,
             endDate: endDate,
             notes: notes,

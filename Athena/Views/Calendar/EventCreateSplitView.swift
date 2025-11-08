@@ -351,7 +351,8 @@ struct EventCreateSplitView: View {
             startTime: combineDateWithTime(date: date, time: startTime),
             endTime: combineDateWithTime(date: date, time: endTime),
             existingEvents: viewModel.events.filter { Calendar.current.isDate($0.startDate, inSameDayAs: date) },
-            focusWindowHours: 2
+            focusWindowHours: 2,
+            newEventCalendar: selectedCalendar
         )
         .padding(AppMetrics.padding)
     }
