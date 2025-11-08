@@ -127,28 +127,22 @@ final class SystemWindowManager: SystemWindowManaging {
             return .success(window)
         case .failure(let error):
             print("[SystemWindowManager] windowElement: Failed to get focused window, error: \(error)")
-            switch error {
-            case .attributeMissing:
-                print("[SystemWindowManager] windowElement: Attribute missing, trying to get all windows")
-                // Try falling back to the first window in the list.
-                let allWindowsResult = accessibilityManager.allWindows(of: appElement)
-                print("[SystemWindowManager] windowElement: allWindows result: \(allWindowsResult)")
-                
-                return allWindowsResult
-                    .mapError(mapAccessibilityError)
-                    .flatMap { windows in
-                        print("[SystemWindowManager] windowElement: Got \(windows.count) windows")
-                        guard let window = windows.first else {
-                            print("[SystemWindowManager] windowElement: ERROR - No windows found")
-                            return .failure(.windowNotFound)
-                        }
-                        print("[SystemWindowManager] windowElement: Using first window from list")
-                        return .success(window)
+            print("[SystemWindowManager] windowElement: Trying to get all windows as fallback")
+            // Try falling back to the first window in the list for any error type
+            let allWindowsResult = accessibilityManager.allWindows(of: appElement)
+            print("[SystemWindowManager] windowElement: allWindows result: \(allWindowsResult)")
+            
+            return allWindowsResult
+                .mapError(mapAccessibilityError)
+                .flatMap { windows in
+                    print("[SystemWindowManager] windowElement: Got \(windows.count) windows")
+                    guard let window = windows.first else {
+                        print("[SystemWindowManager] windowElement: ERROR - No windows found")
+                        return .failure(.windowNotFound)
                     }
-            default:
-                print("[SystemWindowManager] windowElement: ERROR - Non-recoverable error: \(error)")
-                return .failure(mapAccessibilityError(error))
-            }
+                    print("[SystemWindowManager] windowElement: Using first window from list")
+                    return .success(window)
+                }
         }
     }
 
@@ -168,28 +162,32 @@ final class SystemWindowManager: SystemWindowManaging {
     }
 
     private func rect(for position: TilePosition, in frame: CGRect) -> CGRect {
-        let halfWidth = frame.width / 2
-        let halfHeight = frame.height / 2
+        // Apply 8px padding on all sides
+        let padding: CGFloat = 8
+        let paddedFrame = frame.insetBy(dx: padding, dy: padding)
+        
+        let halfWidth = paddedFrame.width / 2
+        let halfHeight = paddedFrame.height / 2
 
         switch position {
         case .maximized:
-            return frame
+            return paddedFrame
         case .leftHalf:
-            return CGRect(x: frame.origin.x, y: frame.origin.y, width: halfWidth, height: frame.height)
+            return CGRect(x: paddedFrame.origin.x, y: paddedFrame.origin.y, width: halfWidth, height: paddedFrame.height)
         case .rightHalf:
-            return CGRect(x: frame.origin.x + halfWidth, y: frame.origin.y, width: halfWidth, height: frame.height)
+            return CGRect(x: paddedFrame.origin.x + halfWidth, y: paddedFrame.origin.y, width: halfWidth, height: paddedFrame.height)
         case .topHalf:
-            return CGRect(x: frame.origin.x, y: frame.origin.y + halfHeight, width: frame.width, height: halfHeight)
+            return CGRect(x: paddedFrame.origin.x, y: paddedFrame.origin.y + halfHeight, width: paddedFrame.width, height: halfHeight)
         case .bottomHalf:
-            return CGRect(x: frame.origin.x, y: frame.origin.y, width: frame.width, height: halfHeight)
+            return CGRect(x: paddedFrame.origin.x, y: paddedFrame.origin.y, width: paddedFrame.width, height: halfHeight)
         case .topLeft:
-            return CGRect(x: frame.origin.x, y: frame.origin.y + halfHeight, width: halfWidth, height: halfHeight)
+            return CGRect(x: paddedFrame.origin.x, y: paddedFrame.origin.y + halfHeight, width: halfWidth, height: halfHeight)
         case .topRight:
-            return CGRect(x: frame.origin.x + halfWidth, y: frame.origin.y + halfHeight, width: halfWidth, height: halfHeight)
+            return CGRect(x: paddedFrame.origin.x + halfWidth, y: paddedFrame.origin.y + halfHeight, width: halfWidth, height: halfHeight)
         case .bottomLeft:
-            return CGRect(x: frame.origin.x, y: frame.origin.y, width: halfWidth, height: halfHeight)
+            return CGRect(x: paddedFrame.origin.x, y: paddedFrame.origin.y, width: halfWidth, height: halfHeight)
         case .bottomRight:
-            return CGRect(x: frame.origin.x + halfWidth, y: frame.origin.y, width: halfWidth, height: halfHeight)
+            return CGRect(x: paddedFrame.origin.x + halfWidth, y: paddedFrame.origin.y, width: halfWidth, height: halfHeight)
         }
     }
 }
