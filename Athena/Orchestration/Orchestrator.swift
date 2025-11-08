@@ -736,9 +736,8 @@ class Orchestrator {
     ///
     /// **Implementation:**
     /// - Parse the prompt to extract recipient and message
-    /// - Resolve contact names to phone numbers using ContactsService
-    /// - Use MessagingService to send the message via AppleScript
-    /// - Provide user confirmation
+    /// - Show MessagingView pre-filled with parsed data
+    /// - User reviews/edits and then sends from the view
     private func handleMessagingTask(prompt: String) async {
         print("[Orchestrator] handleMessagingTask: Processing query '\(prompt)'")
 
@@ -747,70 +746,28 @@ class Orchestrator {
             let parsedResult = try await parseMessagingQuery(prompt: prompt)
             print("[Orchestrator] handleMessagingTask: Parsed - recipient: '\(parsedResult.recipient)', message: '\(parsedResult.message)'")
 
-            // 2. Resolve recipient (contact name or phone number)
-            var phoneNumber: String
-
-            do {
-                phoneNumber = try await ContactsService.shared.lookupPhoneNumber(for: parsedResult.recipient)
-                print("[Orchestrator] handleMessagingTask: Resolved '\(parsedResult.recipient)' to phone number: \(phoneNumber)")
-            } catch ContactsError.authorizationDenied {
-                print("[Orchestrator] handleMessagingTask: ❌ Contacts access denied")
-                await MainActor.run {
-                    appViewModel?.alertInfo = AlertInfo(
-                        title: "Contacts Access Denied",
-                        message: "Athena needs access to your contacts to send messages. Please grant permission in System Settings.",
-                        primaryButton: .default(Text("Open Settings"), action: {
-                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts")!)
-                        }),
-                        secondaryButton: .cancel()
-                    )
+            // 2. Show the messaging view with parsed data
+            await MainActor.run {
+                // Prepare the messaging view model with parsed data
+                appViewModel?.messagingViewModel.prepareMessage(
+                    recipient: parsedResult.recipient,
+                    message: parsedResult.message
+                )
+                
+                // Switch to messaging view
+                appViewModel?.currentView = .messaging
+                
+                // Expand content area if collapsed
+                if appViewModel?.isContentExpanded == false {
+                    appViewModel?.isContentExpanded = true
                 }
-                return
-            } catch ContactsError.contactNotFound(let name) {
-                print("[Orchestrator] handleMessagingTask: ❌ Contact '\(name)' not found")
-                await updateMessagingStatus("Failed to send message: Contact '\(name)' not found in your contacts.")
-                return
-            } catch ContactsError.noPhoneNumber(let name) {
-                print("[Orchestrator] handleMessagingTask: ❌ Contact '\(name)' has no phone number")
-                await updateMessagingStatus("Failed to send message: '\(name)' has no phone number in contacts.")
-                return
-            } catch {
-                print("[Orchestrator] handleMessagingTask: ⚠️ Contact lookup failed, using recipient as-is: \(error.localizedDescription)")
-                phoneNumber = parsedResult.recipient
-            }
-
-            // 3. Send the message via MessagingService using AppleScript method
-            print("[Orchestrator] handleMessagingTask: Sending message to \(phoneNumber)...")
-            let messagingResult = await MessagingService.shared.sendMessage(
-                parsedResult.message,
-                to: phoneNumber,
-                using: .appleScript
-            )
-
-            // 4. Handle the result and provide user feedback
-            switch messagingResult {
-            case .success:
-                print("[Orchestrator] handleMessagingTask: ✅ Message sent successfully")
-                await updateMessagingStatus("Message sent to \(parsedResult.recipient)")
-            case .failure(let error):
-                print("[Orchestrator] handleMessagingTask: ❌ Failed to send message: \(error.localizedDescription)")
-
-                // Provide specific error messages
-                switch error {
-                case .appleScriptFailed(let details):
-                    await updateMessagingStatus("Failed to send message: AppleScript error - \(details)")
-                case .invalidRecipient:
-                    await updateMessagingStatus("Failed to send message: Invalid recipient '\(phoneNumber)'")
-                case .messagesAppNotAvailable:
-                    await updateMessagingStatus("Failed to send message: Messages app not available")
-                default:
-                    await updateMessagingStatus("Failed to send message: \(error.localizedDescription)")
-                }
+                
+                print("[Orchestrator] handleMessagingTask: ✅ Messaging view displayed")
             }
 
         } catch {
             print("[Orchestrator] handleMessagingTask: ❌ Error parsing messaging query: \(error.localizedDescription)")
-            await updateMessagingStatus("Failed to send message: Could not understand the message request")
+            await updateMessagingStatus("Failed to prepare message: Could not understand the message request")
         }
     }
 

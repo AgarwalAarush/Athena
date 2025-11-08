@@ -8,6 +8,7 @@ enum AppView {
     case chat
     case calendar
     case notes
+    case messaging
 }
 
 struct AlertInfo: Identifiable {
@@ -41,6 +42,9 @@ class AppViewModel: ObservableObject {
 
     /// Note content for notes view - accessible to orchestrator for executing notes actions
     @Published var noteContent: String = ""
+    
+    /// MessagingViewModel for messaging view - accessible to orchestrator for executing messaging actions
+    @Published var messagingViewModel = MessagingViewModel()
 
     /// Messaging status for user feedback - set by orchestrator after sending messages
     @Published var messagingStatus: String?
@@ -65,6 +69,9 @@ class AppViewModel: ObservableObject {
         
         self.windowManager = windowManager
         self.appDelegate = appDelegate
+        
+        // Setup messaging view model
+        messagingViewModel.setup(appViewModel: self)
         
         print("[AppViewModel] ✅ setup() completed - windowManager and appDelegate stored")
     }

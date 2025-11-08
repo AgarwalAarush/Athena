@@ -81,6 +81,9 @@ struct ContentView: View {
                         case .notes:
                             NotesView(vm: appViewModel.notesViewModel)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        case .messaging:
+                            MessagingView(viewModel: appViewModel.messagingViewModel)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                     }
                     .animation(nil, value: appViewModel.currentView)

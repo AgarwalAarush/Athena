@@ -251,6 +251,9 @@ class ContactsService {
         let queryLower = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let targetLower = target.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
 
+        // Guard against empty strings to prevent Range crash
+        guard !queryLower.isEmpty && !targetLower.isEmpty else { return 0.0 }
+
         // Exact match
         if queryLower == targetLower {
             return 1.0
@@ -292,6 +295,10 @@ class ContactsService {
     private func levenshteinDistance(_ s1: String, _ s2: String) -> Int {
         let s1 = Array(s1)
         let s2 = Array(s2)
+        
+        // Handle empty strings gracefully
+        if s1.isEmpty { return s2.count }
+        if s2.isEmpty { return s1.count }
 
         var distance = Array(repeating: Array(repeating: 0, count: s2.count + 1), count: s1.count + 1)
 
