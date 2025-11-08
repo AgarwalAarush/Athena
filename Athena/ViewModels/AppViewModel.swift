@@ -21,6 +21,14 @@ struct AlertInfo: Identifiable {
 class AppViewModel: ObservableObject {
     @Published var currentView: AppView = .home
     @Published var alertInfo: AlertInfo?
+    
+    // MARK: - Content Expansion State
+    
+    /// Tracks whether the content area below the waveform is expanded
+    @Published var isContentExpanded: Bool = false
+    
+    /// Tracks whether the orchestrator is currently running (prevents auto-hide)
+    @Published var isOrchestratorRunning: Bool = false
 
     // MARK: - View Models for Orchestrator Access
 
@@ -63,42 +71,52 @@ class AppViewModel: ObservableObject {
 
     func showCalendar() {
         stopListenModeIfActive()
+        isContentExpanded = true
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
             currentView = .calendar
         }
-        windowManager?.resizeForCalendar()
+        windowManager?.expandToContentView()
     }
 
     func showChat() {
         stopListenModeIfActive()
+        isContentExpanded = true
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
             currentView = .chat
         }
-        windowManager?.resizeForChat()
+        windowManager?.expandToContentView()
     }
 
     func showNotes() {
         stopListenModeIfActive()
+        isContentExpanded = true
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
             currentView = .notes
         }
-        windowManager?.resizeForCalendar()
+        windowManager?.expandToContentView()
     }
 
     func showHome() {
         stopListenModeIfActive()
+        isContentExpanded = true
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
             currentView = .home
         }
-        windowManager?.resizeForCalendar()
+        windowManager?.expandToContentView()
+    }
+    
+    /// Collapses the content area back to waveform-only view
+    func collapseContent() {
+        isContentExpanded = false
+        windowManager?.collapseToWaveformOnly()
     }
     
     /// Stop listen mode if it's currently active

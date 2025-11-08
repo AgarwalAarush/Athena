@@ -45,34 +45,50 @@ struct ContentView: View {
 
             // 2) Content clipped to the shell shape
             VStack(spacing: 0) {
+                // Waveform Container - Always Visible at Top
+                WaveformContainerView(chatViewModel: chatViewModel)
+                
+                /* TITLE BAR COMMENTED OUT - Waveform is now the top-level view
+                   The title bar has been replaced by WaveformContainerView to support
+                   the new architecture where only the waveform is visible by default,
+                   and content expands below it when needed. Preserved for potential future use.
+                
                 // Title Bar
                 TitleBarView(chatViewModel: chatViewModel)
                 
                 Divider()
                     .opacity(0.3)
-
-                // Main Content Area
-                Group {
-                    switch appViewModel.currentView {
-                    case .home:
-                        HomeView()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    case .chat:
-                        ChatView(viewModel: chatViewModel)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    case .calendar:
-                        DayView(viewModel: appViewModel.dayViewModel)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    case .notes:
-                        NotesView(vm: appViewModel.notesViewModel)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                */
+                
+                // Expandable Content Area - Only visible when isContentExpanded is true
+                if appViewModel.isContentExpanded {
+                    Divider()
+                        .opacity(0.3)
+                    
+                    // Main Content Area
+                    Group {
+                        switch appViewModel.currentView {
+                        case .home:
+                            HomeView()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        case .chat:
+                            ChatView(viewModel: chatViewModel)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        case .calendar:
+                            DayView(viewModel: appViewModel.dayViewModel)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        case .notes:
+                            NotesView(vm: appViewModel.notesViewModel)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
                     }
+                    .animation(nil, value: appViewModel.currentView)
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                .animation(nil, value: appViewModel.currentView)
-                .transition(.identity)
             }
             .clipShape(shell)
             .compositingGroup()
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: appViewModel.isContentExpanded)
         }
         .frame(width: windowManager.windowSize.width, height: windowManager.windowSize.height)
         .environmentObject(appViewModel)

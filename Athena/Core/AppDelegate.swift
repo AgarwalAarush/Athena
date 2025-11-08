@@ -98,6 +98,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func setupGlobalShortcutMonitor() {
+        print("[AppDelegate] 🔐 Setting up global shortcut monitor (Option+A)")
+        
+        // Check if we have accessibility permissions for global hotkeys
+        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+        let accessEnabled = AXIsProcessTrustedWithOptions(options)
+        
+        if !accessEnabled {
+            print("[AppDelegate] ⚠️ Accessibility permissions not granted - global shortcuts won't work")
+            print("[AppDelegate] 💡 Please grant accessibility permissions in System Settings > Privacy & Security > Accessibility")
+        } else {
+            print("[AppDelegate] ✅ Accessibility permissions granted")
+        }
+        
         let shortcutMask: NSEvent.ModifierFlags = [.option]
         let shortcutKeyCode: UInt16 = 0 // Key code for the "A" key on macOS keyboards
 
@@ -106,11 +119,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             if flags == shortcutMask && event.keyCode == shortcutKeyCode {
+                print("[AppDelegate] ⌨️ Global shortcut triggered (Option+A)")
                 DispatchQueue.main.async {
                     self.toggleWindow()
                 }
             }
         }
+        
+        print("[AppDelegate] ✅ Global shortcut monitor configured")
     }
 
     private func setupSettingsShortcutMonitor() {

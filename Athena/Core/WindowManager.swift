@@ -14,12 +14,17 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
     var settingsWindow: NSWindow?
 
     @Published var windowSize: CGSize = CGSize(width: 450, height: 300)
+    @Published var isExpanded: Bool = false
 
     // Window size constraints
     private let minWidth: CGFloat = 400
     private let maxWidth: CGFloat = 800
     private let minHeight: CGFloat = 250
     private let maxHeight: CGFloat = 600
+    
+    // Waveform-only and expanded heights
+    private let waveformOnlyHeight: CGFloat = 60
+    private let expandedHeight: CGFloat = 600
     
     private var originalWindowSize: CGSize?
 
@@ -127,6 +132,54 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
         }
     }
     
+    // MARK: - Waveform Expansion/Collapse
+    
+    /// Expands window from waveform-only to full content view
+    /// Keeps top edge fixed and expands downward
+    func expandToContentView() {
+        guard let window = window else { return }
+        
+        let newSize = CGSize(width: windowSize.width, height: expandedHeight)
+        
+        // Calculate new frame keeping top edge fixed
+        let currentFrame = window.frame
+        let topLeft = NSPoint(x: currentFrame.minX, y: currentFrame.maxY)
+        let newOrigin = NSPoint(x: topLeft.x, y: topLeft.y - newSize.height)
+        let newFrame = NSRect(origin: newOrigin, size: newSize)
+        
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.4
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            window.animator().setFrame(newFrame, display: true)
+        }
+        
+        windowSize = newSize
+        isExpanded = true
+    }
+    
+    /// Collapses window back to waveform-only view
+    /// Keeps top edge fixed and contracts upward
+    func collapseToWaveformOnly() {
+        guard let window = window else { return }
+        
+        let newSize = CGSize(width: windowSize.width, height: waveformOnlyHeight)
+        
+        // Calculate new frame keeping top edge fixed
+        let currentFrame = window.frame
+        let topLeft = NSPoint(x: currentFrame.minX, y: currentFrame.maxY)
+        let newOrigin = NSPoint(x: topLeft.x, y: topLeft.y - newSize.height)
+        let newFrame = NSRect(origin: newOrigin, size: newSize)
+        
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.4
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            window.animator().setFrame(newFrame, display: true)
+        }
+        
+        windowSize = newSize
+        isExpanded = false
+    }
+    
     func setWindowSize(_ size: CGSize, animated: Bool = true) {
         guard let window = window else { return }
         
@@ -199,5 +252,27 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
     
     deinit {
         saveWindowPosition()
+    }
+    
+    // MARK: - NSWindowDelegate Methods (for debugging)
+    
+    func windowDidBecomeKey(_ notification: Notification) {
+        print("[WindowManager] 🔑 Window became key (focused)")
+    }
+    
+    func windowDidResignKey(_ notification: Notification) {
+        print("[WindowManager] 🔓 Window resigned key (lost focus)")
+    }
+    
+    func windowWillClose(_ notification: Notification) {
+        print("[WindowManager] 🚪 Window will close")
+    }
+    
+    func windowDidBecomeMain(_ notification: Notification) {
+        print("[WindowManager] 🎯 Window became main")
+    }
+    
+    func windowDidResignMain(_ notification: Notification) {
+        print("[WindowManager] 📤 Window resigned main")
     }
 }
