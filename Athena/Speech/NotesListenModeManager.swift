@@ -175,6 +175,7 @@ class NotesListenModeManager: ObservableObject {
         vadTranscriber?.appendAudioBuffer(buffer)
         
         // Process amplitude for waveform visualization
+        // CRITICAL: Use fire-and-forget Task to prevent blocking audio thread
         guard let channelData = buffer.floatChannelData else { return }
         let frameCount = Int(buffer.frameLength)
         let samples = Array(UnsafeBufferPointer(start: channelData[0], count: frameCount))
@@ -184,7 +185,11 @@ class NotesListenModeManager: ObservableObject {
             sampleRate: buffer.format.sampleRate,
             timestamp: AVAudioTime(hostTime: mach_absolute_time())
         )
-        await _amplitudeMonitor.process(audioFrame)
+        
+        // Fire-and-forget: Don't await to prevent audio thread blocking
+        Task { @MainActor in
+            await _amplitudeMonitor.process(audioFrame)
+        }
     }
     
     // MARK: - Private Methods - Transcription

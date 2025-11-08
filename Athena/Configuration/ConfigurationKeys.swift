@@ -11,6 +11,7 @@ enum ConfigurationKey: String, CaseIterable {
     // AI Provider Keys (Secure - Keychain)
     case openaiAPIKey = "openai_api_key"
     case ollamaBaseURL = "ollama_base_url"
+    case cartesiaAPIKey = "cartesia_api_key"
     
     // Google OAuth (Secure - Keychain)
     case googleAuthSession = "google_auth_session"
@@ -107,14 +108,14 @@ enum ConfigurationKey: String, CaseIterable {
             return ""
             
         // Secure keys have no defaults
-        case .openaiAPIKey, .googleAuthSession:
+        case .openaiAPIKey, .cartesiaAPIKey, .googleAuthSession:
             return ""
         }
     }
     
     var isSecure: Bool {
         switch self {
-        case .openaiAPIKey, .googleAuthSession:
+        case .openaiAPIKey, .cartesiaAPIKey, .googleAuthSession:
             return true
         default:
             return false
@@ -123,7 +124,7 @@ enum ConfigurationKey: String, CaseIterable {
     
     var category: ConfigurationCategory {
         switch self {
-        case .openaiAPIKey, .ollamaBaseURL, .selectedProvider, .selectedModel:
+        case .openaiAPIKey, .cartesiaAPIKey, .ollamaBaseURL, .selectedProvider, .selectedModel:
             return .aiProvider
         case .googleAuthSession, .googleAuthScopes:
             return .authentication

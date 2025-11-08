@@ -176,6 +176,7 @@ class WakeWordTranscriptionManager: ObservableObject {
 
     private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) async {
         // Process amplitude for waveform visualization (in all active states)
+        // CRITICAL: Use fire-and-forget Task to prevent blocking audio thread
         if state == .listeningForWakeWord || state == .transcribing {
             if let channelData = buffer.floatChannelData {
                 let frameCount = Int(buffer.frameLength)
@@ -186,7 +187,11 @@ class WakeWordTranscriptionManager: ObservableObject {
                     sampleRate: buffer.format.sampleRate,
                     timestamp: AVAudioTime(hostTime: mach_absolute_time())
                 )
-                await _amplitudeMonitor.process(audioFrame)
+                
+                // Fire-and-forget: Don't await to prevent audio thread blocking
+                Task { @MainActor in
+                    await _amplitudeMonitor.process(audioFrame)
+                }
             }
         }
         

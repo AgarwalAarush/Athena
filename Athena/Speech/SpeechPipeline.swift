@@ -177,7 +177,11 @@ final class SpeechPipeline: ObservableObject {
                     print("[SpeechPipeline] startAudioForwarding: Processed \(frameCount) audio frames")
                 }
                 await transcriber.feed(frame)
-                await _amplitudeMonitor.process(frame)
+                
+                // Fire-and-forget: Don't await to prevent audio stream backpressure
+                Task { @MainActor in
+                    await _amplitudeMonitor.process(frame)
+                }
             }
             print("[SpeechPipeline] startAudioForwarding: Audio forwarding task ended (processed \(frameCount) frames)")
         }

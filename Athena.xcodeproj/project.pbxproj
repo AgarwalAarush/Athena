@@ -8,8 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		9B530D8A2EB323EA001C771B /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 9B530D892EB323EA001C771B /* GRDB */; };
-		9BA988822EBEB75C001714B9 /* GTMAppAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 9B530DA02EB40001001C771B /* GTMAppAuth */; };
 		9B530DA22EB40002001C771B /* AppAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 9B530DA12EB40002001C771B /* AppAuth */; };
+		9BA988822EBEB75C001714B9 /* GTMAppAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 9B530DA02EB40001001C771B /* GTMAppAuth */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
