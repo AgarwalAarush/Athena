@@ -11,10 +11,8 @@
 		9B530DA22EB40002001C771B /* AppAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 9B530DA12EB40002001C771B /* AppAuth */; };
 		9BA988822EBEB75C001714B9 /* GTMAppAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 9B530DA02EB40001001C771B /* GTMAppAuth */; };
 		9BF319D92EBEF9250066C5DA /* GoogleAPIClientForRESTCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9BF319D82EBEF9250066C5DA /* GoogleAPIClientForRESTCore */; };
-		9BF319DB2EBEF9250066C5DA /* GoogleAPIClientForREST_ACMEDNS in Frameworks */ = {isa = PBXBuildFile; productRef = 9BF319DA2EBEF9250066C5DA /* GoogleAPIClientForREST_ACMEDNS */; };
-		9BF319DD2EBEF9250066C5DA /* GoogleAPIClientForREST_AIPlatformNotebooks in Frameworks */ = {isa = PBXBuildFile; productRef = 9BF319DC2EBEF9250066C5DA /* GoogleAPIClientForREST_AIPlatformNotebooks */; };
-		9BF319DF2EBEF9250066C5DA /* GoogleAPIClientForREST_APIGateway in Frameworks */ = {isa = PBXBuildFile; productRef = 9BF319DE2EBEF9250066C5DA /* GoogleAPIClientForREST_APIGateway */; };
-		9BF319E12EBEF9250066C5DA /* GoogleAPIClientForREST_APIManagement in Frameworks */ = {isa = PBXBuildFile; productRef = 9BF319E02EBEF9250066C5DA /* GoogleAPIClientForREST_APIManagement */; };
+		9BF319E32EBEFCEF0066C5DA /* GoogleAPIClientForREST_Calendar in Frameworks */ = {isa = PBXBuildFile; productRef = 9BF319E22EBEFCEF0066C5DA /* GoogleAPIClientForREST_Calendar */; };
+		9BF319E52EBEFCF50066C5DA /* GoogleAPIClientForREST_Gmail in Frameworks */ = {isa = PBXBuildFile; productRef = 9BF319E42EBEFCF50066C5DA /* GoogleAPIClientForREST_Gmail */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,14 +32,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9BF319DF2EBEF9250066C5DA /* GoogleAPIClientForREST_APIGateway in Frameworks */,
 				9BA988822EBEB75C001714B9 /* GTMAppAuth in Frameworks */,
-				9BF319DD2EBEF9250066C5DA /* GoogleAPIClientForREST_AIPlatformNotebooks in Frameworks */,
 				9B530D8A2EB323EA001C771B /* GRDB in Frameworks */,
+				9BF319E32EBEFCEF0066C5DA /* GoogleAPIClientForREST_Calendar in Frameworks */,
 				9BF319D92EBEF9250066C5DA /* GoogleAPIClientForRESTCore in Frameworks */,
-				9BF319E12EBEF9250066C5DA /* GoogleAPIClientForREST_APIManagement in Frameworks */,
+				9BF319E52EBEFCF50066C5DA /* GoogleAPIClientForREST_Gmail in Frameworks */,
 				9B530DA22EB40002001C771B /* AppAuth in Frameworks */,
-				9BF319DB2EBEF9250066C5DA /* GoogleAPIClientForREST_ACMEDNS in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -96,10 +92,8 @@
 				9B530DA02EB40001001C771B /* GTMAppAuth */,
 				9B530DA12EB40002001C771B /* AppAuth */,
 				9BF319D82EBEF9250066C5DA /* GoogleAPIClientForRESTCore */,
-				9BF319DA2EBEF9250066C5DA /* GoogleAPIClientForREST_ACMEDNS */,
-				9BF319DC2EBEF9250066C5DA /* GoogleAPIClientForREST_AIPlatformNotebooks */,
-				9BF319DE2EBEF9250066C5DA /* GoogleAPIClientForREST_APIGateway */,
-				9BF319E02EBEF9250066C5DA /* GoogleAPIClientForREST_APIManagement */,
+				9BF319E22EBEFCEF0066C5DA /* GoogleAPIClientForREST_Calendar */,
+				9BF319E42EBEFCF50066C5DA /* GoogleAPIClientForREST_Gmail */,
 			);
 			productName = Athena;
 			productReference = 9B530D392EB2D478001C771B /* Athena.app */;
@@ -434,25 +428,15 @@
 			package = 9BF319D72EBEF9250066C5DA /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */;
 			productName = GoogleAPIClientForRESTCore;
 		};
-		9BF319DA2EBEF9250066C5DA /* GoogleAPIClientForREST_ACMEDNS */ = {
+		9BF319E22EBEFCEF0066C5DA /* GoogleAPIClientForREST_Calendar */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 9BF319D72EBEF9250066C5DA /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */;
-			productName = GoogleAPIClientForREST_ACMEDNS;
+			productName = GoogleAPIClientForREST_Calendar;
 		};
-		9BF319DC2EBEF9250066C5DA /* GoogleAPIClientForREST_AIPlatformNotebooks */ = {
+		9BF319E42EBEFCF50066C5DA /* GoogleAPIClientForREST_Gmail */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 9BF319D72EBEF9250066C5DA /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */;
-			productName = GoogleAPIClientForREST_AIPlatformNotebooks;
-		};
-		9BF319DE2EBEF9250066C5DA /* GoogleAPIClientForREST_APIGateway */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9BF319D72EBEF9250066C5DA /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */;
-			productName = GoogleAPIClientForREST_APIGateway;
-		};
-		9BF319E02EBEF9250066C5DA /* GoogleAPIClientForREST_APIManagement */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9BF319D72EBEF9250066C5DA /* XCRemoteSwiftPackageReference "google-api-objectivec-client-for-rest" */;
-			productName = GoogleAPIClientForREST_APIManagement;
+			productName = GoogleAPIClientForREST_Gmail;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

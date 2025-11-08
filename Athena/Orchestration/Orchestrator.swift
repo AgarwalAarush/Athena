@@ -6,6 +6,8 @@
 //
 
 import Foundation
+import GoogleAPIClientForREST_Gmail
+import GoogleAPIClientForREST_Calendar
 
 /// Defines the types of tasks the AI can route to.
 enum TaskType: String, CaseIterable {
@@ -200,7 +202,7 @@ class Orchestrator {
         7) If genuinely unclear, RETURN 'NA'.
 
         Keyword guidance (non-exhaustive):
-        - calendar domain: calendar, agenda, events, schedule, day, week, month, today, tomorrow, meeting, appointment
+        - calendar domain: calendar, agenda, events, schedule, day, week, month, today, tomorrow, meeting, appointment, gcal, google calendar
         - notes domain: note, notebook, notepad, jot, write this down, new note
         - gmail domain: email, gmail, mail, inbox, compose email, send email
         - messaging domain: message, text, sms, imessage, send a text, text message
@@ -306,7 +308,7 @@ class Orchestrator {
         }
 
         // Calendar keywords
-        let calendarKeywords = ["calendar", "agenda", "event", "events", "schedule", "meeting", "appointment"]
+        let calendarKeywords = ["calendar", "agenda", "event", "events", "schedule", "meeting", "appointment", "gcal"]
         let timeKeywords = ["today", "tomorrow", "yesterday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
         if calendarKeywords.contains(where: { lowercased.contains($0) }) {
@@ -514,16 +516,11 @@ class Orchestrator {
 
         // Determine if user wants Google Calendar or Apple Calendar
         let lowercased = prompt.lowercased()
-        let useGoogleCalendar = lowercased.contains("google")
+        let useGoogleCalendar = lowercased.contains("google") || lowercased.contains("gcal")
 
         if useGoogleCalendar {
             print("[Orchestrator] handleCalendarTask: Google Calendar requested")
-            // TODO: Implement Google Calendar integration
-            // For now, this would:
-            // 1. Authenticate with GoogleAuthService if needed
-            // 2. Use Google Calendar API to perform operations
-            // 3. Present results in a suitable UI (web view or custom view)
-            print("[Orchestrator] handleCalendarTask: Google Calendar integration not yet implemented")
+            await handleGoogleCalendarTask(prompt: prompt)
             return
         }
 
@@ -700,15 +697,23 @@ class Orchestrator {
     private func handleGmailTask(prompt: String) async {
         print("[Orchestrator] handleGmailTask: Processing query '\(prompt)'")
 
-        // TODO: Implement Gmail integration
-        // For now, this would:
-        // 1. Check if user is authenticated with GoogleAuthService
-        // 2. Parse prompt for email details (recipient, subject, body)
-        // 3. Use Gmail API to send/read/search emails
-        // 4. Present results or confirmation to user
+        print("[Orchestrator] handleGmailTask: Assuming user is already authenticated with Google.")
 
-        print("[Orchestrator] handleGmailTask: Gmail integration not yet implemented")
-        print("[Orchestrator] handleGmailTask: Would process email-related request: '\(prompt)'")
+        do {
+            let result = try await parseGmailQuery(prompt: prompt)
+            print("[Orchestrator] handleGmailTask: Executing action '\(result.action)'")
+
+            switch result.action {
+            case .send:
+                await executeGmailSend(params: result.params)
+            case .search:
+                await executeGmailSearch(params: result.params)
+            case .read:
+                await executeGmailRead(params: result.params)
+            }
+        } catch {
+            print("[Orchestrator] handleGmailTask: Error processing Gmail query: \(error)")
+        }
     }
 
     /// Handles messaging-related tasks (e.g., "text mom that I'll be late").
@@ -1889,5 +1894,302 @@ class Orchestrator {
         components.hour = finalHour
         components.minute = minute
         return components
+    }
+
+    // MARK: - Gmail Action Helpers
+
+    private enum GmailActionType: String {
+        case send
+        case search
+        case read
+    }
+
+    private struct GmailActionResult {
+        let action: GmailActionType
+        let params: [String: String]
+    }
+
+    private func parseGmailQuery(prompt: String) async throws -> GmailActionResult {
+        let systemPrompt = """
+        You are a Gmail action parser. Analyze the user's query and determine the action and its parameters.
+
+        Available actions:
+        1. "send" - Send an email.
+           Required params: to, subject, body.
+        2. "search" - Search for emails.
+           Required params: searchQuery.
+        3. "read" - Read recent emails.
+           No params needed, but can take 'from' or 'subject' as filters.
+
+        Respond ONLY with valid JSON in this exact format:
+        {
+          "action": "action_name",
+          "params": {
+            "param1": "value1",
+            "param2": "value2"
+          }
+        }
+
+        Examples:
+        Query: "send an email to john@example.com with subject Hello and body How are you?"
+        Response: {"action": "send", "params": {"to": "john@example.com", "subject": "Hello", "body": "How are you?"}}
+
+        Query: "email my mom about dinner plans"
+        Response: {"action": "send", "params": {"to": "mom", "subject": "dinner plans", "body": ""}}
+
+        Query: "search for emails from sarah"
+        Response: {"action": "search", "params": {"searchQuery": "from:sarah"}}
+
+        Query: "show me unread emails"
+        Response: {"action": "search", "params": {"searchQuery": "is:unread"}}
+
+        Query: "read my latest emails"
+        Response: {"action": "read", "params": {}}
+
+        Now parse this query: "\(prompt)"
+        Respond with ONLY the JSON, no other text.
+        """
+
+        let response = try await aiService.getCompletion(
+            prompt: prompt,
+            systemPrompt: systemPrompt,
+            provider: .openai,
+            model: "gpt-5-nano-2025-08-07"
+        )
+
+        print("[Orchestrator] Gmail AI response: \(response)")
+
+        guard let jsonData = response.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let actionString = json["action"] as? String,
+              let action = GmailActionType(rawValue: actionString) else {
+            throw NSError(domain: "Orchestrator", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to parse Gmail query"])
+        }
+
+        let params = (json["params"] as? [String: String]) ?? [:]
+        print("[Orchestrator] Gmail AI parsed action: \(action), params: \(params)")
+
+        return GmailActionResult(action: action, params: params)
+    }
+
+    private func executeGmailSend(params: [String: String]) async {
+        print("[Orchestrator] executeGmailSend with params: \(params)")
+        guard let to = params["to"], let subject = params["subject"], let body = params["body"] else {
+            print("[Orchestrator] Insufficient parameters to send email.")
+            return
+        }
+        
+        do {
+            try await GmailService.shared.sendMessage(to: to, subject: subject, body: body)
+            print("[Orchestrator] Successfully sent email to \(to).")
+        } catch {
+            print("[Orchestrator] Error sending email: \(error)")
+        }
+    }
+
+    private func executeGmailSearch(params: [String: String]) async {
+        print("[Orchestrator] executeGmailSearch with params: \(params)")
+        guard let query = params["searchQuery"] else {
+            print("[Orchestrator] Search query not provided.")
+            return
+        }
+        
+        do {
+            let messages = try await GmailService.shared.searchMessages(searchQuery: query)
+            print("[Orchestrator] Found \(messages.count) messages matching query '\(query)'.")
+            // TODO: Display messages to user. For now, just log them.
+            for message in messages.prefix(5) { // Log first 5
+                if let messageId = message.identifier {
+                    let detailedMessage = try await GmailService.shared.getMessage(messageId: messageId)
+                    let from = GmailService.shared.extractHeader(from: detailedMessage, headerName: "From") ?? "Unknown"
+                    let subject = GmailService.shared.extractHeader(from: detailedMessage, headerName: "Subject") ?? "No Subject"
+                    print("  - From: \(from), Subject: \(subject)")
+                }
+            }
+        } catch {
+            print("[Orchestrator] Error searching emails: \(error)")
+        }
+    }
+
+    private func executeGmailRead(params: [String: String]) async {
+        print("[Orchestrator] executeGmailRead with params: \(params)")
+        do {
+            let messages = try await GmailService.shared.listMessages(maxResults: 5)
+            print("[Orchestrator] Fetched \(messages.count) recent messages.")
+            // TODO: Display messages to user. For now, just log them.
+            for message in messages {
+                if let messageId = message.identifier {
+                    let detailedMessage = try await GmailService.shared.getMessage(messageId: messageId)
+                    let from = GmailService.shared.extractHeader(from: detailedMessage, headerName: "From") ?? "Unknown"
+                    let subject = GmailService.shared.extractHeader(from: detailedMessage, headerName: "Subject") ?? "No Subject"
+                    print("  - From: \(from), Subject: \(subject)")
+                }
+            }
+        } catch {
+            print("[Orchestrator] Error reading emails: \(error)")
+        }
+    }
+
+    // MARK: - Google Calendar Action Helpers
+
+    /// Handles Google Calendar-related tasks.
+    private func handleGoogleCalendarTask(prompt: String) async {
+        print("[Orchestrator] handleGoogleCalendarTask: Processing query '\(prompt)'")
+
+        print("[Orchestrator] handleGoogleCalendarTask: Assuming user is already authenticated with Google.")
+
+        do {
+            let result = try await parseGoogleCalendarQuery(prompt: prompt)
+            print("[Orchestrator] handleGoogleCalendarTask: Executing action '\(result.action)'")
+
+            switch result.action {
+            case .view, .query:
+                await executeGCalListEvents(params: result.params)
+            case .create:
+                await executeGCalCreateEvent(params: result.params)
+            case .delete:
+                await executeGCalDeleteEvent(params: result.params)
+            case .update:
+                await executeGCalUpdateEvent(params: result.params)
+            case .navigate:
+                print("[Orchestrator] Google Calendar navigation not implemented, listing events instead.")
+                await executeGCalListEvents(params: result.params)
+            }
+        } catch {
+            print("[Orchestrator] handleGoogleCalendarTask: Error processing Google Calendar query: \(error)")
+        }
+    }
+
+    /// Parses a Google Calendar query using AI.
+    private func parseGoogleCalendarQuery(prompt: String) async throws -> CalendarActionResult {
+        print("[Orchestrator] Parsing Google Calendar query: \(prompt)")
+
+        let currentDate = Date()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .full
+        dateFormatter.timeStyle = .short
+
+        let systemPrompt = """
+        You are a Google Calendar action parser. Analyze the user's query and determine what action they want to perform.
+
+        Current date and time: \(dateFormatter.string(from: currentDate))
+
+        Available actions:
+        1. "query" - Ask about events.
+           Required params: dateRange (e.g., "today", "this week", "tomorrow")
+           Optional params: searchQuery (for searching specific events)
+        2. "create" - Create a new event. If the query is a natural language description of an event, use the 'text' parameter.
+           Example Query: "schedule lunch with dave tomorrow at 12pm" -> params: {"text": "Lunch with Dave tomorrow at 12pm"}
+           For structured data, use: summary, startTime, endTime, description, location, attendees.
+        3. "update" - Modify an existing event.
+           Required params: 'searchQuery' to find the event, and 'changes' describing the update.
+        4. "delete" - Delete an event.
+           Required params: 'searchQuery' to find the event to delete.
+
+        Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
+        {
+          "action": "action_name",
+          "params": {
+            "param1": "value1",
+            "param2": "value2"
+          }
+        }
+
+        Examples:
+        Query: "what's on my google calendar today"
+        Response: {"action": "query", "params": {"dateRange": "today"}}
+
+        Query: "search for 'team meeting' in my gcal"
+        Response: {"action": "query", "params": {"searchQuery": "team meeting"}}
+
+        Query: "schedule on gcal: Lunch with Dave tomorrow at 12pm"
+        Response: {"action": "create", "params": {"text": "Lunch with Dave tomorrow at 12pm"}}
+
+        Query: "delete the 'team meeting' from my google calendar"
+        Response: {"action": "delete", "params": {"searchQuery": "team meeting"}}
+
+        Now parse this query: "\(prompt)"
+        Respond with ONLY the JSON, no other text.
+        """
+
+        let response = try await aiService.getCompletion(
+            prompt: prompt,
+            systemPrompt: systemPrompt,
+            provider: .openai,
+            model: "gpt-5-nano-2025-08-07"
+        )
+
+        print("[Orchestrator] Google Calendar AI response: \(response)")
+
+        guard let jsonData = response.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let actionString = json["action"] as? String,
+              let action = CalendarActionType(rawValue: actionString) else {
+            throw NSError(domain: "Orchestrator", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to parse Google Calendar query"])
+        }
+
+        let params = (json["params"] as? [String: String]) ?? [:]
+        print("[Orchestrator] Google Calendar AI parsed action: \(action), params: \(params)")
+
+        return CalendarActionResult(action: action, params: params)
+    }
+
+    private func executeGCalListEvents(params: [String: String]) async {
+        print("[Orchestrator] executeGCalListEvents with params: \(params)")
+        do {
+            if let searchQuery = params["searchQuery"] {
+                let events = try await GoogleCalendarService.shared.searchEvents(searchQuery: searchQuery)
+                print("[Orchestrator] Found \(events.count) events from search: \(events.map { $0.summary ?? "No summary" })")
+                // TODO: Display these events to the user
+            } else {
+                let events = try await GoogleCalendarService.shared.fetchUpcomingEvents(maxResults: 10)
+                print("[Orchestrator] Found \(events.count) upcoming events: \(events.map { $0.summary ?? "No summary" })")
+                // TODO: Display these events to the user
+            }
+        } catch {
+            print("[Orchestrator] Error fetching Google Calendar events: \(error)")
+        }
+    }
+
+    private func executeGCalCreateEvent(params: [String: String]) async {
+        print("[Orchestrator] executeGCalCreateEvent with params: \(params)")
+        do {
+            if let text = params["text"] {
+                let event = try await GoogleCalendarService.shared.createQuickEvent(text: text)
+                print("[Orchestrator] Successfully created quick event: \(event.summary ?? "No summary")")
+            } else if let summary = params["summary"], let startTimeStr = params["startTime"], let endTimeStr = params["endTime"] {
+                let text = "\(summary) at \(startTimeStr) until \(endTimeStr)"
+                let event = try await GoogleCalendarService.shared.createQuickEvent(text: text)
+                print("[Orchestrator] Successfully created event from parts: \(event.summary ?? "No summary")")
+            } else {
+                print("[Orchestrator] Insufficient parameters to create Google Calendar event.")
+            }
+        } catch {
+            print("[Orchestrator] Error creating Google Calendar event: \(error)")
+        }
+    }
+
+    private func executeGCalDeleteEvent(params: [String: String]) async {
+        print("[Orchestrator] executeGCalDeleteEvent with params: \(params)")
+        guard let searchQuery = params["searchQuery"] else {
+            print("[Orchestrator] Delete requires a search query to find the event.")
+            return
+        }
+        do {
+            let events = try await GoogleCalendarService.shared.searchEvents(searchQuery: searchQuery)
+            if let eventToDelete = events.first, let eventId = eventToDelete.identifier {
+                try await GoogleCalendarService.shared.deleteEvent(eventId: eventId)
+                print("[Orchestrator] Successfully deleted event: \(eventToDelete.summary ?? "No summary")")
+            } else {
+                print("[Orchestrator] Could not find event to delete matching '\(searchQuery)'")
+            }
+        } catch {
+            print("[Orchestrator] Error deleting Google Calendar event: \(error)")
+        }
+    }
+
+    private func executeGCalUpdateEvent(params: [String: String]) async {
+        print("[Orchestrator] executeGCalUpdateEvent with params: \(params)")
+        print("[Orchestrator] Google Calendar event update not yet implemented.")
     }
 }

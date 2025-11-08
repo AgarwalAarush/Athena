@@ -88,10 +88,10 @@ class ContactsService {
     /// - Parameter name: The name to search for (can be partial, case-insensitive)
     /// - Returns: Array of matching contacts, sorted by match quality
     func searchContacts(byName name: String) async throws -> [CNContact] {
-        guard hasAccess else {
+        if !hasAccess {
             print("[ContactsService] ❌ No Contacts access, requesting...")
             let granted = try await requestAccess()
-            guard granted else {
+            if !granted {
                 throw ContactsError.authorizationDenied
             }
         }

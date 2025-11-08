@@ -209,7 +209,7 @@ class GmailService {
         gmailMessage.raw = base64Message
 
         // Create send query
-        let query = GTLRGmailQuery_UsersMessagesSend.query(withObject: gmailMessage, userId: "me")
+        let query = GTLRGmailQuery_UsersMessagesSend.query(withObject: gmailMessage, userId: "me", uploadParameters: nil)
 
         return try await withCheckedThrowingContinuation { continuation in
             service.executeQuery(query) { (ticket, result, error) in

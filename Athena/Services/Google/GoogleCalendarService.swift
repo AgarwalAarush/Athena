@@ -458,7 +458,7 @@ class GoogleCalendarService {
         }
         request.items = items
 
-        let query = GTLRCalendarQuery_FreebusyQuery.query(withObject: request)
+        let query = GTLRCalendarQuery_FreebusyQuery(object: request)
 
         return try await withCheckedThrowingContinuation { continuation in
             service.executeQuery(query) { (ticket, result, error) in
