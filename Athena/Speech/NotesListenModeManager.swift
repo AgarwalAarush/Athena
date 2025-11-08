@@ -33,6 +33,12 @@ class NotesListenModeManager: ObservableObject {
     private var audioEngine: AVAudioEngine?
     private var audioInput: AVAudioInputNode?
     private var transcriberTask: Task<Void, Never>?
+    private let _amplitudeMonitor = AudioAmplitudeMonitor()
+    
+    /// Public read-only access to amplitude monitor for UI visualization
+    var amplitudeMonitor: AudioAmplitudeMonitor {
+        _amplitudeMonitor
+    }
     
     // Current accumulated transcript
     private var currentTranscript: String = ""
@@ -89,6 +95,9 @@ class NotesListenModeManager: ObservableObject {
         transcriberTask?.cancel()
         vadTranscriber?.stop()
         stopAudioEngine()
+        
+        // Stop amplitude monitor
+        _amplitudeMonitor.stop()
         
         // If we have a transcript and haven't already set final, set it now
         if finalTranscript == nil && !currentTranscript.isEmpty {
@@ -164,6 +173,23 @@ class NotesListenModeManager: ObservableObject {
     private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) async {
         guard state == .listening else { return }
         vadTranscriber?.appendAudioBuffer(buffer)
+        
+        // Process amplitude for waveform visualization
+        // CRITICAL: Use fire-and-forget Task to prevent blocking audio thread
+        guard let channelData = buffer.floatChannelData else { return }
+        let frameCount = Int(buffer.frameLength)
+        let samples = Array(UnsafeBufferPointer(start: channelData[0], count: frameCount))
+        
+        let audioFrame = AudioFrame(
+            samples: samples,
+            sampleRate: buffer.format.sampleRate,
+            timestamp: AVAudioTime(hostTime: mach_absolute_time())
+        )
+        
+        // Fire-and-forget: Don't await to prevent audio thread blocking
+        Task { @MainActor in
+            await _amplitudeMonitor.process(audioFrame)
+        }
     }
     
     // MARK: - Private Methods - Transcription
@@ -244,6 +270,7 @@ class NotesListenModeManager: ObservableObject {
             
         case .error(let error):
             print("[NotesListenModeManager] ❌ Transcription error: \(error)")
+            _amplitudeMonitor.stop()
             state = .error(error.localizedDescription)
             await onTranscriptionEnded()
             

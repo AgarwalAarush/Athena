@@ -41,7 +41,13 @@ class NotesViewModel: ObservableObject {
     @Published var listenModeState: ListenModeState = .idle
     @Published var listenModePartialTranscript: String = ""
     
-    private var listenModeManager: NotesListenModeManager?
+    private var _listenModeManager: NotesListenModeManager?
+    
+    /// Public read-only access to listen mode manager for amplitude monitoring
+    var listenModeManager: NotesListenModeManager? {
+        _listenModeManager
+    }
+    
     private weak var appViewModel: AppViewModel?
     private var listenModeCancellables = Set<AnyCancellable>()
 
@@ -163,7 +169,7 @@ class NotesViewModel: ObservableObject {
         
         // Create and start listen mode manager
         let manager = NotesListenModeManager()
-        self.listenModeManager = manager
+        self._listenModeManager = manager
         
         // Subscribe to manager events
         manager.$state
@@ -221,7 +227,7 @@ class NotesViewModel: ObservableObject {
         }
         
         // Stop the manager
-        listenModeManager?.stop()
+        _listenModeManager?.stop()
         
         // Clean up
         cleanup()
@@ -328,7 +334,7 @@ class NotesViewModel: ObservableObject {
         listenModeCancellables.removeAll()
         
         // Release the manager
-        listenModeManager = nil
+        _listenModeManager = nil
         
         // Resume wake word mode
         appViewModel?.resumeWakeWord()

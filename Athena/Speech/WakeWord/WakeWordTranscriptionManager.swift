@@ -38,6 +38,13 @@ class WakeWordTranscriptionManager: ObservableObject {
 
     private var detectorTask: Task<Void, Never>?
     private var transcriberTask: Task<Void, Never>?
+    
+    private let _amplitudeMonitor = AudioAmplitudeMonitor()
+    
+    /// Public read-only access to amplitude monitor for UI visualization
+    var amplitudeMonitor: AudioAmplitudeMonitor {
+        _amplitudeMonitor
+    }
 
     // Current transcript from the speech recognizer
     private var lastSessionTranscript: String = ""
@@ -46,6 +53,9 @@ class WakeWordTranscriptionManager: ObservableObject {
     private var audioRingBuffer: [AVAudioPCMBuffer] = []
     private let maxRingBufferDuration: TimeInterval = 1.0 // 1 second of audio
     private var currentRingBufferDuration: TimeInterval = 0.0
+
+    // Callback invoked when wake word is detected (e.g., to show hidden window)
+    var onWakeWordDetectedCallback: (() -> Void)?
 
     // MARK: - Initialization
 
@@ -80,6 +90,10 @@ class WakeWordTranscriptionManager: ObservableObject {
         // Start audio engine
         try startAudioEngine()
 
+        // Start amplitude monitor
+        print("[WakeWordTranscriptionManager] ⚡ Starting amplitude monitor")
+        _amplitudeMonitor.start()
+
         // Start listening for wake word
         try await startWakeWordDetection()
 
@@ -94,6 +108,9 @@ class WakeWordTranscriptionManager: ObservableObject {
 
         wakeWordDetector?.stop()
         vadTranscriber?.stop()
+        
+        // Stop amplitude monitor
+        _amplitudeMonitor.stop()
 
         stopAudioEngine()
 
@@ -164,7 +181,33 @@ class WakeWordTranscriptionManager: ObservableObject {
         print("[WakeWordTranscriptionManager] Audio engine stopped")
     }
 
+    private var bufferCount = 0
+
     private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) async {
+        // Process amplitude for waveform visualization (in all active states)
+        // CRITICAL: Use fire-and-forget Task to prevent blocking audio thread
+        if state == .listeningForWakeWord || state == .transcribing {
+            if let channelData = buffer.floatChannelData {
+                let frameCount = Int(buffer.frameLength)
+                let samples = Array(UnsafeBufferPointer(start: channelData[0], count: frameCount))
+
+                let audioFrame = AudioFrame(
+                    samples: samples,
+                    sampleRate: buffer.format.sampleRate,
+                    timestamp: AVAudioTime(hostTime: mach_absolute_time())
+                )
+
+                bufferCount += 1
+                // Fire-and-forget: Don't await to prevent audio thread blocking
+                Task { @MainActor in
+                    if bufferCount % 50 == 0 {
+                        print("[WakeWordTranscriptionManager] 🎵 Processing audio buffer #\(bufferCount) for amplitude monitor (samples: \(samples.count))")
+                    }
+                    await _amplitudeMonitor.process(audioFrame)
+                }
+            }
+        }
+        
         switch state {
         case .listeningForWakeWord:
             // Add to ring buffer for smooth handoff
@@ -249,6 +292,9 @@ class WakeWordTranscriptionManager: ObservableObject {
     private func onWakeWordDetected() async {
         print("[WakeWordTranscriptionManager] 🎤 Wake word detected! Transitioning to transcription mode...")
         print("[WakeWordTranscriptionManager] 📊 Current state: \(state)")
+
+        // Notify external listeners (e.g., to show hidden window)
+        onWakeWordDetectedCallback?()
 
         // Stop wake word detection and clear its buffer
         print("[WakeWordTranscriptionManager] 🛑 Stopping wake word detector and clearing buffer")

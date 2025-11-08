@@ -136,6 +136,32 @@ class ConfigurationManager: ObservableObject {
         }
     }
     
+    // MARK: - Google OAuth Methods
+    
+    func hasGoogleAuth() -> Bool {
+        return keychain.exists(for: ConfigurationKey.googleAuthSession.rawValue)
+    }
+    
+    func getGoogleAuthSession() -> Data? {
+        return try? keychain.retrieve(for: ConfigurationKey.googleAuthSession.rawValue)
+    }
+    
+    func saveGoogleAuthSession(_ data: Data) throws {
+        try keychain.save(data, for: ConfigurationKey.googleAuthSession.rawValue)
+    }
+    
+    func deleteGoogleAuthSession() throws {
+        try keychain.delete(for: ConfigurationKey.googleAuthSession.rawValue)
+    }
+    
+    func getGoogleAuthScopes() -> String {
+        return getString(.googleAuthScopes)
+    }
+    
+    func saveGoogleAuthScopes(_ scopes: String) throws {
+        try set(scopes, for: .googleAuthScopes)
+    }
+    
     // MARK: - Validation
     
     func validate(_ value: Any, for key: ConfigurationKey) -> Bool {

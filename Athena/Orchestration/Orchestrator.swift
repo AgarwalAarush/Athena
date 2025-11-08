@@ -11,6 +11,8 @@ import Foundation
 enum TaskType: String, CaseIterable {
     case notes
     case calendar
+    case gmail
+    case messaging
     case windowManagement
     case computerUse
     case appCommand
@@ -122,6 +124,12 @@ class Orchestrator {
             case .calendar:
                 await handleCalendarTask(prompt: prompt)
                 return
+            case .gmail:
+                await handleGmailTask(prompt: prompt)
+                return
+            case .messaging:
+                await handleMessagingTask(prompt: prompt)
+                return
             case .windowManagement:
                 await handleWindowManagementTask(prompt: prompt)
                 return
@@ -144,6 +152,10 @@ class Orchestrator {
             await handleCalendarTask(prompt: prompt)
         case .notes:
             await handleNotesTask(prompt: prompt)
+        case .gmail:
+            await handleGmailTask(prompt: prompt)
+        case .messaging:
+            await handleMessagingTask(prompt: prompt)
         case .windowManagement:
             await handleWindowManagementTask(prompt: prompt)
         case .computerUse:
@@ -166,6 +178,8 @@ class Orchestrator {
         Taxonomy (return EXACTLY one of these labels):
         - 'notes': Any action related to notes (creating, editing, viewing notes).
         - 'calendar': Any action related to the calendar (opening calendar view, scheduling, viewing events, navigating dates).
+        - 'gmail': Any action related to email (composing, reading, sending emails via Gmail).
+        - 'messaging': Any action related to sending text messages or iMessages.
         - 'wakewordControl': Enabling/disabling/toggling wake word listening (e.g., "Athena stop listening").
         - 'windowManagement': Arranging/managing windows (e.g., split, focus, resize).
         - 'appCommand': App-level navigation/settings not tied to a specific content domain (e.g., "open settings", "go back to chat/home").
@@ -177,17 +191,19 @@ class Orchestrator {
         - User query: "\(prompt)"
 
         Decision rules (in order of priority):
-        1) If the query explicitly mentions a domain by name (e.g., "calendar", "notes", "events", "schedule"), RETURN that domain label, even if it says "open … view". (Do NOT return 'appCommand' for domain-named views.)
+        1) If the query explicitly mentions a domain by name (e.g., "calendar", "notes", "events", "schedule", "email", "message"), RETURN that domain label, even if it says "open … view". (Do NOT return 'appCommand' for domain-named views.)
         2) If no domain term is present, but the query is clearly about app-level navigation or settings (e.g., "open settings", "go back", "switch theme", "open preferences"), RETURN 'appCommand'.
         3) If the query is about arranging or moving windows, RETURN 'windowManagement'.
         4) If the query is about the computer outside Athena (apps, OS features), RETURN 'computerUse'.
         5) If the query is to enable/disable wake word, RETURN 'wakewordControl'.
-        6) If multiple could apply, prefer specific domain labels ('notes', 'calendar') over 'appCommand'.
+        6) If multiple could apply, prefer specific domain labels ('notes', 'calendar', 'gmail', 'messaging') over 'appCommand'.
         7) If genuinely unclear, RETURN 'NA'.
 
         Keyword guidance (non-exhaustive):
-        - calendar domain: calendar, agenda, events, schedule, day, week, month, today, tomorrow
+        - calendar domain: calendar, agenda, events, schedule, day, week, month, today, tomorrow, meeting, appointment
         - notes domain: note, notebook, notepad, jot, write this down, new note
+        - gmail domain: email, gmail, mail, inbox, compose email, send email
+        - messaging domain: message, text, sms, imessage, send a text, text message
         - appCommand: settings, preferences, theme, about, help, sign in, log out, home, chat (when not a domain)
         - windowManagement: resize, split, focus window, move window, center, maximize, minimize
         - computerUse: open Safari/Chrome, take screenshot, system volume, Bluetooth, Wi-Fi
@@ -196,6 +212,8 @@ class Orchestrator {
         - notes -> "Athena open calendar view" => calendar
         - calendar -> "show tomorrow" => calendar
         - notes -> "create a new note titled project ideas" => notes
+        - chat -> "send an email to John" => gmail
+        - chat -> "text mom that I'll be late" => messaging
         - chat -> "open settings" => appCommand
         - calendar -> "maximize the window" => windowManagement
         - any -> "open Safari" => computerUse
@@ -203,7 +221,7 @@ class Orchestrator {
         - any -> "asdf qwer zzzz" => NA
 
         Output:
-        Respond with exactly one label: 'notes', 'calendar', 'wakewordControl', 'windowManagement', 'appCommand', 'computerUse', or 'NA'.
+        Respond with exactly one label: 'notes', 'calendar', 'gmail', 'messaging', 'wakewordControl', 'windowManagement', 'appCommand', 'computerUse', or 'NA'.
         """
 
         let classification = try await aiService.getCompletion(
@@ -268,44 +286,56 @@ class Orchestrator {
     private func detectQuickRoute(from prompt: String) -> TaskType? {
         let lowercased = prompt.lowercased()
         let tokens = Set(lowercased.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty })
-        
+
+        // Gmail keywords (check before calendar since "mail" might conflict)
+        let gmailKeywords = ["gmail", "email", "mail", "inbox", "compose"]
+        if gmailKeywords.contains(where: { lowercased.contains($0) }) {
+            return .gmail
+        }
+
+        // Messaging keywords (check before other categories)
+        let messagingKeywords = ["message", "text", "sms", "imessage", "send a text"]
+        if messagingKeywords.contains(where: { lowercased.contains($0) }) {
+            return .messaging
+        }
+
         // Notes keywords (highest specificity first)
         let noteKeywords = ["note", "notes", "notebook", "notepad", "jot"]
         if noteKeywords.contains(where: { lowercased.contains($0) }) {
             return .notes
         }
-        
+
         // Calendar keywords
         let calendarKeywords = ["calendar", "agenda", "event", "events", "schedule", "meeting", "appointment"]
         let timeKeywords = ["today", "tomorrow", "yesterday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-        
+
         if calendarKeywords.contains(where: { lowercased.contains($0) }) {
             return .calendar
         }
-        
+
         // Time references often indicate calendar
         if timeKeywords.contains(where: { tokens.contains($0) }) {
             return .calendar
         }
-        
+
         // Window management keywords
         let windowKeywords = ["window", "resize", "split", "maximize", "minimize", "center", "arrange", "configuration", "config"]
         if windowKeywords.contains(where: { lowercased.contains($0) }) {
             return .windowManagement
         }
-        
+
         // Computer use keywords (OS-level operations)
         let computerUseKeywords = ["safari", "chrome", "firefox", "browser", "screenshot", "volume", "bluetooth", "wifi", "wi-fi"]
         if computerUseKeywords.contains(where: { lowercased.contains($0) }) {
             return .computerUse
         }
-        
+
         // App command keywords (but only if no domain is mentioned)
         let appCommandKeywords = ["settings", "preferences", "theme", "help", "about", "sign in", "log out", "home"]
         if appCommandKeywords.contains(where: { lowercased.contains($0) }) {
             return .appCommand
         }
-        
+
         // No clear match - return nil to trigger LLM classification
         return nil
     }
@@ -482,12 +512,40 @@ class Orchestrator {
     private func handleCalendarTask(prompt: String) async {
         print("[Orchestrator] handleCalendarTask: Processing query '\(prompt)'")
 
+        // Determine if user wants Google Calendar or Apple Calendar
+        let lowercased = prompt.lowercased()
+        let useGoogleCalendar = lowercased.contains("google")
+
+        if useGoogleCalendar {
+            print("[Orchestrator] handleCalendarTask: Google Calendar requested")
+            // TODO: Implement Google Calendar integration
+            // For now, this would:
+            // 1. Authenticate with GoogleAuthService if needed
+            // 2. Use Google Calendar API to perform operations
+            // 3. Present results in a suitable UI (web view or custom view)
+            print("[Orchestrator] handleCalendarTask: Google Calendar integration not yet implemented")
+            return
+        }
+
+        // Default to Apple Calendar
+        print("[Orchestrator] handleCalendarTask: Using Apple Calendar (default)")
+
         // ALWAYS switch to calendar view first
         await MainActor.run {
             self.appViewModel?.showCalendar()
         }
 
-        // Parse the calendar query (with automatic fallback to keyword matching)
+        // Try local parsing first for navigation commands
+        if let targetDate = parseNavigationCommand(prompt: prompt) {
+            print("[Orchestrator] handleCalendarTask: Local parse successful, navigating to date")
+            await MainActor.run {
+                self.appViewModel?.dayViewModel.selectedDate = targetDate
+            }
+            print("[Orchestrator] handleCalendarTask: Navigation completed")
+            return
+        }
+
+        // If local parsing failed, use AI parsing (with automatic fallback to keyword matching)
         let result = await parseCalendarQuery(prompt: prompt)
         print("[Orchestrator] handleCalendarTask: Executing action '\(result.action)'")
 
@@ -622,6 +680,71 @@ class Orchestrator {
         }
     }
 
+    /// Handles Gmail-related tasks (e.g., "send an email to John").
+    ///
+    /// **TODO - Implementation Required**
+    ///
+    /// This should handle Gmail operations:
+    /// - Compose and send emails
+    /// - Read emails
+    /// - Search inbox
+    /// - Manage labels
+    ///
+    /// **Implementation Steps:**
+    /// 1. Use GoogleAuthService to authenticate with Gmail API
+    /// 2. Parse the prompt to extract email details (recipient, subject, body)
+    /// 3. Use Gmail API to perform the requested action
+    /// 4. Show confirmation or results to the user
+    private func handleGmailTask(prompt: String) async {
+        print("[Orchestrator] handleGmailTask: Processing query '\(prompt)'")
+
+        // TODO: Implement Gmail integration
+        // For now, this would:
+        // 1. Check if user is authenticated with GoogleAuthService
+        // 2. Parse prompt for email details (recipient, subject, body)
+        // 3. Use Gmail API to send/read/search emails
+        // 4. Present results or confirmation to user
+
+        print("[Orchestrator] handleGmailTask: Gmail integration not yet implemented")
+        print("[Orchestrator] handleGmailTask: Would process email-related request: '\(prompt)'")
+    }
+
+    /// Handles messaging-related tasks (e.g., "text mom that I'll be late").
+    ///
+    /// Uses the MessagingService to send iMessages and SMS.
+    ///
+    /// **Implementation:**
+    /// - Parse the prompt to extract recipient and message
+    /// - Use MessagingService to send the message
+    /// - Provide user confirmation
+    private func handleMessagingTask(prompt: String) async {
+        print("[Orchestrator] handleMessagingTask: Processing query '\(prompt)'")
+
+        // TODO: Implement messaging integration
+        // For now, this would:
+        // 1. Parse prompt for recipient and message content using AI
+        // 2. Extract phone number or contact name
+        // 3. Use MessagingService.shared.sendMessage() with appropriate method
+        // 4. Present confirmation to user
+
+        print("[Orchestrator] handleMessagingTask: Messaging integration not yet implemented")
+        print("[Orchestrator] handleMessagingTask: Would send message based on: '\(prompt)'")
+
+        // Example of how this would work:
+        // let result = try await parseMessagingQuery(prompt: prompt)
+        // let messagingResult = await MessagingService.shared.sendMessage(
+        //     result.message,
+        //     to: result.recipient,
+        //     using: .appleScript  // or .shareSheet for user confirmation
+        // )
+        // switch messagingResult {
+        // case .success:
+        //     print("[Orchestrator] Message sent successfully")
+        // case .failure(let error):
+        //     print("[Orchestrator] Failed to send message: \(error)")
+        // }
+    }
+
     /// Handles general computer use tasks (e.g., "open Safari", "take a screenshot").
     ///
     /// **TODO - Not Yet Implemented**
@@ -658,6 +781,16 @@ class Orchestrator {
     }
 
     private func parseNotesQuery(prompt: String) async throws -> NotesActionResult {
+        // Fetch all note titles for context
+        var noteTitlesContext = ""
+        if let notesViewModel = appViewModel?.notesViewModel {
+            let allNotes = await MainActor.run { notesViewModel.notes }
+            let titles = allNotes.map { $0.title }
+            if !titles.isEmpty {
+                noteTitlesContext = "\n\nCurrent user notes:\n" + titles.map { "- \($0)" }.joined(separator: "\n")
+            }
+        }
+
         let systemPrompt = """
         You are a notes action parser. Analyze the user's query and determine if they want to open an existing note or create a new one.
 
@@ -677,9 +810,9 @@ class Orchestrator {
 
         Query: "create a new note called grocery list"
         Response: {"action": "create", "title": "grocery list"}
-        
+
         Query: "new note"
-        Response: {"action": "create", "title": null}
+        Response: {"action": "create", "title": null}\(noteTitlesContext)
 
         Now parse this query: "\(prompt)"
         """
@@ -1288,6 +1421,107 @@ class Orchestrator {
     }
 
     // MARK: Parsing Helpers
+
+    /// Attempts to parse navigation commands locally without AI
+    /// Returns a Date if successful, nil if AI parsing is needed
+    private func parseNavigationCommand(prompt: String) -> Date? {
+        let lowercased = prompt.lowercased().trimmingCharacters(in: .whitespaces)
+        let calendar = Calendar.current
+        let now = Date()
+
+        // Check for "next" or "prev/previous" modifiers
+        let hasNext = lowercased.contains("next")
+        let hasPrev = lowercased.contains("prev") || lowercased.contains("previous")
+
+        // Weekday names
+        let weekdays = [
+            "sunday": 1,
+            "monday": 2,
+            "tuesday": 3,
+            "wednesday": 4,
+            "thursday": 5,
+            "friday": 6,
+            "saturday": 7
+        ]
+
+        // Simple cases: today, tomorrow, yesterday
+        if lowercased == "today" || lowercased == "open" {
+            print("[Orchestrator] Local parse: today")
+            return now
+        }
+
+        if lowercased == "tomorrow" {
+            print("[Orchestrator] Local parse: tomorrow")
+            return calendar.date(byAdding: .day, value: 1, to: now)
+        }
+
+        if lowercased == "yesterday" {
+            print("[Orchestrator] Local parse: yesterday")
+            return calendar.date(byAdding: .day, value: -1, to: now)
+        }
+
+        // Next/prev week
+        if lowercased.contains("week") {
+            if hasNext {
+                print("[Orchestrator] Local parse: next week")
+                return calendar.date(byAdding: .weekOfYear, value: 1, to: now)
+            } else if hasPrev {
+                print("[Orchestrator] Local parse: previous week")
+                return calendar.date(byAdding: .weekOfYear, value: -1, to: now)
+            }
+        }
+
+        // Next/prev month
+        if lowercased.contains("month") {
+            if hasNext {
+                print("[Orchestrator] Local parse: next month")
+                return calendar.date(byAdding: .month, value: 1, to: now)
+            } else if hasPrev {
+                print("[Orchestrator] Local parse: previous month")
+                return calendar.date(byAdding: .month, value: -1, to: now)
+            }
+        }
+
+        // Weekday navigation
+        for (weekdayName, weekdayValue) in weekdays {
+            if lowercased.contains(weekdayName) {
+                let currentWeekday = calendar.component(.weekday, from: now)
+
+                if hasNext {
+                    // Find this weekday in the next week
+                    print("[Orchestrator] Local parse: next \(weekdayName)")
+                    var daysToAdd = (weekdayValue - currentWeekday + 7) % 7
+                    if daysToAdd == 0 {
+                        daysToAdd = 7 // If same weekday, go to next week
+                    }
+                    daysToAdd += 7 // Add another week to ensure it's "next" week
+                    return calendar.date(byAdding: .day, value: daysToAdd, to: now)
+
+                } else if hasPrev {
+                    // Find this weekday in the previous week
+                    print("[Orchestrator] Local parse: previous \(weekdayName)")
+                    var daysToSubtract = (currentWeekday - weekdayValue + 7) % 7
+                    if daysToSubtract == 0 {
+                        daysToSubtract = 7 // If same weekday, go to previous week
+                    }
+                    daysToSubtract += 7 // Subtract another week to ensure it's "previous" week
+                    return calendar.date(byAdding: .day, value: -daysToSubtract, to: now)
+
+                } else {
+                    // Find the next occurrence of this weekday (within next 7 days)
+                    print("[Orchestrator] Local parse: \(weekdayName)")
+                    var daysToAdd = (weekdayValue - currentWeekday + 7) % 7
+                    if daysToAdd == 0 {
+                        daysToAdd = 7 // If today is that weekday, go to next occurrence
+                    }
+                    return calendar.date(byAdding: .day, value: daysToAdd, to: now)
+                }
+            }
+        }
+
+        // Couldn't parse locally
+        return nil
+    }
 
     /// Fallback parser using keyword matching for common calendar queries
     /// Used when AI parsing fails or is unavailable

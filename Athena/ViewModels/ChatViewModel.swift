@@ -50,6 +50,16 @@ class ChatViewModel: ObservableObject {
         let provider = configManager.selectedProvider
         return configManager.hasAPIKey(for: provider)
     }
+    
+    /// Returns the active amplitude monitor for waveform visualization
+    var amplitudeMonitor: AudioAmplitudeMonitor? {
+        if wakewordModeEnabled, let manager = wakeWordManager {
+            return manager.amplitudeMonitor
+        } else if let pipeline = speechService.pipeline {
+            return pipeline.amplitudeMonitor
+        }
+        return nil
+    }
 
     private let appViewModel: AppViewModel
     private weak var notesViewModel: NotesViewModel?

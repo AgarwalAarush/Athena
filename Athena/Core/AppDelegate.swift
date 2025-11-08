@@ -7,12 +7,16 @@
 
 import AppKit
 import SwiftUI
+import AppAuth
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var windowManager: WindowManager?
     var statusItem: NSStatusItem?
     private var eventMonitor: Any?
     private var settingsShortcutMonitor: Any?
+    
+    // OAuth flow session - stored globally to be accessible from URL handler
+    static var currentAuthorizationFlow: OIDExternalUserAgentSession?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Create the status bar item (menu bar icon)
@@ -112,5 +116,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         // Don't quit when window is closed, keep running in background
         return false
+    }
+    
+    // MARK: - URL Handling for OAuth
+    
+    /// Handles incoming URLs (OAuth redirect callback)
+    func application(_ application: NSApplication, open urls: [URL]) {
+        // Handle Google OAuth redirect
+        for url in urls {
+            if let authorizationFlow = AppDelegate.currentAuthorizationFlow,
+               authorizationFlow.resumeExternalUserAgentFlow(with: url) {
+                AppDelegate.currentAuthorizationFlow = nil
+                print("✓ OAuth redirect handled successfully")
+                return
+            }
+        }
     }
 }
