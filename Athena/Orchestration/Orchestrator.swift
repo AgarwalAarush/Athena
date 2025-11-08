@@ -695,38 +695,65 @@ class Orchestrator {
 
     /// Handles Gmail-related tasks (e.g., "send an email to John").
     ///
-    /// **TODO - Implementation Required**
+    /// Routes email composition through GmailView for user review and editing.
+    /// Similar to messaging flow - parses intent, shows UI, user confirms/edits, then sends.
     ///
-    /// This should handle Gmail operations:
-    /// - Compose and send emails
-    /// - Read emails
-    /// - Search inbox
-    /// - Manage labels
-    ///
-    /// **Implementation Steps:**
-    /// 1. Use GoogleAuthService to authenticate with Gmail API
-    /// 2. Parse the prompt to extract email details (recipient, subject, body)
-    /// 3. Use Gmail API to perform the requested action
-    /// 4. Show confirmation or results to the user
+    /// **Implementation:**
+    /// - Parse the prompt to extract recipient, subject, and body
+    /// - Show GmailView pre-filled with parsed data
+    /// - User reviews/edits and then sends from the view
     private func handleGmailTask(prompt: String) async {
         print("[Orchestrator] handleGmailTask: Processing query '\(prompt)'")
 
-        print("[Orchestrator] handleGmailTask: Assuming user is already authenticated with Google.")
-
         do {
+            // 1. Parse the prompt to extract email details
             let result = try await parseGmailQuery(prompt: prompt)
             print("[Orchestrator] handleGmailTask: Executing action '\(result.action)'")
 
-            switch result.action {
-            case .send:
-                await executeGmailSend(params: result.params)
-            case .search:
-                await executeGmailSearch(params: result.params)
-            case .read:
-                await executeGmailRead(params: result.params)
+            // Only handle 'send' action through UI for now
+            // Other actions (search, read) can be added later
+            guard result.action == .send else {
+                print("[Orchestrator] handleGmailTask: Non-send actions (search/read) not yet routed to UI")
+                // Keep old behavior for search/read if needed
+                switch result.action {
+                case .search:
+                    await executeGmailSearch(params: result.params)
+                case .read:
+                    await executeGmailRead(params: result.params)
+                default:
+                    break
+                }
+                return
             }
+            
+            let recipient = result.params["to"] ?? ""
+            let subject = result.params["subject"] ?? ""
+            let body = result.params["body"] ?? ""
+            
+            print("[Orchestrator] handleGmailTask: Parsed - to: '\(recipient)', subject: '\(subject)'")
+
+            // 2. Show the Gmail view with parsed data
+            await MainActor.run {
+                // Prepare the Gmail view model with parsed data
+                appViewModel?.gmailViewModel.prepareEmail(
+                    recipient: recipient,
+                    subject: subject,
+                    body: body
+                )
+                
+                // Switch to Gmail view
+                appViewModel?.currentView = .gmail
+                
+                // Expand content area if collapsed
+                if appViewModel?.isContentExpanded == false {
+                    appViewModel?.isContentExpanded = true
+                }
+                
+                print("[Orchestrator] handleGmailTask: ✅ Gmail view displayed")
+            }
+
         } catch {
-            print("[Orchestrator] handleGmailTask: Error processing Gmail query: \(error)")
+            print("[Orchestrator] handleGmailTask: ❌ Error parsing Gmail query: \(error.localizedDescription)")
         }
     }
 
@@ -1915,7 +1942,13 @@ class Orchestrator {
         Response: {"action": "send", "params": {"to": "john@example.com", "subject": "Hello", "body": "How are you?"}}
 
         Query: "email my mom about dinner plans"
-        Response: {"action": "send", "params": {"to": "mom", "subject": "dinner plans", "body": ""}}
+        Response: {"action": "send", "params": {"to": "mom", "subject": "Dinner Plans", "body": ""}}
+
+        Query: "compose email to john@example.com"
+        Response: {"action": "send", "params": {"to": "john@example.com", "subject": "", "body": ""}}
+
+        Query: "send email to sarah saying thanks for yesterday"
+        Response: {"action": "send", "params": {"to": "sarah", "subject": "", "body": "Thanks for yesterday"}}
 
         Query: "search for emails from sarah"
         Response: {"action": "search", "params": {"searchQuery": "from:sarah"}}
@@ -1925,6 +1958,11 @@ class Orchestrator {
 
         Query: "read my latest emails"
         Response: {"action": "read", "params": {}}
+
+        IMPORTANT: 
+        - If subject or body are not explicitly specified in the query, return empty strings for those fields.
+        - The user will fill in any missing information in the UI before sending.
+        - Extract the recipient (to) even if it's just a name - the system will handle contact lookup.
 
         Now parse this query: "\(prompt)"
         Respond with ONLY the JSON, no other text.
