@@ -490,6 +490,7 @@ struct ProviderSettingsView: View {
 struct PermissionsSettingsView: View {
     @State private var calendarStatus: String = CalendarService.shared.authorizationStatusDescription
     @State private var accessibilityStatus: String = AccessibilityManager.shared.isAccessibilityEnabled ? "Granted" : "Not Granted"
+    @State private var contactsStatus: String = "Unknown"
     @State private var isRequestingCalendar = false
     @State private var isRequestingAccessibility = false
     @State private var showAlert = false
@@ -605,21 +606,79 @@ struct PermissionsSettingsView: View {
                         .disabled(isRequestingAccessibility)
                     }
                 }
-//                else {
-//                    Text("Accessibility access is granted. Athena can now move and position windows.")
-//                        .font(.caption)
-//                        .foregroundColor(.white.opacity(0.7))
-//                }
+            }
+
+            // Contacts Permission Section
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.2")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("Contacts Access")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+
+                    Spacer()
+
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(contactsStatusColor)
+                            .frame(width: 10, height: 10)
+                        Text(contactsStatus)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                    }
+                }
+
+                if ContactsService.shared.authorizationStatus != .authorized {
+                    HStack(spacing: 12) {
+                        Spacer()
+                        Button("Open System Settings") {
+                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts")!)
+                        }
+                        .buttonStyle(ModernButton(style: .primary))
+                    }
+                }
             }
         }
         .onAppear {
-            // Update accessibility status when view appears
+            // Update all statuses when view appears
+            calendarStatus = CalendarService.shared.authorizationStatusDescription
             accessibilityStatus = AccessibilityManager.shared.isAccessibilityEnabled ? "Granted" : "Not Granted"
+            contactsStatus = contactsStatusDescription
         }
         .alert("Permission Request", isPresented: $showAlert) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(alertMessage)
+        }
+    }
+    
+    private var contactsStatusDescription: String {
+        switch ContactsService.shared.authorizationStatus {
+        case .authorized:
+            return "Granted"
+        case .denied, .restricted:
+            return "Denied"
+        case .notDetermined:
+            return "Not Determined"
+        @unknown default:
+            return "Unknown"
+        }
+    }
+    
+    private var contactsStatusColor: Color {
+        switch ContactsService.shared.authorizationStatus {
+        case .authorized:
+            return .green
+        case .denied, .restricted:
+            return .red
+        case .notDetermined:
+            return .gray
+        @unknown default:
+            return .gray
         }
     }
     

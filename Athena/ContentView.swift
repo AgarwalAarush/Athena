@@ -75,6 +75,14 @@ struct ContentView: View {
         }
         .frame(width: windowManager.windowSize.width, height: windowManager.windowSize.height)
         .environmentObject(appViewModel)
+        .alert(item: $appViewModel.alertInfo) { info in
+            Alert(
+                title: Text(info.title),
+                message: Text(info.message),
+                primaryButton: info.primaryButton ?? .default(Text("OK")),
+                secondaryButton: info.secondaryButton
+            )
+        }
         .onAppear {
             appViewModel.setup(windowManager: windowManager)
         }

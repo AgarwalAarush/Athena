@@ -742,7 +742,16 @@ class Orchestrator {
                 print("[Orchestrator] handleMessagingTask: Resolved '\(parsedResult.recipient)' to phone number: \(phoneNumber)")
             } catch ContactsError.authorizationDenied {
                 print("[Orchestrator] handleMessagingTask: ❌ Contacts access denied")
-                await updateMessagingStatus("Failed to send message: Contacts access denied. Please grant permission in System Settings.")
+                await MainActor.run {
+                    appViewModel?.alertInfo = AlertInfo(
+                        title: "Contacts Access Denied",
+                        message: "Athena needs access to your contacts to send messages. Please grant permission in System Settings.",
+                        primaryButton: .default(Text("Open Settings"), action: {
+                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts")!)
+                        }),
+                        secondaryButton: .cancel()
+                    )
+                }
                 return
             } catch ContactsError.contactNotFound(let name) {
                 print("[Orchestrator] handleMessagingTask: ❌ Contact '\(name)' not found")
