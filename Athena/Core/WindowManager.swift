@@ -42,7 +42,13 @@ class WindowManager: NSObject, ObservableObject {
         // Set content view with SwiftUI
         let contentView = ContentView()
             .environmentObject(self)
-        window.contentView = NSHostingView(rootView: contentView)
+
+        // Configure hosting view for transparency (prevents black corners)
+        let hostingView = NSHostingView(rootView: contentView)
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = .clear
+
+        window.contentView = hostingView
 
         // Make window key and order front
         window.makeKeyAndOrderFront(nil)
