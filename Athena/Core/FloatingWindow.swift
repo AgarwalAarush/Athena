@@ -22,7 +22,7 @@ class FloatingWindow: NSWindow {
         self.level = .floating
 
         // Ensure it doesn't get a shadow
-        self.hasShadow = true  // Keep shadow for better visual separation
+        self.hasShadow = false  // Shadow is handled by the SwiftUI view for correct corner rounding
 
         // Prevent it from appearing in the Dock and Command-Tab switcher
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]

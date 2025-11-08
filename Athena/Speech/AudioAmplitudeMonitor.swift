@@ -227,7 +227,14 @@ final class AudioAmplitudeMonitor: ObservableObject {
 
         // Normalize to 0.0-1.0 range
         if let maxMagnitude = bands.max(), maxMagnitude > 0 {
-            bands = bands.map { min($0 / maxMagnitude, 1.0) }
+            let normalizationFactor = maxMagnitude
+            bands = bands.map { $0 / normalizationFactor }
+
+            // Boost quieter frequencies so higher bands stay visually active
+            let boostExponent: Float = 0.7
+            bands = bands.map { pow($0, boostExponent) }
+
+            bands = bands.map { min($0, 1.0) }
         }
 
         // Apply minimum amplitude threshold

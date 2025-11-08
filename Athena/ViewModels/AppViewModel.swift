@@ -10,8 +10,17 @@ enum AppView {
     case notes
 }
 
+struct AlertInfo: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+    let primaryButton: Alert.Button?
+    let secondaryButton: Alert.Button?
+}
+
 class AppViewModel: ObservableObject {
     @Published var currentView: AppView = .home
+    @Published var alertInfo: AlertInfo?
 
     // MARK: - View Models for Orchestrator Access
 

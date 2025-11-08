@@ -8,6 +8,7 @@
 import Foundation
 import GoogleAPIClientForREST_Gmail
 import GoogleAPIClientForREST_Calendar
+import AppKit
 
 /// Defines the types of tasks the AI can route to.
 enum TaskType: String, CaseIterable {
