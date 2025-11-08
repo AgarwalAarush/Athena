@@ -35,6 +35,17 @@ class ConfigurationManager: ObservableObject {
         self.speechRecognitionLanguage = getString(.speechRecognitionLanguage)
         self.autoSendVoiceTranscription = getBool(.autoSendVoiceTranscription)
         self.wakewordModeEnabled = getBool(.wakewordModeEnabled)
+        
+        // MIGRATION: Force wakeword mode to be enabled by default for all users
+        // This ensures existing users get the new default value
+        if !self.wakewordModeEnabled {
+            print("[ConfigurationManager] 🔄 Migrating wakewordModeEnabled: false -> true")
+            self.set(true, for: .wakewordModeEnabled)
+            self.wakewordModeEnabled = true
+            print("[ConfigurationManager] ✅ Wake word mode enabled by default")
+        } else {
+            print("[ConfigurationManager] ✅ Wake word mode already enabled")
+        }
     }
     
     // MARK: - Generic Getters

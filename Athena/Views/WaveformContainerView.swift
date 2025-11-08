@@ -32,10 +32,33 @@ struct WaveformContainerView: View {
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: chatViewModel.isRecording)
             
             Spacer()
+            
+            // Wake word mode toggle button
+            wakeWordToggleButton
         }
         .frame(height: 60)
         .padding(.horizontal, AppMetrics.padding)
         .background(AppMaterial.tertiaryGlass)
+    }
+    
+    /// Toggle button for wake word mode
+    private var wakeWordToggleButton: some View {
+        Button(action: {
+            let newValue = !config.wakewordModeEnabled
+            print("[WaveformContainerView] 🔄 Toggling wake word mode: \(config.wakewordModeEnabled) -> \(newValue)")
+            config.set(newValue, for: .wakewordModeEnabled)
+        }) {
+            Image(systemName: config.wakewordModeEnabled ? "waveform.circle.fill" : "waveform.circle")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundColor(config.wakewordModeEnabled ? AppColors.success : AppColors.secondary)
+                .frame(width: 36, height: 36)
+                .background(
+                    Circle()
+                        .fill(Color.white.opacity(config.wakewordModeEnabled ? 0.15 : 0.05))
+                )
+        }
+        .buttonStyle(.plain)
+        .help(config.wakewordModeEnabled ? "Wake Word Mode: ON\nClick to disable" : "Wake Word Mode: OFF\nClick to enable")
     }
     
     /// Idle placeholder showing static waveform bars

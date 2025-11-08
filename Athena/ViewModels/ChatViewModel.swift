@@ -65,90 +65,106 @@ class ChatViewModel: ObservableObject {
     private weak var notesViewModel: NotesViewModel?
 
     init(appViewModel: AppViewModel, notesViewModel: NotesViewModel? = nil) {
+        print("[ChatViewModel] 🎬 Initializing ChatViewModel")
         self.appViewModel = appViewModel
         self.notesViewModel = notesViewModel
 
-        subscribeToPipeline(speechService.pipeline)
+        // DON'T subscribe to pipeline immediately - will be done by updateSubscriptions()
+        // subscribeToPipeline(speechService.pipeline) ← REMOVED
 
+        // Subscribe to pipeline changes to update subscriptions when pipeline is recreated
         speechService.$pipeline
             .receive(on: RunLoop.main)
             .sink { [weak self] pipeline in
-                self?.subscribeToPipeline(pipeline)
+                guard let self = self else { return }
+                // Only update if we're in manual mode
+                if !self.wakewordModeEnabled {
+                    print("[ChatViewModel] 📡 Pipeline changed in manual mode, updating subscriptions")
+                    self.subscribeToPipeline(pipeline)
+                }
             }
             .store(in: &cancellables)
 
-        // Subscribe to wakeword mode configuration changes
+        // Load wake word mode configuration
         wakewordModeEnabled = configManager.wakewordModeEnabled
+        print("[ChatViewModel] 📊 Initial wakewordModeEnabled: \(wakewordModeEnabled)")
 
+        // Subscribe to wakeword mode configuration changes
         configManager.$wakewordModeEnabled
             .receive(on: RunLoop.main)
             .sink { [weak self] (newValue: Bool) in
                 guard let self = self else { return }
 
-                // Capture the OLD value before updating
-                let wasInWakewordMode = self.wakewordModeEnabled
-                print("[ChatViewModel] 🔄 Wakeword mode config changed: \(wasInWakewordMode) -> \(newValue)")
-
-                // Handle transition based on OLD and NEW states
-                if wasInWakewordMode && !newValue {
-                    print("[ChatViewModel] ❌ Switching FROM wakeword mode to manual mode")
-
-                    // Explicitly stop wake word manager BEFORE updating flag
-                    if let manager = self.wakeWordManager {
-                        print("[ChatViewModel] 🛑 Explicitly stopping wake word manager")
-                        manager.stop()
-                    }
-
-                    // Reset wake word subscriptions so they reactivate cleanly on the next enable
-                    self.rebindWakeWordManagerSubscriptions()
-
-                    // CRITICAL: Explicitly reset recording state when leaving wakeword mode
-                    self.isRecording = false
-                    self.isProcessingTranscript = false
-                    print("[ChatViewModel] 🔴 Explicitly reset isRecording=false, isProcessingTranscript=false")
-
-                    // Now update the flag
-                    self.wakewordModeEnabled = newValue
-
-                } else if !wasInWakewordMode && newValue {
-                    print("[ChatViewModel] ✅ Switching TO wakeword mode from manual mode")
-
-                    // Stop any manual mode listening first
-                    print("[ChatViewModel] 🛑 Stopping manual mode speech service")
-                    self.speechService.cancelListening()
-
-                    // Update the flag
-                    self.wakewordModeEnabled = newValue
-
-                    // Start wakeword mode
-                    self.startVoiceInput()
-
-                } else {
-                    // No actual mode change (e.g., both true or both false)
-                    // Just update the flag
-                    print("[ChatViewModel] ⚠️ No mode change detected: \(wasInWakewordMode) -> \(newValue)")
-                    self.wakewordModeEnabled = newValue
+                let oldValue = self.wakewordModeEnabled
+                print("[ChatViewModel] 🔄 Mode transition triggered: \(oldValue) -> \(newValue)")
+                
+                // Skip if no actual change
+                guard oldValue != newValue else {
+                    print("[ChatViewModel] ⚠️ No mode change, skipping transition")
+                    return
                 }
+                
+                // Stop current mode
+                print("[ChatViewModel] 🛑 Stopping current mode...")
+                if oldValue {
+                    // Was in wake word mode
+                    self.wakeWordManager?.stop()
+                    print("[ChatViewModel] 🛑 Wake word manager stopped")
+                } else {
+                    // Was in manual mode
+                    self.speechService.cancelListening()
+                    print("[ChatViewModel] 🛑 Speech service cancelled")
+                }
+                
+                // Update flag
+                self.wakewordModeEnabled = newValue
+                print("[ChatViewModel] 📊 wakewordModeEnabled updated to: \(newValue)")
+                
+                // Update subscriptions for new mode
+                self.updateSubscriptions()
+                
+                // Start new mode if enabled
+                if newValue {
+                    print("[ChatViewModel] ✅ Starting wake word mode")
+                    self.startVoiceInput()
+                } else {
+                    print("[ChatViewModel] ✅ Switched to manual mode (not auto-starting)")
+                }
+                
+                // Reset state
+                self.isRecording = false
+                self.isProcessingTranscript = false
+                print("[ChatViewModel] 🔄 Recording state reset")
             }
             .store(in: &cancellables)
 
         // Initialize wake word manager
+        print("[ChatViewModel] 🎤 Creating WakeWordTranscriptionManager")
         let manager = WakeWordTranscriptionManager()
         self.wakeWordManager = manager
         
         // Set wake word manager reference in AppViewModel for pause/resume
         appViewModel.setWakeWordManager(manager)
+        print("[ChatViewModel] ✅ Wake word manager set in AppViewModel")
 
-        rebindWakeWordManagerSubscriptions()
+        // Set up correct subscriptions based on initial mode
+        print("[ChatViewModel] 📡 Setting up initial subscriptions for mode: \(wakewordModeEnabled ? "WAKE WORD" : "MANUAL")")
+        updateSubscriptions()
 
         // Auto-start listening if wakeword mode is enabled
         if wakewordModeEnabled {
+            print("[ChatViewModel] 🚀 Auto-starting wake word mode (0.5s delay)")
             Task {
                 // Small delay to ensure everything is initialized
                 try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                print("[ChatViewModel] 🎬 Delay complete, starting voice input")
                 self.startVoiceInput()
             }
+        } else {
+            print("[ChatViewModel] ℹ️ Manual mode - not auto-starting")
         }
+        
+        print("[ChatViewModel] ✅ ChatViewModel initialization complete")
     }
 
     private func subscribeToPipeline(_ pipeline: SpeechPipeline?) {
@@ -163,6 +179,12 @@ class ChatViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] state in
                 guard let self = self else { return }
+
+                // CRITICAL: Ignore pipeline updates when in wake word mode
+                guard !self.wakewordModeEnabled else {
+                    print("[ChatViewModel] ⚠️ Pipeline state update ignored - in wake word mode (state=\(state))")
+                    return
+                }
 
                 print("[ChatViewModel] Pipeline state changed to: \(state)")
 
@@ -198,6 +220,10 @@ class ChatViewModel: ObservableObject {
             .removeDuplicates()
             .sink { [weak self] partial in
                 guard let self = self else { return }
+                
+                // Ignore partial transcripts when in wake word mode
+                guard !self.wakewordModeEnabled else { return }
+                
                 self.inputText = partial
             }
             .store(in: &pipelineCancellables)
@@ -207,7 +233,12 @@ class ChatViewModel: ObservableObject {
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] transcript in
-                self?.handleFinalTranscript(transcript)
+                guard let self = self else { return }
+                
+                // Ignore final transcripts when in wake word mode
+                guard !self.wakewordModeEnabled else { return }
+                
+                self.handleFinalTranscript(transcript)
             }
             .store(in: &pipelineCancellables)
     }
@@ -342,6 +373,63 @@ class ChatViewModel: ObservableObject {
             }
             .store(in: &wakeWordCancellables)
     }
+    
+    // MARK: - Subscription Management
+    
+    /// Updates subscriptions based on current mode to ensure mutual exclusivity
+    /// Only one set of subscriptions (pipeline OR wake word) should be active at any time
+    private func updateSubscriptions() {
+        print("[ChatViewModel] 📡 updateSubscriptions called - wakewordModeEnabled=\(wakewordModeEnabled)")
+        
+        if wakewordModeEnabled {
+            // Clear pipeline subscriptions to prevent state conflicts
+            print("[ChatViewModel] 📡 Clearing pipeline subscriptions")
+            pipelineCancellables.removeAll()
+            
+            // Activate wake word subscriptions
+            print("[ChatViewModel] 📡 Activating wake word subscriptions")
+            rebindWakeWordManagerSubscriptions()
+            
+            print("[ChatViewModel] 📡 ✅ Subscriptions updated: WAKE WORD MODE")
+        } else {
+            // Clear wake word subscriptions
+            print("[ChatViewModel] 📡 Clearing wake word subscriptions")
+            wakeWordCancellables.removeAll()
+            
+            // Activate pipeline subscriptions  
+            print("[ChatViewModel] 📡 Activating pipeline subscriptions")
+            subscribeToPipeline(speechService.pipeline)
+            
+            print("[ChatViewModel] 📡 ✅ Subscriptions updated: MANUAL MODE")
+        }
+        
+        verifyStateConsistency()
+    }
+    
+    #if DEBUG
+    /// Verifies that subscription state is consistent with current mode
+    private func verifyStateConsistency() {
+        if wakewordModeEnabled {
+            if !pipelineCancellables.isEmpty {
+                print("[ChatViewModel] ⚠️ STATE INCONSISTENCY: Pipeline subscriptions active in wake word mode!")
+            }
+            if wakeWordCancellables.isEmpty {
+                print("[ChatViewModel] ⚠️ STATE INCONSISTENCY: No wake word subscriptions in wake word mode!")
+            }
+        } else {
+            if !wakeWordCancellables.isEmpty {
+                print("[ChatViewModel] ⚠️ STATE INCONSISTENCY: Wake word subscriptions active in manual mode!")
+            }
+            if pipelineCancellables.isEmpty {
+                print("[ChatViewModel] ⚠️ STATE INCONSISTENCY: No pipeline subscriptions in manual mode!")
+            }
+        }
+    }
+    #else
+    private func verifyStateConsistency() {
+        // No-op in release builds
+    }
+    #endif
 
     private var shouldAutoSendVoiceTranscript: Bool {
         // Allow debug override for testing

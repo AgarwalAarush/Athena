@@ -116,13 +116,13 @@ struct ContentView: View {
         }
         .onAppear {
             print("[ContentView] 🎬 onAppear called - setting up AppViewModel")
-            // Get AppDelegate from NSApp
-            if let appDelegate = NSApp.delegate as? AppDelegate {
-                print("[ContentView] ✅ AppDelegate retrieved successfully")
+            // Get AppDelegate from WindowManager (more reliable than NSApp.delegate during initialization)
+            if let appDelegate = windowManager.appDelegate {
+                print("[ContentView] ✅ AppDelegate retrieved successfully from WindowManager")
                 appViewModel.setup(windowManager: windowManager, appDelegate: appDelegate)
                 print("[ContentView] ✅ AppViewModel setup completed with windowManager and appDelegate")
             } else {
-                print("[ContentView] ❌ Failed to retrieve AppDelegate from NSApp.delegate")
+                print("[ContentView] ❌ Failed to retrieve AppDelegate from WindowManager")
             }
             
             // Set up interaction tracker

@@ -32,8 +32,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Initialize window manager with floating utility window configuration
         windowManager = WindowManager()
+        windowManager?.appDelegate = self
         windowManager?.setupFloatingWindow()
-        print("[AppDelegate] ✅ Window manager initialized")
+        print("[AppDelegate] ✅ Window manager initialized with appDelegate reference")
 
         // Hide dock icon for floating utility window
         NSApp.setActivationPolicy(.accessory)

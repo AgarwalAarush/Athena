@@ -12,6 +12,7 @@ import Combine
 class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
     var window: NSWindow?
     var settingsWindow: NSWindow?
+    weak var appDelegate: AppDelegate?
 
     @Published var windowSize: CGSize = CGSize(width: 450, height: 300)
     @Published var isExpanded: Bool = false
