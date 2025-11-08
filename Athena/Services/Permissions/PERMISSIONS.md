@@ -114,6 +114,22 @@ Required usage descriptions are defined in `Info.plist`:
 <string>Athena needs to control Messages to send messages automatically on your behalf.</string>
 ```
 
+## Entitlements Configuration
+
+**CRITICAL:** For sandboxed macOS apps, you MUST also declare the appropriate entitlements in `Athena.entitlements`:
+
+```xml
+<!-- Required for Contacts access -->
+<key>com.apple.security.personal-information.addressbook</key>
+<true/>
+
+<!-- Required for Calendar/Reminders access -->
+<key>com.apple.security.personal-information.calendars</key>
+<true/>
+```
+
+Without these entitlements, permission requests will be automatically denied by the sandbox **before** the system dialog appears, even with the Info.plist usage descriptions present.
+
 ## Best Practices
 
 ### 1. Request Permissions Contextually

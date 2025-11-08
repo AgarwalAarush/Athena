@@ -61,6 +61,7 @@ class ContactsService {
 
     /// Requests authorization to access Contacts
     /// - Returns: True if access was granted, false otherwise
+    /// - Note: Permission request must happen off the main thread on macOS to show the system dialog
     func requestAccess() async throws -> Bool {
         print("[ContactsService] 📇 Requesting Contacts access...")
 
@@ -72,14 +73,18 @@ class ContactsService {
             return true
         }
 
-        do {
-            let granted = try await contactStore.requestAccess(for: .contacts)
-            print("[ContactsService] 📇 Access granted: \(granted)")
-            return granted
-        } catch {
-            print("[ContactsService] ❌ Error requesting access: \(error.localizedDescription)")
-            throw ContactsError.authorizationDenied
-        }
+        // CRITICAL: Request access off the main thread (macOS requirement)
+        // When called on main thread, macOS automatically denies without showing dialog
+        return try await Task.detached { [contactStore] in
+            do {
+                let granted = try await contactStore.requestAccess(for: .contacts)
+                print("[ContactsService] 📇 Access granted: \(granted)")
+                return granted
+            } catch {
+                print("[ContactsService] ❌ Error requesting access: \(error.localizedDescription)")
+                throw ContactsError.authorizationDenied
+            }
+        }.value
     }
 
     // MARK: - Contact Lookup
