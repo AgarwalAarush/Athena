@@ -99,9 +99,8 @@ class ChatViewModel: ObservableObject {
                         manager.stop()
                     }
 
-                    // Cancel wake word subscriptions to prevent stale state updates
-                    self.wakeWordCancellables.removeAll()
-                    print("[ChatViewModel] 🧹 Cleared wakeWordCancellables")
+                    // Reset wake word subscriptions so they reactivate cleanly on the next enable
+                    self.rebindWakeWordManagerSubscriptions()
 
                     // CRITICAL: Explicitly reset recording state when leaving wakeword mode
                     self.isRecording = false
@@ -140,44 +139,7 @@ class ChatViewModel: ObservableObject {
         // Set wake word manager reference in AppViewModel for pause/resume
         appViewModel.setWakeWordManager(manager)
 
-        // Subscribe to wake word manager state
-        manager.$state
-            .receive(on: RunLoop.main)
-            .sink { [weak self] state in
-                guard let self = self else { return }
-
-                // Only update isRecording if we're actually in wakeword mode
-                guard self.wakewordModeEnabled else {
-                    print("[ChatViewModel] ⚠️ Wake word state update ignored - not in wakeword mode (state=\(state))")
-                    return
-                }
-
-                // Map wake word states to isRecording
-                let newRecordingState = (state == .transcribing || state == .listeningForWakeWord)
-                print("[ChatViewModel] 🎙️ Wake word state changed: \(state) -> isRecording=\(newRecordingState)")
-                self.isRecording = newRecordingState
-            }
-            .store(in: &wakeWordCancellables)
-
-        // Subscribe to wake word manager partial transcripts
-        manager.$partialTranscript
-            .receive(on: RunLoop.main)
-            .sink { [weak self] transcript in
-                guard let self = self else { return }
-                if !transcript.isEmpty {
-                    self.inputText = transcript
-                }
-            }
-            .store(in: &wakeWordCancellables)
-
-        // Subscribe to wake word manager final transcripts
-        manager.$finalTranscript
-            .receive(on: RunLoop.main)
-            .compactMap { $0 }
-            .sink { [weak self] transcript in
-                self?.handleFinalTranscript(transcript)
-            }
-            .store(in: &wakeWordCancellables)
+        rebindWakeWordManagerSubscriptions()
 
         // Auto-start listening if wakeword mode is enabled
         if wakewordModeEnabled {
@@ -329,6 +291,56 @@ class ChatViewModel: ObservableObject {
 
     func clearError() {
         errorMessage = nil
+    }
+
+    private func rebindWakeWordManagerSubscriptions() {
+        wakeWordCancellables.removeAll()
+
+        guard let manager = wakeWordManager else {
+            print("[ChatViewModel] ⚠️ Wake word manager not available - subscriptions cleared")
+            return
+        }
+
+        // Subscribe to wake word manager state updates
+        manager.$state
+            .receive(on: RunLoop.main)
+            .sink { [weak self] state in
+                guard let self = self else { return }
+
+                guard self.wakewordModeEnabled else {
+                    print("[ChatViewModel] ⚠️ Wake word state update ignored - not in wakeword mode (state=\(state))")
+                    return
+                }
+
+                let newRecordingState = (state == .transcribing || state == .listeningForWakeWord)
+                print("[ChatViewModel] 🎙️ Wake word state changed: \(state) -> isRecording=\(newRecordingState)")
+                self.isRecording = newRecordingState
+            }
+            .store(in: &wakeWordCancellables)
+
+        // Subscribe to partial transcripts only while wakeword mode is active
+        manager.$partialTranscript
+            .receive(on: RunLoop.main)
+            .sink { [weak self] transcript in
+                guard let self = self else { return }
+                guard self.wakewordModeEnabled else { return }
+
+                if !transcript.isEmpty {
+                    self.inputText = transcript
+                }
+            }
+            .store(in: &wakeWordCancellables)
+
+        // Subscribe to final transcripts only while wakeword mode is active
+        manager.$finalTranscript
+            .receive(on: RunLoop.main)
+            .compactMap { $0 }
+            .sink { [weak self] transcript in
+                guard let self = self else { return }
+                guard self.wakewordModeEnabled else { return }
+                self.handleFinalTranscript(transcript)
+            }
+            .store(in: &wakeWordCancellables)
     }
 
     private var shouldAutoSendVoiceTranscript: Bool {
