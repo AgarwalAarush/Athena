@@ -492,8 +492,13 @@ struct PermissionsSettingsView: View {
     @State private var calendarStatus: String = CalendarService.shared.authorizationStatusDescription
     @State private var accessibilityStatus: String = AccessibilityManager.shared.isAccessibilityEnabled ? "Granted" : "Not Granted"
     @State private var contactsStatus: String = "Unknown"
+    @State private var messagingStatus: String = "Unknown"
+    
     @State private var isRequestingCalendar = false
     @State private var isRequestingAccessibility = false
+    @State private var isRequestingContacts = false
+    @State private var isRequestingMessaging = false
+    
     @State private var showAlert = false
     @State private var alertMessage = ""
 
@@ -505,150 +510,51 @@ struct PermissionsSettingsView: View {
                 .foregroundColor(.white)
 
             // Calendar Permission Section
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text("Calendar Access")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(statusColor)
-                            .frame(width: 10, height: 10)
-                        Text(calendarStatus)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                    }
-                }
-                
-                if CalendarService.shared.authorizationStatus == .notDetermined {
-                    HStack(spacing: 12) {
-                        Spacer()
-                        Button(action: requestCalendarAccess) {
-                            if isRequestingCalendar {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                                    .frame(width: 20, height: 20)
-                            } else {
-                                Text("Grant Access")
-                            }
-                        }
-                        .buttonStyle(ModernButton(style: .primary))
-                        .disabled(isRequestingCalendar)
-                    }
-                } else if CalendarService.shared.authorizationStatus == .denied {
-                    HStack(spacing: 12) {
-                        Spacer()
-                        Button("Open System Settings") {
-                            CalendarService.shared.openCalendarPrivacySettings()
-                        }
-                        .buttonStyle(ModernButton(style: .primary))
-                    }
-                } else if CalendarService.shared.authorizationStatus == .writeOnly {
-                    HStack(spacing: 12) {
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: 8) {
-                            Text("Write-only access detected")
-                                .font(.caption)
-                                .foregroundColor(.orange)
-                            Button("Upgrade to Full Access") {
-                                CalendarService.shared.openCalendarPrivacySettings()
-                            }
-                            .buttonStyle(ModernButton(style: .primary))
-                        }
-                    }
-                }
+            PermissionSectionView(
+                icon: "calendar",
+                title: "Calendar Access",
+                status: calendarStatus,
+                statusColor: calendarStatusColor,
+                isRequesting: isRequestingCalendar
+            ) {
+                calendarPermissionActions
             }
 
             // Accessibility Permission Section
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "cursorarrow.click.badge.clock")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text("Accessibility Access")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-
-                    Spacer()
-
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(accessibilityStatusColor)
-                            .frame(width: 10, height: 10)
-                        Text(accessibilityStatus)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                    }
-                }
-
-                if !AccessibilityManager.shared.isAccessibilityEnabled {
-                    HStack(spacing: 12) {
-                        Spacer()
-                        Button(action: requestAccessibilityAccess) {
-                            if isRequestingAccessibility {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                                    .frame(width: 20, height: 20)
-                            } else {
-                                Text("Grant Access")
-                            }
-                        }
-                        .buttonStyle(ModernButton(style: .primary))
-                        .disabled(isRequestingAccessibility)
-                    }
-                }
+            PermissionSectionView(
+                icon: "cursorarrow.click.badge.clock",
+                title: "Accessibility Access",
+                status: accessibilityStatus,
+                statusColor: accessibilityStatusColor,
+                isRequesting: isRequestingAccessibility
+            ) {
+                accessibilityPermissionActions
             }
 
             // Contacts Permission Section
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "person.2")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text("Contacts Access")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-
-                    Spacer()
-
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(contactsStatusColor)
-                            .frame(width: 10, height: 10)
-                        Text(contactsStatus)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                    }
-                }
-
-                if ContactsService.shared.authorizationStatus != .authorized {
-                    HStack(spacing: 12) {
-                        Spacer()
-                        Button("Open System Settings") {
-                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts")!)
-                        }
-                        .buttonStyle(ModernButton(style: .primary))
-                    }
-                }
+            PermissionSectionView(
+                icon: "person.2",
+                title: "Contacts Access",
+                status: contactsStatus,
+                statusColor: contactsStatusColor,
+                isRequesting: isRequestingContacts
+            ) {
+                contactsPermissionActions
+            }
+            
+            // Messaging (Apple Events) Permission Section
+            PermissionSectionView(
+                icon: "message",
+                title: "Messages Automation",
+                status: messagingStatus,
+                statusColor: messagingStatusColor,
+                isRequesting: isRequestingMessaging
+            ) {
+                messagingPermissionActions
             }
         }
         .onAppear {
-            // Update all statuses when view appears
-            calendarStatus = CalendarService.shared.authorizationStatusDescription
-            accessibilityStatus = AccessibilityManager.shared.isAccessibilityEnabled ? "Granted" : "Not Granted"
-            contactsStatus = contactsStatusDescription
+            updateAllStatuses()
         }
         .alert("Permission Request", isPresented: $showAlert) {
             Button("OK", role: .cancel) { }
@@ -657,33 +563,132 @@ struct PermissionsSettingsView: View {
         }
     }
     
-    private var contactsStatusDescription: String {
-        switch ContactsService.shared.authorizationStatus {
-        case .authorized:
-            return "Granted"
-        case .denied, .restricted:
-            return "Denied"
-        case .notDetermined:
-            return "Not Determined"
-        @unknown default:
-            return "Unknown"
+    // MARK: - Permission Actions
+    
+    @ViewBuilder
+    private var calendarPermissionActions: some View {
+        if CalendarService.shared.authorizationStatus == .notDetermined {
+            HStack(spacing: 12) {
+                Spacer()
+                Button(action: requestCalendarAccess) {
+                    if isRequestingCalendar {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .frame(width: 20, height: 20)
+                    } else {
+                        Text("Grant Access")
+                    }
+                }
+                .buttonStyle(ModernButton(style: .primary))
+                .disabled(isRequestingCalendar)
+            }
+        } else if CalendarService.shared.authorizationStatus == .denied {
+            HStack(spacing: 12) {
+                Spacer()
+                Button("Open System Settings") {
+                    CalendarService.shared.openCalendarPrivacySettings()
+                }
+                .buttonStyle(ModernButton(style: .secondary))
+            }
+        } else if CalendarService.shared.authorizationStatus == .writeOnly {
+            HStack(spacing: 12) {
+                Spacer()
+                VStack(alignment: .trailing, spacing: 8) {
+                    Text("Write-only access detected")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Button("Upgrade to Full Access") {
+                        CalendarService.shared.openCalendarPrivacySettings()
+                    }
+                    .buttonStyle(ModernButton(style: .primary))
+                }
+            }
         }
     }
     
-    private var contactsStatusColor: Color {
-        switch ContactsService.shared.authorizationStatus {
-        case .authorized:
-            return .green
-        case .denied, .restricted:
-            return .red
-        case .notDetermined:
-            return .gray
-        @unknown default:
-            return .gray
+    @ViewBuilder
+    private var accessibilityPermissionActions: some View {
+        if !AccessibilityManager.shared.isAccessibilityEnabled {
+            HStack(spacing: 12) {
+                Spacer()
+                Button(action: requestAccessibilityAccess) {
+                    if isRequestingAccessibility {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .frame(width: 20, height: 20)
+                    } else {
+                        Text("Grant Access")
+                    }
+                }
+                .buttonStyle(ModernButton(style: .primary))
+                .disabled(isRequestingAccessibility)
+            }
         }
     }
     
-    private var statusColor: Color {
+    @ViewBuilder
+    private var contactsPermissionActions: some View {
+        let permissionManager = ContactsPermissionManager.shared
+        
+        if permissionManager.canRequestDirectly {
+            HStack(spacing: 12) {
+                Spacer()
+                Button(action: requestContactsAccess) {
+                    if isRequestingContacts {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .frame(width: 20, height: 20)
+                    } else {
+                        Text("Grant Access")
+                    }
+                }
+                .buttonStyle(ModernButton(style: .primary))
+                .disabled(isRequestingContacts)
+            }
+        } else if permissionManager.requiresSystemSettings {
+            HStack(spacing: 12) {
+                Spacer()
+                Button("Open System Settings") {
+                    permissionManager.openSystemSettings()
+                }
+                .buttonStyle(ModernButton(style: .secondary))
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var messagingPermissionActions: some View {
+        let permissionManager = MessagingPermissionManager.shared
+        
+        if permissionManager.canRequestDirectly {
+            HStack(spacing: 12) {
+                Spacer()
+                Button(action: requestMessagingAccess) {
+                    if isRequestingMessaging {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .frame(width: 20, height: 20)
+                    } else {
+                        Text("Grant Access")
+                    }
+                }
+                .buttonStyle(ModernButton(style: .primary))
+                .disabled(isRequestingMessaging)
+            }
+        } else if permissionManager.requiresSystemSettings {
+            HStack(spacing: 12) {
+                Spacer()
+                Button("Open System Settings") {
+                    permissionManager.openSystemSettings()
+                }
+                .buttonStyle(ModernButton(style: .secondary))
+            }
+        }
+    }
+    
+    // MARK: - Status Colors
+    
+    private var calendarStatusColor: Color {
         switch CalendarService.shared.authorizationStatus {
         case .fullAccess, .authorized:
             return .green
@@ -702,14 +707,33 @@ struct PermissionsSettingsView: View {
         AccessibilityManager.shared.isAccessibilityEnabled ? .green : .red
     }
     
+    private var contactsStatusColor: Color {
+        statusColorForPermission(ContactsPermissionManager.shared.authorizationStatus)
+    }
+    
+    private var messagingStatusColor: Color {
+        statusColorForPermission(MessagingPermissionManager.shared.authorizationStatus)
+    }
+    
+    private func statusColorForPermission(_ status: PermissionStatus) -> Color {
+        switch status {
+        case .authorized:
+            return .green
+        case .denied, .restricted:
+            return .red
+        case .notDetermined:
+            return .gray
+        }
+    }
+    
+    // MARK: - Request Functions
+    
     private func requestCalendarAccess() {
         isRequestingCalendar = true
 
         CalendarService.shared.requestAccessWithActivation { granted, error in
             isRequestingCalendar = false
-            
-            // Update status
-            calendarStatus = CalendarService.shared.authorizationStatusDescription
+            updateAllStatuses()
             
             if let error = error {
                 alertMessage = "Failed to request access: \(error.localizedDescription)"
@@ -727,13 +751,10 @@ struct PermissionsSettingsView: View {
     private func requestAccessibilityAccess() {
         isRequestingAccessibility = true
 
-        // Request accessibility permissions
         let granted = AccessibilityManager.shared.requestAccessibilityPermissions(prompt: true)
 
         isRequestingAccessibility = false
-
-        // Update status
-        accessibilityStatus = AccessibilityManager.shared.isAccessibilityEnabled ? "Granted" : "Not Granted"
+        updateAllStatuses()
 
         if granted {
             alertMessage = "Accessibility access granted! Athena can now move and position windows."
@@ -741,6 +762,106 @@ struct PermissionsSettingsView: View {
         } else {
             alertMessage = "Accessibility access was denied. You can grant access later in System Settings > Privacy & Security > Accessibility."
             showAlert = true
+        }
+    }
+    
+    private func requestContactsAccess() {
+        isRequestingContacts = true
+        
+        Task {
+            let result = await ContactsPermissionManager.shared.requestAuthorization()
+            
+            isRequestingContacts = false
+            updateAllStatuses()
+            
+            switch result {
+            case .granted:
+                alertMessage = "Contacts access granted! Athena can now look up contact information."
+                showAlert = true
+            case .denied:
+                alertMessage = "Contacts access was denied. You can grant access later in System Settings > Privacy & Security > Contacts."
+                showAlert = true
+            case .requiresSystemSettings:
+                alertMessage = "Please enable Contacts access in System Settings > Privacy & Security > Contacts."
+                showAlert = true
+            case .error(let error):
+                alertMessage = "Failed to request access: \(error.localizedDescription)"
+                showAlert = true
+            }
+        }
+    }
+    
+    private func requestMessagingAccess() {
+        isRequestingMessaging = true
+        
+        Task {
+            let result = await MessagingPermissionManager.shared.requestAuthorization()
+            
+            isRequestingMessaging = false
+            updateAllStatuses()
+            
+            switch result {
+            case .granted:
+                alertMessage = "Messages automation access granted! Athena can now send messages on your behalf."
+                showAlert = true
+            case .denied:
+                alertMessage = "Messages automation was denied. You can grant access later in System Settings > Privacy & Security > Automation."
+                showAlert = true
+            case .requiresSystemSettings:
+                alertMessage = "Please enable Automation for Athena in System Settings > Privacy & Security > Automation."
+                showAlert = true
+            case .error(let error):
+                alertMessage = "Failed to request access: \(error.localizedDescription)"
+                showAlert = true
+            }
+        }
+    }
+    
+    // MARK: - Helper Functions
+    
+    private func updateAllStatuses() {
+        calendarStatus = CalendarService.shared.authorizationStatusDescription
+        accessibilityStatus = AccessibilityManager.shared.isAccessibilityEnabled ? "Granted" : "Not Granted"
+        contactsStatus = ContactsPermissionManager.shared.authorizationStatus.displayString
+        messagingStatus = MessagingPermissionManager.shared.authorizationStatus.displayString
+    }
+}
+
+// MARK: - Permission Section View
+
+struct PermissionSectionView<Actions: View>: View {
+    let icon: String
+    let title: String
+    let status: String
+    let statusColor: Color
+    let isRequesting: Bool
+    @ViewBuilder let actions: () -> Actions
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                Text(title)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+
+                Spacer()
+
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 10, height: 10)
+                    Text(status)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                }
+            }
+            
+            actions()
         }
     }
 }
@@ -885,3 +1006,4 @@ struct CalendarToggleRow: View {
     SettingsView()
         .frame(width: 600, height: 700)
 }
+

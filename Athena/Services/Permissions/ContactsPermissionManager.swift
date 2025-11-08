@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import Contacts
+internal import Contacts
 import AppKit
 
 /// Manages Contacts permission requests and status
