@@ -597,6 +597,42 @@ struct CustomMultiLineStyledTextField: NSViewRepresentable {
 struct EventDetailPopupView: View {
     let event: CalendarEvent
     let onClose: () -> Void
+    let onDelete: (() -> Void)?
+    let onUpdate: (() -> Void)?
+    
+    @ObservedObject var calendarService = CalendarService.shared
+    
+    // MARK: - State
+    
+    @State private var editedTitle: String
+    @State private var editedStartDate: Date
+    @State private var editedEndDate: Date
+    @State private var editedLocation: String
+    @State private var editedNotes: String
+    @State private var editedCalendar: EKCalendar
+    @State private var editedIsAllDay: Bool
+    @State private var showDeleteConfirmation = false
+    @State private var showDatePicker = false
+    @State private var errorMessage: String?
+    @State private var isSaving = false
+    
+    // MARK: - Initialization
+    
+    init(event: CalendarEvent, onClose: @escaping () -> Void, onDelete: (() -> Void)? = nil, onUpdate: (() -> Void)? = nil) {
+        self.event = event
+        self.onClose = onClose
+        self.onDelete = onDelete
+        self.onUpdate = onUpdate
+        
+        // Initialize state from event
+        _editedTitle = State(initialValue: event.title)
+        _editedStartDate = State(initialValue: event.startDate)
+        _editedEndDate = State(initialValue: event.endDate)
+        _editedLocation = State(initialValue: event.location ?? "")
+        _editedNotes = State(initialValue: event.notes ?? "")
+        _editedCalendar = State(initialValue: event.calendar)
+        _editedIsAllDay = State(initialValue: event.isAllDay)
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -628,7 +664,7 @@ struct EventDetailPopupView: View {
                 .padding(.bottom, AppMetrics.padding)
             }
         }
-        .frame(width: 420)
+        .frame(width: 420, maxHeight: 600)
         .glassBackground(
             material: AppMaterial.primaryGlass,
             cornerRadius: AppMetrics.cornerRadiusLarge
@@ -638,13 +674,50 @@ struct EventDetailPopupView: View {
     // MARK: - Header Section
     
     private var headerSection: some View {
-        HStack {
+        HStack(spacing: AppMetrics.spacingMedium) {
+            // Delete button
+            Button(action: { showDeleteConfirmation = true }) {
+                Image(systemName: "trash")
+                    .foregroundColor(.red)
+                    .imageScale(.medium)
+            }
+            .buttonStyle(.plain)
+            .help("Delete Event")
+            .alert("Delete Event", isPresented: $showDeleteConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    handleDelete()
+                }
+            } message: {
+                Text("Are you sure you want to delete \"\(event.title)\"? This action cannot be undone.")
+            }
+            
             Text("Event Details")
                 .font(.headline)
                 .foregroundColor(.primary)
             
             Spacer()
             
+            // Save button
+            Button(action: handleSave) {
+                if isSaving {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .frame(width: 16, height: 16)
+                } else {
+                    Text("Save")
+                        .font(.headline)
+                        .foregroundColor(hasChanges ? .white : .secondary)
+                }
+            }
+            .disabled(!hasChanges || !isValid || isSaving)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(hasChanges && isValid ? Color.blue : Color.gray.opacity(0.3))
+            .cornerRadius(AppMetrics.cornerRadiusMedium)
+            .buttonStyle(.plain)
+            
+            // Close button
             Button(action: onClose) {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundColor(.secondary)
@@ -659,14 +732,44 @@ struct EventDetailPopupView: View {
     
     private var titleSection: some View {
         HStack(spacing: AppMetrics.spacingMedium) {
-            Circle()
-                .fill(Color(event.calendar.cgColor))
-                .frame(width: 10, height: 10)
+            // Calendar selector
+            Menu {
+                ForEach(calendarService.allEventCalendars, id: \.calendarIdentifier) { calendar in
+                    Button(action: {
+                        editedCalendar = calendar
+                    }) {
+                        HStack {
+                            Circle()
+                                .fill(Color(calendar.cgColor))
+                                .frame(width: 10, height: 10)
+                            Text(calendar.title)
+                            if calendar.calendarIdentifier == editedCalendar.calendarIdentifier {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color(editedCalendar.cgColor))
+                        .frame(width: 10, height: 10)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .background(Color.gray.opacity(0.15))
+                .cornerRadius(6)
+            }
+            .buttonStyle(.plain)
             
-            Text(event.title)
+            // Title text field
+            TextField("Event Title", text: $editedTitle)
+                .textFieldStyle(.plain)
                 .font(.headline)
                 .foregroundColor(.primary)
-                .lineLimit(2)
             
             Spacer()
         }
@@ -678,26 +781,140 @@ struct EventDetailPopupView: View {
     
     private var dateTimeSection: some View {
         VStack(spacing: 0) {
-            // Date row
-            infoRow(label: formatDate(), icon: "calendar")
+            // Date row - tappable to show date picker
+            Button(action: { showDatePicker.toggle() }) {
+                HStack(spacing: AppMetrics.spacingMedium) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                        .frame(width: 20)
+                    
+                    Text(formatEditedDate())
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary.opacity(0.6))
+                }
+                .padding(.horizontal, AppMetrics.paddingLarge)
+                .fieldRowBackground()
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $showDatePicker, arrowEdge: .trailing) {
+                VStack(spacing: 0) {
+                    // Date picker
+                    DatePicker("", selection: $editedStartDate, displayedComponents: [.date])
+                        .datePickerStyle(.graphical)
+                        .padding()
+                        .onChange(of: editedStartDate) { newDate in
+                            updateEndDateForNewStartDate(newDate)
+                        }
+                    
+                    if !editedIsAllDay {
+                        Divider()
+                        
+                        // Time pickers
+                        HStack {
+                            VStack {
+                                Text("Start")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                DatePicker(
+                                    "",
+                                    selection: $editedStartDate,
+                                    displayedComponents: [.hourAndMinute]
+                                )
+                                .datePickerStyle(.field)
+                                .labelsHidden()
+                                .onChange(of: editedStartDate) { _ in
+                                    validateTimes()
+                                }
+                            }
+                            
+                            Text("–")
+                                .foregroundColor(.secondary)
+                            
+                            VStack {
+                                Text("End")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                DatePicker(
+                                    "",
+                                    selection: $editedEndDate,
+                                    displayedComponents: [.hourAndMinute]
+                                )
+                                .datePickerStyle(.field)
+                                .labelsHidden()
+                                .onChange(of: editedEndDate) { _ in
+                                    validateTimes()
+                                }
+                            }
+                        }
+                        .padding()
+                    }
+                }
+            }
             
-            if !event.isAllDay {
+            if !editedIsAllDay {
                 Divider()
                     .padding(.leading, AppMetrics.paddingLarge)
                 
                 // Time row
-                infoRow(label: formatTimeRange(), icon: "clock")
+                HStack(spacing: AppMetrics.spacingMedium) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                        .frame(width: 20)
+                    
+                    Text(formatEditedTimeRange())
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, AppMetrics.paddingLarge)
+                .fieldRowBackground()
                 
                 Divider()
                     .padding(.leading, AppMetrics.paddingLarge)
                 
-                // Duration row
-                infoRow(label: formatDuration(), icon: "hourglass")
+                // Duration row (read-only)
+                HStack(spacing: AppMetrics.spacingMedium) {
+                    Image(systemName: "hourglass")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                        .frame(width: 20)
+                    
+                    Text(formatEditedDuration())
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, AppMetrics.paddingLarge)
+                .fieldRowBackground()
             } else {
                 Divider()
                     .padding(.leading, AppMetrics.paddingLarge)
                 
-                infoRow(label: "All Day", icon: "sun.max")
+                HStack(spacing: AppMetrics.spacingMedium) {
+                    Image(systemName: "sun.max")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                        .frame(width: 20)
+                    
+                    Text("All Day")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, AppMetrics.paddingLarge)
+                .fieldRowBackground()
             }
         }
     }
@@ -706,18 +923,44 @@ struct EventDetailPopupView: View {
     
     private var supplementarySection: some View {
         VStack(spacing: 0) {
-            if let location = event.location, !location.isEmpty {
-                infoRow(label: location, icon: "mappin.circle")
+            // Location field
+            HStack(spacing: AppMetrics.spacingMedium) {
+                Image(systemName: "mappin.circle")
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+                    .frame(width: 20)
                 
-                if let notes = event.notes, !notes.isEmpty {
-                    Divider()
-                        .padding(.leading, AppMetrics.paddingLarge)
-                }
+                TextField("Add Location", text: $editedLocation)
+                    .textFieldStyle(.plain)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                Spacer()
             }
+            .padding(.horizontal, AppMetrics.paddingLarge)
+            .fieldRowBackground()
             
-            if let notes = event.notes, !notes.isEmpty {
-                infoRow(label: notes, icon: "note.text", allowMultiline: true)
+            Divider()
+                .padding(.leading, AppMetrics.paddingLarge)
+            
+            // Notes field
+            HStack(alignment: .top, spacing: AppMetrics.spacingMedium) {
+                Image(systemName: "note.text")
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+                    .frame(width: 20)
+                    .padding(.top, 2)
+                
+                TextEditor(text: $editedNotes)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                    .frame(minHeight: 60)
+                    .scrollContentBackground(.hidden)
+                
+                Spacer(minLength: 0)
             }
+            .padding(.horizontal, AppMetrics.paddingLarge)
+            .padding(.vertical, 8)
         }
     }
     
@@ -744,30 +987,43 @@ struct EventDetailPopupView: View {
     // MARK: - Computed Properties
     
     private var hasSupplementaryInfo: Bool {
-        let hasLocation = (event.location?.isEmpty == false)
-        let hasNotes = (event.notes?.isEmpty == false)
-        return hasLocation || hasNotes
+        return true // Always show location and notes fields for editing
+    }
+    
+    private var hasChanges: Bool {
+        return editedTitle != event.title ||
+               editedStartDate != event.startDate ||
+               editedEndDate != event.endDate ||
+               editedLocation != (event.location ?? "") ||
+               editedNotes != (event.notes ?? "") ||
+               editedCalendar.calendarIdentifier != event.calendar.calendarIdentifier ||
+               editedIsAllDay != event.isAllDay
+    }
+    
+    private var isValid: Bool {
+        return !editedTitle.trimmingCharacters(in: .whitespaces).isEmpty &&
+               editedEndDate > editedStartDate
     }
     
     // MARK: - Formatting Methods
     
-    private func formatDate() -> String {
+    private func formatEditedDate() -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .full
         formatter.timeStyle = .none
-        return formatter.string(from: event.startDate)
+        return formatter.string(from: editedStartDate)
     }
     
-    private func formatTimeRange() -> String {
+    private func formatEditedTimeRange() -> String {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
-        let start = formatter.string(from: event.startDate)
-        let end = formatter.string(from: event.endDate)
+        let start = formatter.string(from: editedStartDate)
+        let end = formatter.string(from: editedEndDate)
         return "\(start) – \(end)"
     }
     
-    private func formatDuration() -> String {
-        let duration = event.endDate.timeIntervalSince(event.startDate)
+    private func formatEditedDuration() -> String {
+        let duration = editedEndDate.timeIntervalSince(editedStartDate)
         let hours = Int(duration) / 3600
         let minutes = (Int(duration) % 3600) / 60
         
@@ -777,6 +1033,73 @@ struct EventDetailPopupView: View {
             return "\(hours)h"
         } else {
             return "\(minutes)m"
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func validateTimes() {
+        // Ensure end time is after start time
+        if editedEndDate <= editedStartDate {
+            editedEndDate = Calendar.current.date(byAdding: .hour, value: 1, to: editedStartDate) ?? editedStartDate
+        }
+    }
+    
+    private func updateEndDateForNewStartDate(_ newStartDate: Date) {
+        // Calculate duration from original dates
+        let duration = editedEndDate.timeIntervalSince(editedStartDate)
+        // Apply same duration to new start date
+        editedEndDate = newStartDate.addingTimeInterval(duration)
+    }
+    
+    // MARK: - Actions
+    
+    private func handleSave() {
+        guard isValid && hasChanges else { return }
+        
+        isSaving = true
+        
+        // Create updated CalendarEvent
+        let updatedEvent = CalendarEvent(
+            id: event.id,
+            title: editedTitle.trimmingCharacters(in: .whitespacesAndNewlines),
+            startDate: editedStartDate,
+            endDate: editedEndDate,
+            isAllDay: editedIsAllDay,
+            notes: editedNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : editedNotes,
+            location: editedLocation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : editedLocation,
+            url: event.url,
+            calendar: editedCalendar
+        )
+        
+        CalendarService.shared.updateEvent(updatedEvent) { event, error in
+            Task { @MainActor in
+                isSaving = false
+                
+                if let error = error {
+                    errorMessage = "Failed to update event: \(error.localizedDescription)"
+                    print("[EventDetailPopupView] Error updating event: \(error.localizedDescription)")
+                } else {
+                    print("[EventDetailPopupView] Successfully updated event '\(editedTitle)'")
+                    onUpdate?()
+                    onClose()
+                }
+            }
+        }
+    }
+    
+    private func handleDelete() {
+        CalendarService.shared.deleteEvent(event) { error in
+            Task { @MainActor in
+                if let error = error {
+                    errorMessage = "Failed to delete event: \(error.localizedDescription)"
+                    print("[EventDetailPopupView] Error deleting event: \(error.localizedDescription)")
+                } else {
+                    print("[EventDetailPopupView] Successfully deleted event '\(event.title)'")
+                    onDelete?()
+                    onClose()
+                }
+            }
         }
     }
 }
