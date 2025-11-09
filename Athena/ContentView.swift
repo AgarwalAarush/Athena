@@ -85,8 +85,18 @@ struct ContentView: View {
                             MessagingView(viewModel: appViewModel.messagingViewModel)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                         case .gmail:
-                            GmailView(viewModel: appViewModel.gmailViewModel)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            GeometryReader { geometry in
+                                GmailView(viewModel: appViewModel.gmailViewModel)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .onAppear {
+                                        print("[ContentView] 📧 Gmail case - GeometryReader size: \(geometry.size)")
+                                        print("[ContentView] 📊 isContentExpanded: \(appViewModel.isContentExpanded)")
+                                        print("[ContentView] 📊 windowManager.windowSize: \(windowManager.windowSize)")
+                                    }
+                                    .onChange(of: geometry.size) { newSize in
+                                        print("[ContentView] 📐 Gmail case - GeometryReader size changed to: \(newSize)")
+                                    }
+                            }
                         }
                     }
                     .animation(nil, value: appViewModel.currentView)
@@ -135,6 +145,8 @@ struct ContentView: View {
             print("[ContentView] 🎯 Setting up UserInteractionTracker")
             interactionTracker.windowManager = windowManager
             interactionTracker.appViewModel = appViewModel
+            interactionTracker.chatViewModel = chatViewModel
+            print("[ContentView] ✅ UserInteractionTracker configured with windowManager, appViewModel, and chatViewModel")
             interactionTracker.startTracking()
         }
         .onDisappear {

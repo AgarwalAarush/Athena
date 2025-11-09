@@ -27,37 +27,38 @@ struct GmailView: View {
     // MARK: - Body
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header with action buttons
-            FormHeader(
-                title: "Send Email",
-                cancelAction: {
-                    Task {
-                        await viewModel.cancel()
-                    }
-                },
-                primaryAction: {
-                    Task {
-                        await viewModel.sendEmail()
-                    }
-                },
-                primaryLabel: "Send",
-                isPrimaryEnabled: viewModel.isValid && !viewModel.isSending,
-                isProcessing: viewModel.isSending
-            )
-            
-            Divider()
-                .opacity(0.3)
-            
-            // Main content
-            ScrollView {
-                VStack(spacing: 16) {
-                    // Status banners
-                    StatusBanner.error(viewModel.errorMessage)
-                    StatusBanner.success(viewModel.successMessage)
-                    
-                    // Form fields
-                    VStack(spacing: 12) {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Header with action buttons
+                FormHeader(
+                    title: "Send Email",
+                    cancelAction: {
+                        Task {
+                            await viewModel.cancel()
+                        }
+                    },
+                    primaryAction: {
+                        Task {
+                            await viewModel.sendEmail()
+                        }
+                    },
+                    primaryLabel: "Send",
+                    isPrimaryEnabled: viewModel.isValid && !viewModel.isSending,
+                    isProcessing: viewModel.isSending
+                )
+                
+                Divider()
+                    .opacity(0.3)
+                
+                // Main content
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // Status banners
+                        StatusBanner.error(viewModel.errorMessage)
+                        StatusBanner.success(viewModel.successMessage)
+                        
+                        // Form fields
+                        VStack(spacing: 12) {
                         // Recipient field
                         FormGroupContainer {
                             FormFieldRow(
@@ -140,12 +141,23 @@ struct GmailView: View {
                 .padding(.vertical, AppMetrics.padding)
             }
         }
+        .onAppear {
+            print("[GmailView] 🎬 View appeared - geometry size: \(geometry.size)")
+        }
+        .onDisappear {
+            print("[GmailView] 👋 View disappeared")
+        }
+        .onChange(of: geometry.size) { newSize in
+            print("[GmailView] 📐 Geometry size changed to: \(newSize)")
+        }
+        }
         .glassBackground(
             material: AppMaterial.primaryGlass,
             cornerRadius: AppMetrics.cornerRadiusLarge
         )
         .padding()
         .onAppear {
+            print("[GmailView] 📧 Outer onAppear - focusing recipient field")
             // Focus recipient field on appear
             focusedField = .recipient
         }

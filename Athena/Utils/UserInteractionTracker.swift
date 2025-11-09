@@ -25,6 +25,9 @@ class UserInteractionTracker {
     /// Reference to AppViewModel for checking orchestrator state and collapsing content
     weak var appViewModel: AppViewModel?
     
+    /// Reference to ChatViewModel for checking recording state
+    weak var chatViewModel: ChatViewModel?
+    
     /// Event monitor for tracking user interactions
     private var eventMonitor: Any?
     
@@ -116,10 +119,32 @@ class UserInteractionTracker {
             return
         }
         
-        // Don't hide if orchestrator is running
+        // Check all active states that should prevent hiding
+        
+        // 1. Check if orchestrator is running
         if appViewModel.isOrchestratorRunning {
-            print("[UserInteractionTracker] 🚫 Orchestrator is running, not hiding")
-            // Reset timer to check again later
+            print("[UserInteractionTracker] 🚫 Orchestrator is running, resetting timer")
+            resetTimer()
+            return
+        }
+        
+        // 2. Check if user is speaking (recording active)
+        if let chatViewModel = chatViewModel, chatViewModel.isRecording {
+            print("[UserInteractionTracker] 🎤 User is speaking (isRecording=true), resetting timer")
+            resetTimer()
+            return
+        }
+        
+        // 3. Check if processing transcript
+        if let chatViewModel = chatViewModel, chatViewModel.isProcessingTranscript {
+            print("[UserInteractionTracker] 🔄 Processing transcript, resetting timer")
+            resetTimer()
+            return
+        }
+        
+        // 4. Check if notes listen mode is active
+        if appViewModel.notesViewModel.listenModeState != .idle {
+            print("[UserInteractionTracker] 📝 Notes listen mode active (\(appViewModel.notesViewModel.listenModeState)), resetting timer")
             resetTimer()
             return
         }

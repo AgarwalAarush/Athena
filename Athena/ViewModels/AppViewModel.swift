@@ -159,14 +159,31 @@ class AppViewModel: ObservableObject {
     }
     
     func showGmail() {
+        print("[AppViewModel] 📧 showGmail() called")
+        print("[AppViewModel] 📊 Current state: isContentExpanded=\(isContentExpanded), currentView=\(currentView)")
+        
         stopListenModeIfActive()
+        
+        print("[AppViewModel] 📊 Setting isContentExpanded to true")
         isContentExpanded = true
+        
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
+            print("[AppViewModel] 🔄 Switching currentView to .gmail (animations disabled)")
             currentView = .gmail
         }
-        windowManager?.resizeForView(.gmail)
+        
+        print("[AppViewModel] 📐 Calling windowManager.resizeForView(.gmail)")
+        if let wm = windowManager {
+            print("[AppViewModel] 📊 WindowManager current size before resize: \(wm.windowSize)")
+            wm.resizeForView(.gmail)
+            print("[AppViewModel] 📊 WindowManager size after resize request: \(wm.windowSize)")
+        } else {
+            print("[AppViewModel] ⚠️ WindowManager is nil, cannot resize")
+        }
+        
+        print("[AppViewModel] ✅ showGmail() complete")
     }
     
     /// Collapses the content area back to waveform-only view

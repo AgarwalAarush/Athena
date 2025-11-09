@@ -141,27 +141,42 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
     
     /// Resize window based on the specific view being shown
     func resizeForView(_ view: AppView) {
-        guard let window = window else { return }
+        guard let window = window else {
+            print("[WindowManager] ⚠️ resizeForView(\(view)) - window is nil")
+            return
+        }
+        
+        print("[WindowManager] 📐 resizeForView(\(view)) called")
+        print("[WindowManager] 📊 Current window size: \(window.frame.size)")
+        print("[WindowManager] 📊 Current isExpanded: \(isExpanded)")
+        print("[WindowManager] 📊 Current constraints: min=\(window.minSize), max=\(window.maxSize)")
         
         let height: CGFloat
         switch view {
         case .gmail, .messaging:
             height = 650  // Taller height to display full form content and expanded text fields
+            print("[WindowManager] 📏 Requesting height for \(view): \(height)")
         case .calendar, .notes:
             height = 600  // Full height for content-heavy views
+            print("[WindowManager] 📏 Requesting height for \(view): \(height)")
         default:
             height = expandedHeight  // Default expanded height
+            print("[WindowManager] 📏 Requesting height for \(view): \(height) (default)")
         }
         
         // If transitioning from waveform-only mode, restore proper size constraints
         if !isExpanded {
+            print("[WindowManager] 🔄 Transitioning from waveform-only mode")
             window.minSize = CGSize(width: minWidth, height: minHeight)
             window.maxSize = CGSize(width: maxWidth, height: maxHeight)
             isExpanded = true
+            print("[WindowManager] ✅ isExpanded set to true, constraints updated")
         }
         
         let newSize = CGSize(width: windowSize.width, height: height)
+        print("[WindowManager] 📦 Calling setWindowSize with: \(newSize)")
         setWindowSize(newSize)
+        print("[WindowManager] ✅ resizeForView(\(view)) complete")
     }
     
     // MARK: - Waveform Expansion/Collapse
@@ -220,12 +235,24 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
     }
     
     func setWindowSize(_ size: CGSize, animated: Bool = true) {
-        guard let window = window else { return }
+        guard let window = window else {
+            print("[WindowManager] ⚠️ setWindowSize() - window is nil")
+            return
+        }
+        
+        print("[WindowManager] 🎨 setWindowSize() called with: \(size), animated: \(animated)")
+        print("[WindowManager] 📊 Current window constraints: min=(\(minWidth)x\(minHeight)), max=(\(maxWidth)x\(maxHeight))")
         
         // Constrain size to min/max
         let constrainedWidth = min(max(size.width, minWidth), maxWidth)
         let constrainedHeight = min(max(size.height, minHeight), maxHeight)
         let constrainedSize = CGSize(width: constrainedWidth, height: constrainedHeight)
+        
+        if constrainedSize != size {
+            print("[WindowManager] ⚠️ Size was constrained from \(size) to \(constrainedSize)")
+        } else {
+            print("[WindowManager] ✅ Size \(size) is within constraints")
+        }
         
         // Calculate new frame keeping the top edge fixed so only the bottom moves
         let currentFrame = window.frame
@@ -233,20 +260,31 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
         let newOrigin = NSPoint(x: topLeft.x, y: topLeft.y - constrainedHeight)
         let newFrame = NSRect(origin: newOrigin, size: constrainedSize)
         
+        print("[WindowManager] 📐 New frame will be: origin=\(newOrigin), size=\(constrainedSize)")
+        
         if animated {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.3
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 window.animator().setFrame(newFrame, display: true)
             }
+            print("[WindowManager] 🎬 Animated window resize started")
         } else {
             window.setFrame(newFrame, display: true)
+            print("[WindowManager] ⚡️ Immediate window resize applied")
         }
         
         windowSize = constrainedSize
         
         // Update isExpanded based on whether we're at waveform-only size or larger
+        let wasExpanded = isExpanded
         isExpanded = (constrainedHeight > waveformOnlyHeight)
+        
+        if wasExpanded != isExpanded {
+            print("[WindowManager] 🔄 isExpanded changed: \(wasExpanded) -> \(isExpanded)")
+        }
+        
+        print("[WindowManager] ✅ setWindowSize() complete - windowSize is now: \(windowSize)")
     }
     
     func toggleWindowVisibility() {
