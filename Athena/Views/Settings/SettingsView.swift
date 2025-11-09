@@ -348,6 +348,12 @@ struct SettingsView: View {
                     Divider()
                         .padding(.horizontal, 16)
                     
+                    // Google Authorization Section
+                    GoogleAuthSettingsView()
+                    
+                    Divider()
+                        .padding(.horizontal, 16)
+                    
                     // Calendar Selection Section
                     CalendarSelectionSettingsView()
                 }
@@ -863,6 +869,171 @@ struct PermissionSectionView<Actions: View>: View {
             
             actions()
         }
+    }
+}
+
+// MARK: - Google Authorization Settings
+
+struct GoogleAuthSettingsView: View {
+    private let authService = GoogleAuthService.shared
+    @State private var isAuthenticating = false
+    @State private var showAlert = false
+    @State private var alertMessage = ""
+    @State private var isAuthenticated = false
+    @State private var userEmail: String?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("Google Services")
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+            
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "globe")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("Google Account")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    if isAuthenticated {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Connected")
+                        }
+                        .foregroundColor(.green)
+                        .font(.caption)
+                    } else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "xmark.circle.fill")
+                            Text("Not connected")
+                        }
+                        .foregroundColor(.gray)
+                        .font(.caption)
+                    }
+                }
+                
+                if let email = userEmail {
+                    HStack(spacing: 8) {
+                        Text("Signed in as:")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.7))
+                        Text(email)
+                            .font(.subheadline)
+                            .foregroundColor(.white)
+                            .fontWeight(.medium)
+                    }
+                    .padding(.vertical, 4)
+                }
+                
+                Text("Connect your Google account to access Gmail, Google Calendar, and Google Drive.")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.6))
+                
+                HStack(spacing: 12) {
+                    Spacer()
+                    
+                    if isAuthenticated {
+                        Button("Sign Out") {
+                            signOut()
+                        }
+                        .buttonStyle(ModernButton(style: .danger))
+                    } else {
+                        Button(action: requestAuthorization) {
+                            if isAuthenticating {
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                        .scaleEffect(0.7)
+                                        .frame(width: 16, height: 16)
+                                    Text("Signing In...")
+                                }
+                            } else {
+                                Text("Sign in with Google")
+                            }
+                        }
+                        .buttonStyle(ModernButton(style: .primary))
+                        .disabled(isAuthenticating)
+                    }
+                }
+            }
+        }
+        .onAppear {
+            updateAuthStatus()
+        }
+        .alert("Google Authorization", isPresented: $showAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(alertMessage)
+        }
+    }
+    
+    private func updateAuthStatus() {
+        isAuthenticated = authService.isAuthenticated()
+        userEmail = authService.userEmail()
+    }
+    
+    private func requestAuthorization() {
+        isAuthenticating = true
+        
+        Task {
+            do {
+                // Get settings window for authorization
+                guard let settingsWindow = await MainActor.run(body: {
+                    // Get the window manager from the app delegate
+                    if let appDelegate = NSApp.delegate as? AppDelegate,
+                       let windowManager = appDelegate.windowManager {
+                        return windowManager.settingsWindow
+                    }
+                    return nil
+                }) else {
+                    alertMessage = "Unable to present authorization window. Please try again."
+                    showAlert = true
+                    isAuthenticating = false
+                    return
+                }
+                
+                // Request all scopes for Gmail, Calendar, and Drive
+                _ = try await authService.authorize(
+                    scopes: GoogleOAuthScopes.allScopes,
+                    presentingWindow: settingsWindow
+                )
+                
+                // Update status
+                updateAuthStatus()
+                alertMessage = "Successfully connected to Google! You can now access Gmail, Google Calendar, and Google Drive."
+                showAlert = true
+                
+            } catch let error as GoogleAuthError {
+                switch error {
+                case .userCancelled:
+                    alertMessage = "Sign-in was cancelled. You can try again anytime."
+                case .networkError(let networkError):
+                    alertMessage = "Network error: \(networkError.localizedDescription). Please check your internet connection."
+                case .configurationMissing, .configurationInvalid:
+                    alertMessage = "Google OAuth configuration is missing or invalid. Please contact support."
+                default:
+                    alertMessage = error.localizedDescription
+                }
+                showAlert = true
+            } catch {
+                alertMessage = "Failed to sign in: \(error.localizedDescription)"
+                showAlert = true
+            }
+            
+            isAuthenticating = false
+        }
+    }
+    
+    private func signOut() {
+        authService.signOut()
+        updateAuthStatus()
+        alertMessage = "Successfully signed out from Google services."
+        showAlert = true
     }
 }
 

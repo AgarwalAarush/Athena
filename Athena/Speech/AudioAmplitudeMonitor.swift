@@ -220,7 +220,7 @@ final class AudioAmplitudeMonitor: ObservableObject {
             
             // Blend log (40%) and linear (60%) for better distribution across all bands
             let minBin = Int((logScale * 0.4) + (linearScale * 0.6))
-            let maxBin = Int(minBin + max(1, Float(binCount) / Float(bandCount)))
+            let maxBin = minBin + max(1, binCount / bandCount)
 
             // Average magnitudes in this band
             if maxBin > minBin && maxBin <= binCount {

@@ -266,6 +266,18 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
         }
     }
     
+    // MARK: - Google Authorization Support
+    
+    /// Gets the appropriate window for Google OAuth authorization
+    /// - Parameter preferSettings: If true and settings window is open, returns settings window
+    /// - Returns: NSWindow to present authorization UI from, or nil if no window available
+    func getWindowForAuthorization(preferSettings: Bool = false) -> NSWindow? {
+        if preferSettings, let settingsWindow = settingsWindow, settingsWindow.isVisible {
+            return settingsWindow
+        }
+        return window
+    }
+    
     deinit {
         saveWindowPosition()
     }

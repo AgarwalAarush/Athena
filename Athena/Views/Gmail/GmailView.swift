@@ -149,6 +149,18 @@ struct GmailView: View {
             // Focus recipient field on appear
             focusedField = .recipient
         }
+        .alert("Google Sign-In Required", isPresented: $viewModel.showAuthPrompt) {
+            Button("Sign In") {
+                Task {
+                    await viewModel.requestAuthorization()
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                viewModel.errorMessage = "Sign-in required to send emails. You can authorize from Settings."
+            }
+        } message: {
+            Text("You need to sign in with Google to send emails. This will also enable access to Google Calendar and Google Drive.")
+        }
     }
 }
 

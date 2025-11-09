@@ -34,10 +34,17 @@ class GmailViewModel: ObservableObject {
     /// Success message to display after sending
     @Published var successMessage: String?
     
+    /// Whether to show the authorization prompt
+    @Published var showAuthPrompt: Bool = false
+    
+    /// Whether currently authenticating with Google
+    @Published var isAuthenticating: Bool = false
+    
     // MARK: - Dependencies
     
     private weak var appViewModel: AppViewModel?
     private let gmailService = GmailService.shared
+    private let authService = GoogleAuthService.shared
     
     // MARK: - Initialization
     
@@ -106,7 +113,9 @@ class GmailViewModel: ObservableObject {
             // Provide specific error messages
             switch error {
             case .notAuthenticated:
-                errorMessage = "Not signed in to Google. Please authenticate first."
+                // Trigger authorization prompt instead of just showing error
+                showAuthPrompt = true
+                errorMessage = nil // Clear any previous error
             case .authorizationFailed(let authError):
                 errorMessage = "Authorization failed: \(authError.localizedDescription)"
             case .sendFailed(let sendError):
@@ -122,6 +131,62 @@ class GmailViewModel: ObservableObject {
         }
         
         isSending = false
+    }
+    
+    /// Requests Google authorization and retries sending email on success
+    func requestAuthorization() async {
+        guard !isAuthenticating else { return }
+        
+        isAuthenticating = true
+        showAuthPrompt = false // Hide the prompt while authenticating
+        errorMessage = nil
+        
+        do {
+            // Get the main window for authorization
+            guard let window = await MainActor.run(body: {
+                if let appDelegate = NSApp.delegate as? AppDelegate,
+                   let windowManager = appDelegate.windowManager {
+                    return windowManager.window
+                }
+                return nil
+            }) else {
+                errorMessage = "Unable to present authorization window. Please try from Settings."
+                isAuthenticating = false
+                return
+            }
+            
+            print("[GmailViewModel] Requesting Google authorization for Gmail")
+            
+            // Request all scopes for full access
+            _ = try await authService.authorize(
+                scopes: GoogleOAuthScopes.allScopes,
+                presentingWindow: window
+            )
+            
+            print("[GmailViewModel] ✅ Authorization successful, retrying email send")
+            
+            // Retry sending the email
+            await sendEmail()
+            
+        } catch let error as GoogleAuthError {
+            print("[GmailViewModel] ❌ Authorization failed: \(error.localizedDescription)")
+            
+            switch error {
+            case .userCancelled:
+                errorMessage = "Sign-in was cancelled. Please try again to send email."
+            case .networkError(let networkError):
+                errorMessage = "Network error: \(networkError.localizedDescription)"
+            case .configurationMissing, .configurationInvalid:
+                errorMessage = "Google OAuth is not configured. Please contact support."
+            default:
+                errorMessage = "Authorization failed: \(error.localizedDescription)"
+            }
+        } catch {
+            print("[GmailViewModel] ❌ Unexpected authorization error: \(error.localizedDescription)")
+            errorMessage = "Failed to authorize: \(error.localizedDescription)"
+        }
+        
+        isAuthenticating = false
     }
     
     /// Cancels the email and returns to the previous view
@@ -144,6 +209,8 @@ class GmailViewModel: ObservableObject {
         isSending = false
         errorMessage = nil
         successMessage = nil
+        showAuthPrompt = false
+        isAuthenticating = false
     }
 }
 
