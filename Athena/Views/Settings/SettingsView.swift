@@ -944,12 +944,12 @@ struct GoogleAuthSettingsView: View {
         
         Task {
             do {
-                // Get settings window for authorization
-                guard let settingsWindow = await MainActor.run(body: {
+                // Get appropriate window for authorization (settings window if available, otherwise main window)
+                guard let authWindow = await MainActor.run(body: {
                     // Get the window manager from the app delegate
                     if let appDelegate = NSApp.delegate as? AppDelegate,
                        let windowManager = appDelegate.windowManager {
-                        return windowManager.settingsWindow
+                        return windowManager.getWindowForAuthorization(preferSettings: true)
                     }
                     return nil
                 }) else {
@@ -962,7 +962,7 @@ struct GoogleAuthSettingsView: View {
                 // Request all scopes for Gmail, Calendar, and Drive
                 _ = try await authService.authorize(
                     scopes: GoogleOAuthScopes.allScopes,
-                    presentingWindow: settingsWindow
+                    presentingWindow: authWindow
                 )
                 
                 // Update status

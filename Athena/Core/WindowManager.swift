@@ -165,6 +165,10 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
     func expandToContentView() {
         guard let window = window else { return }
         
+        // Restore proper size constraints before expanding
+        window.minSize = CGSize(width: minWidth, height: minHeight)
+        window.maxSize = CGSize(width: maxWidth, height: maxHeight)
+        
         let newSize = CGSize(width: windowSize.width, height: expandedHeight)
         
         // Calculate new frame keeping top edge fixed
@@ -187,6 +191,9 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
     /// Keeps top edge fixed and contracts upward
     func collapseToWaveformOnly() {
         guard let window = window else { return }
+        
+        // Temporarily adjust minSize to allow waveform-only height
+        window.minSize = CGSize(width: minWidth, height: waveformOnlyHeight)
         
         let newSize = CGSize(width: windowSize.width, height: waveformOnlyHeight)
         
@@ -231,6 +238,9 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
         }
         
         windowSize = constrainedSize
+        
+        // Update isExpanded based on whether we're at waveform-only size or larger
+        isExpanded = (constrainedHeight > waveformOnlyHeight)
     }
     
     func toggleWindowVisibility() {
