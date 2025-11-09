@@ -20,8 +20,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Menu items that need to be updated dynamically
     private var wakewordToggleMenuItem: NSMenuItem?
     
-    // OAuth flow session - stored globally to be accessible from URL handler
+    // OAuth flow sessions - stored globally to be accessible from URL handler
     static var currentAuthorizationFlow: OIDExternalUserAgentSession?
+    
+    // Spotify OAuth callback handler
+    static var spotifyAuthCallback: ((URL) -> Void)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("[AppDelegate] 🚀 Application launching")
@@ -244,14 +247,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     /// Handles incoming URLs (OAuth redirect callback)
     func application(_ application: NSApplication, open urls: [URL]) {
-        // Handle Google OAuth redirect
         for url in urls {
+            print("[AppDelegate] 🔗 Received URL: \(url.absoluteString)")
+            
+            // Handle Spotify OAuth redirect (athena://spotify-callback?code=...)
+            if url.scheme == "athena", url.host == "spotify-callback" {
+                print("[AppDelegate] 🎵 Spotify OAuth callback detected")
+                AppDelegate.spotifyAuthCallback?(url)
+                AppDelegate.spotifyAuthCallback = nil
+                return
+            }
+            
+            // Handle Google OAuth redirect
             if let authorizationFlow = AppDelegate.currentAuthorizationFlow,
                authorizationFlow.resumeExternalUserAgentFlow(with: url) {
                 AppDelegate.currentAuthorizationFlow = nil
-                print("✓ OAuth redirect handled successfully")
+                print("[AppDelegate] ✓ Google OAuth redirect handled successfully")
                 return
             }
         }
+        
+        print("[AppDelegate] ⚠️ URL not handled: \(urls)")
     }
 }

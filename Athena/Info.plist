@@ -7,9 +7,21 @@
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>Google OAuth</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.googleusercontent.apps.252148702958-978824m7soonuf2l19qo6dvspdhcvpcc</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>Spotify OAuth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>athena</string>
 			</array>
 		</dict>
 	</array>
