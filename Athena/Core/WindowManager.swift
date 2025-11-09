@@ -135,6 +135,8 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
     
     /// Resize window based on the specific view being shown
     func resizeForView(_ view: AppView) {
+        guard let window = window else { return }
+        
         let height: CGFloat
         switch view {
         case .gmail, .messaging:
@@ -144,6 +146,14 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
         default:
             height = expandedHeight  // Default expanded height
         }
+        
+        // If transitioning from waveform-only mode, restore proper size constraints
+        if !isExpanded {
+            window.minSize = CGSize(width: minWidth, height: minHeight)
+            window.maxSize = CGSize(width: maxWidth, height: maxHeight)
+            isExpanded = true
+        }
+        
         let newSize = CGSize(width: windowSize.width, height: height)
         setWindowSize(newSize)
     }

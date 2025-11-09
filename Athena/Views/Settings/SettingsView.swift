@@ -521,7 +521,8 @@ struct PermissionsSettingsView: View {
                 title: "Calendar Access",
                 status: calendarStatus,
                 statusColor: calendarStatusColor,
-                isRequesting: isRequestingCalendar
+                isRequesting: isRequestingCalendar,
+                isGranted: CalendarService.shared.authorizationStatus == .fullAccess || CalendarService.shared.authorizationStatus == .authorized
             ) {
                 calendarPermissionActions
             }
@@ -532,7 +533,8 @@ struct PermissionsSettingsView: View {
                 title: "Accessibility Access",
                 status: accessibilityStatus,
                 statusColor: accessibilityStatusColor,
-                isRequesting: isRequestingAccessibility
+                isRequesting: isRequestingAccessibility,
+                isGranted: AccessibilityManager.shared.isAccessibilityEnabled
             ) {
                 accessibilityPermissionActions
             }
@@ -543,7 +545,8 @@ struct PermissionsSettingsView: View {
                 title: "Contacts Access",
                 status: contactsStatus,
                 statusColor: contactsStatusColor,
-                isRequesting: isRequestingContacts
+                isRequesting: isRequestingContacts,
+                isGranted: ContactsPermissionManager.shared.authorizationStatus == .authorized
             ) {
                 contactsPermissionActions
             }
@@ -554,7 +557,8 @@ struct PermissionsSettingsView: View {
                 title: "Messages Automation",
                 status: messagingStatus,
                 statusColor: messagingStatusColor,
-                isRequesting: isRequestingMessaging
+                isRequesting: isRequestingMessaging,
+                isGranted: MessagingPermissionManager.shared.authorizationStatus == .authorized
             ) {
                 messagingPermissionActions
             }
@@ -574,61 +578,44 @@ struct PermissionsSettingsView: View {
     @ViewBuilder
     private var calendarPermissionActions: some View {
         if CalendarService.shared.authorizationStatus == .notDetermined {
-            HStack(spacing: 12) {
-                Spacer()
-                Button(action: requestCalendarAccess) {
-                    if isRequestingCalendar {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                            .frame(width: 20, height: 20)
-                    } else {
-                        Text("Grant Access")
-                    }
+            Button(action: requestCalendarAccess) {
+                if isRequestingCalendar {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .frame(width: 20, height: 20)
+                } else {
+                    Text("Grant Access")
                 }
-                .buttonStyle(ModernButton(style: .primary))
-                .disabled(isRequestingCalendar)
             }
+            .buttonStyle(ModernButton(style: .primary))
+            .disabled(isRequestingCalendar)
         } else if CalendarService.shared.authorizationStatus == .denied {
-            HStack(spacing: 12) {
-                Spacer()
-                Button("Open System Settings") {
-                    CalendarService.shared.openCalendarPrivacySettings()
-                }
-                .buttonStyle(ModernButton(style: .secondary))
+            Button("Open System Settings") {
+                CalendarService.shared.openCalendarPrivacySettings()
             }
+            .buttonStyle(ModernButton(style: .secondary))
         } else if CalendarService.shared.authorizationStatus == .writeOnly {
-            HStack(spacing: 12) {
-                Spacer()
-                VStack(alignment: .trailing, spacing: 8) {
-                    Text("Write-only access detected")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                    Button("Upgrade to Full Access") {
-                        CalendarService.shared.openCalendarPrivacySettings()
-                    }
-                    .buttonStyle(ModernButton(style: .primary))
-                }
+            Button("Upgrade to Full Access") {
+                CalendarService.shared.openCalendarPrivacySettings()
             }
+            .buttonStyle(ModernButton(style: .primary))
         }
     }
     
     @ViewBuilder
     private var accessibilityPermissionActions: some View {
         if !AccessibilityManager.shared.isAccessibilityEnabled {
-            HStack(spacing: 12) {
-                Spacer()
-                Button(action: requestAccessibilityAccess) {
-                    if isRequestingAccessibility {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                            .frame(width: 20, height: 20)
-                    } else {
-                        Text("Grant Access")
-                    }
+            Button(action: requestAccessibilityAccess) {
+                if isRequestingAccessibility {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .frame(width: 20, height: 20)
+                } else {
+                    Text("Grant Access")
                 }
-                .buttonStyle(ModernButton(style: .primary))
-                .disabled(isRequestingAccessibility)
             }
+            .buttonStyle(ModernButton(style: .primary))
+            .disabled(isRequestingAccessibility)
         }
     }
     
@@ -637,28 +624,22 @@ struct PermissionsSettingsView: View {
         let permissionManager = ContactsPermissionManager.shared
         
         if permissionManager.canRequestDirectly {
-            HStack(spacing: 12) {
-                Spacer()
-                Button(action: requestContactsAccess) {
-                    if isRequestingContacts {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                            .frame(width: 20, height: 20)
-                    } else {
-                        Text("Grant Access")
-                    }
+            Button(action: requestContactsAccess) {
+                if isRequestingContacts {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .frame(width: 20, height: 20)
+                } else {
+                    Text("Grant Access")
                 }
-                .buttonStyle(ModernButton(style: .primary))
-                .disabled(isRequestingContacts)
             }
+            .buttonStyle(ModernButton(style: .primary))
+            .disabled(isRequestingContacts)
         } else if permissionManager.requiresSystemSettings {
-            HStack(spacing: 12) {
-                Spacer()
-                Button("Open System Settings") {
-                    permissionManager.openSystemSettings()
-                }
-                .buttonStyle(ModernButton(style: .secondary))
+            Button("Open System Settings") {
+                permissionManager.openSystemSettings()
             }
+            .buttonStyle(ModernButton(style: .secondary))
         }
     }
     
@@ -667,28 +648,22 @@ struct PermissionsSettingsView: View {
         let permissionManager = MessagingPermissionManager.shared
         
         if permissionManager.canRequestDirectly {
-            HStack(spacing: 12) {
-                Spacer()
-                Button(action: requestMessagingAccess) {
-                    if isRequestingMessaging {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                            .frame(width: 20, height: 20)
-                    } else {
-                        Text("Grant Access")
-                    }
+            Button(action: requestMessagingAccess) {
+                if isRequestingMessaging {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .frame(width: 20, height: 20)
+                } else {
+                    Text("Grant Access")
                 }
-                .buttonStyle(ModernButton(style: .primary))
-                .disabled(isRequestingMessaging)
             }
+            .buttonStyle(ModernButton(style: .primary))
+            .disabled(isRequestingMessaging)
         } else if permissionManager.requiresSystemSettings {
-            HStack(spacing: 12) {
-                Spacer()
-                Button("Open System Settings") {
-                    permissionManager.openSystemSettings()
-                }
-                .buttonStyle(ModernButton(style: .secondary))
+            Button("Open System Settings") {
+                permissionManager.openSystemSettings()
             }
+            .buttonStyle(ModernButton(style: .secondary))
         }
     }
     
@@ -841,33 +816,33 @@ struct PermissionSectionView<Actions: View>: View {
     let status: String
     let statusColor: Color
     let isRequesting: Bool
+    let isGranted: Bool
     @ViewBuilder let actions: () -> Actions
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
-                Text(title)
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.white)
+            Text(title)
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
 
-                Spacer()
+            Spacer()
 
+            if isGranted {
                 HStack(spacing: 6) {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 10, height: 10)
-                    Text(status)
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("Granted")
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundColor(.white)
                 }
+            } else {
+                actions()
             }
-            
-            actions()
         }
     }
 }
@@ -890,7 +865,7 @@ struct GoogleAuthSettingsView: View {
                 .foregroundColor(.white)
             
             VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
+                HStack(spacing: 12) {
                     Image(systemName: "globe")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
@@ -904,45 +879,12 @@ struct GoogleAuthSettingsView: View {
                     if isAuthenticated {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark.circle.fill")
-                            Text("Connected")
+                                .foregroundColor(.green)
+                            Text("Authorized")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
                         }
-                        .foregroundColor(.green)
-                        .font(.caption)
-                    } else {
-                        HStack(spacing: 6) {
-                            Image(systemName: "xmark.circle.fill")
-                            Text("Not connected")
-                        }
-                        .foregroundColor(.gray)
-                        .font(.caption)
-                    }
-                }
-                
-                if let email = userEmail {
-                    HStack(spacing: 8) {
-                        Text("Signed in as:")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.7))
-                        Text(email)
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                            .fontWeight(.medium)
-                    }
-                    .padding(.vertical, 4)
-                }
-                
-                Text("Connect your Google account to access Gmail, Google Calendar, and Google Drive.")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.6))
-                
-                HStack(spacing: 12) {
-                    Spacer()
-                    
-                    if isAuthenticated {
-                        Button("Sign Out") {
-                            signOut()
-                        }
-                        .buttonStyle(ModernButton(style: .danger))
                     } else {
                         Button(action: requestAuthorization) {
                             if isAuthenticating {
@@ -959,6 +901,26 @@ struct GoogleAuthSettingsView: View {
                         .buttonStyle(ModernButton(style: .primary))
                         .disabled(isAuthenticating)
                     }
+                }
+                
+                if let email = userEmail {
+                    HStack(spacing: 8) {
+                        Text("Signed in as:")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.7))
+                        Text(email)
+                            .font(.subheadline)
+                            .foregroundColor(.white)
+                            .fontWeight(.medium)
+                        
+                        Spacer()
+                        
+                        Button("Sign Out") {
+                            signOut()
+                        }
+                        .buttonStyle(ModernButton(style: .danger))
+                    }
+                    .padding(.vertical, 4)
                 }
             }
         }
