@@ -91,7 +91,7 @@ class AppViewModel: ObservableObject {
         withTransaction(transaction) {
             currentView = .calendar
         }
-        windowManager?.expandToContentView()
+        windowManager?.resizeForView(.calendar)
     }
 
     func showChat() {
@@ -102,7 +102,7 @@ class AppViewModel: ObservableObject {
         withTransaction(transaction) {
             currentView = .chat
         }
-        windowManager?.expandToContentView()
+        windowManager?.resizeForView(.chat)
     }
 
     func showNotes() {
@@ -113,7 +113,7 @@ class AppViewModel: ObservableObject {
         withTransaction(transaction) {
             currentView = .notes
         }
-        windowManager?.expandToContentView()
+        windowManager?.resizeForView(.notes)
     }
 
     func showHome() {
@@ -124,7 +124,7 @@ class AppViewModel: ObservableObject {
         withTransaction(transaction) {
             currentView = .home
         }
-        windowManager?.expandToContentView()
+        windowManager?.resizeForView(.home)
     }
     
     func showGmail() {
@@ -135,7 +135,7 @@ class AppViewModel: ObservableObject {
         withTransaction(transaction) {
             currentView = .gmail
         }
-        windowManager?.expandToContentView()
+        windowManager?.resizeForView(.gmail)
     }
     
     /// Collapses the content area back to waveform-only view

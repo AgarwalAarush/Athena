@@ -204,18 +204,23 @@ final class AudioAmplitudeMonitor: ObservableObject {
         return extractFrequencyBands(from: magnitudes)
     }
 
-    /// Extract frequency bands from FFT magnitudes using logarithmic distribution
+    /// Extract frequency bands from FFT magnitudes using linear-logarithmic distribution
     private func extractFrequencyBands(from magnitudes: [Float]) -> [Float] {
         var bands = [Float](repeating: 0, count: bandCount)
 
-        // Use logarithmic distribution for frequency bands (like audio equalizer)
-        // Lower frequencies get fewer FFT bins, higher frequencies get more
+        // Use a blend of linear and logarithmic distribution for better spread across all bands
+        // This prevents concentration in the leftmost bands while maintaining audio spectrum behavior
         let binCount = magnitudes.count
 
         for bandIndex in 0..<bandCount {
-            // Logarithmic mapping
-            let minBin = Int(pow(Float(binCount), Float(bandIndex) / Float(bandCount)))
-            let maxBin = Int(pow(Float(binCount), Float(bandIndex + 1) / Float(bandCount)))
+            // Use a gentler logarithmic curve blended with linear for better spread
+            let t = Float(bandIndex) / Float(bandCount - 1)
+            let logScale = pow(Float(binCount), t * 0.8)  // Gentler logarithmic curve
+            let linearScale = Float(binCount) * t
+            
+            // Blend log (40%) and linear (60%) for better distribution across all bands
+            let minBin = Int((logScale * 0.4) + (linearScale * 0.6))
+            let maxBin = Int(minBin + max(1, Float(binCount) / Float(bandCount)))
 
             // Average magnitudes in this band
             if maxBin > minBin && maxBin <= binCount {
@@ -230,8 +235,8 @@ final class AudioAmplitudeMonitor: ObservableObject {
             let normalizationFactor = maxMagnitude
             bands = bands.map { $0 / normalizationFactor }
 
-            // Boost quieter frequencies so higher bands stay visually active
-            let boostExponent: Float = 0.7
+            // Boost quieter frequencies for more uniform distribution
+            let boostExponent: Float = 0.5
             bands = bands.map { pow($0, boostExponent) }
 
             bands = bands.map { min($0, 1.0) }

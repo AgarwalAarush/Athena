@@ -133,6 +133,21 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
         }
     }
     
+    /// Resize window based on the specific view being shown
+    func resizeForView(_ view: AppView) {
+        let height: CGFloat
+        switch view {
+        case .gmail, .messaging:
+            height = 500  // Taller for forms with multiple fields
+        case .calendar, .notes:
+            height = 600  // Full height for content-heavy views
+        default:
+            height = expandedHeight  // Default expanded height
+        }
+        let newSize = CGSize(width: windowSize.width, height: height)
+        setWindowSize(newSize)
+    }
+    
     // MARK: - Waveform Expansion/Collapse
     
     /// Expands window from waveform-only to full content view

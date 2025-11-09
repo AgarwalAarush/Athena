@@ -43,6 +43,7 @@ struct MultiLineTextInput: View {
                 .scrollContentBackground(.hidden)
                 .background(Color.clear)
                 .frame(minHeight: minHeight, maxHeight: maxHeight)
+                .padding(.top, 8)
         }
     }
 }

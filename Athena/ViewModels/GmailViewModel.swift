@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftUI
+import Combine
 
 /// ViewModel for the Gmail composition view
 @MainActor
