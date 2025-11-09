@@ -75,6 +75,12 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
         // Store original size
         self.originalWindowSize = window.frame.size
         
+        // Check if wakeword mode is enabled and collapse to waveform-only height
+        if ConfigurationManager.shared.wakewordModeEnabled {
+            print("[WindowManager] 🎵 Wakeword mode enabled - setting waveform-only height")
+            collapseToWaveformOnly()
+        }
+        
         // Start with window hidden (will be shown by menu bar icon or wake word)
         window.orderOut(nil)
         print("[WindowManager] ✅ Window setup complete - starting hidden")

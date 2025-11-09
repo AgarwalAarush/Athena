@@ -102,28 +102,34 @@ class WakeWordTranscriptionManager: ObservableObject {
 
     func stop() {
         print("[WakeWordTranscriptionManager] 🛑 Stopping wake word mode (current state: \(state))")
-
+        
+        // CRITICAL: Set to idle FIRST to prevent start() from being blocked
+        state = .idle
+        print("[WakeWordTranscriptionManager] ⚙️ State immediately set to .idle")
+        
+        // Now do synchronous cleanup in proper order
         detectorTask?.cancel()
         transcriberTask?.cancel()
-
+        
         wakeWordDetector?.stop()
+        wakeWordDetector = nil  // Fully release
+        
         vadTranscriber?.stop()
+        vadTranscriber = nil  // Fully release
         
         // Stop amplitude monitor
         _amplitudeMonitor.stop()
-
+        
+        // Stop audio engine LAST (after all consumers are stopped)
         stopAudioEngine()
-
-        print("[WakeWordTranscriptionManager] ⚙️ Setting state to .idle and clearing transcripts")
-        state = .idle
+        
+        // Clear all state
         partialTranscript = ""
         finalTranscript = nil
         lastSessionTranscript = ""
-        
-        // Clear ring buffer
         clearRingBuffer()
-
-        print("[WakeWordTranscriptionManager] ✅ Wake word mode stopped - state=\(state)")
+        
+        print("[WakeWordTranscriptionManager] ✅ Wake word mode stopped - fully cleaned up and ready for restart")
     }
 
     // MARK: - Private Methods - Authorization

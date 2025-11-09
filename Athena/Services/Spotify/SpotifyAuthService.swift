@@ -16,6 +16,8 @@ enum SpotifyAuthError: Error, LocalizedError {
     case sessionExpired
     case noActiveSession
     case invalidAuthorizationCode
+    case authorizationDenied(String)
+    case stateMismatch
     case tokenExchangeFailed(Error)
     case networkError(Error)
     case unknownError(Error)
@@ -34,6 +36,10 @@ enum SpotifyAuthError: Error, LocalizedError {
             return "No active Spotify OAuth session. Please sign in first."
         case .invalidAuthorizationCode:
             return "Invalid authorization code received from Spotify."
+        case .authorizationDenied(let reason):
+            return "Authorization denied: \(reason)"
+        case .stateMismatch:
+            return "State parameter mismatch - possible CSRF attack detected."
         case .tokenExchangeFailed(let error):
             return "Failed to exchange authorization code for access token: \(error.localizedDescription)"
         case .networkError(let error):
@@ -131,6 +137,9 @@ class SpotifyAuthService {
     private let authorizationEndpoint = "https://accounts.spotify.com/authorize"
     private let tokenEndpoint = "https://accounts.spotify.com/api/token"
     
+    // State parameter for CSRF protection
+    private var currentState: String?
+    
     // Lazy-loaded configuration from plist
     private lazy var clientID: String = {
         loadConfiguration().clientID
@@ -184,6 +193,10 @@ class SpotifyAuthService {
     /// - Returns: Authorized SpotifyAuthSession
     /// - Throws: SpotifyAuthError on failure
     func authorize(scopes: [String] = SpotifyOAuthScopes.defaultScopes) async throws -> SpotifyAuthSession {
+        // Generate random state for CSRF protection
+        let state = generateRandomState()
+        currentState = state
+        
         // Build authorization URL
         var components = URLComponents(string: authorizationEndpoint)!
         components.queryItems = [
@@ -191,6 +204,7 @@ class SpotifyAuthService {
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "redirect_uri", value: redirectURI),
             URLQueryItem(name: "scope", value: scopes.joined(separator: " ")),
+            URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "show_dialog", value: "true")
         ]
         
@@ -203,27 +217,34 @@ class SpotifyAuthService {
         // Open browser for user authorization
         NSWorkspace.shared.open(authURL)
         
-        // Wait for callback URL
+        // Wait for callback URL with proper timeout handling
         let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
+            var timeoutTask: Task<Void, Never>?
+            
             AppDelegate.spotifyAuthCallback = { url in
+                timeoutTask?.cancel()
                 continuation.resume(returning: url)
             }
             
             // Set timeout for user to complete authorization
-            Task {
+            timeoutTask = Task {
                 try? await Task.sleep(nanoseconds: 5 * 60 * 1_000_000_000) // 5 minutes
-                continuation.resume(throwing: SpotifyAuthError.userCancelled)
+                if !Task.isCancelled {
+                    AppDelegate.spotifyAuthCallback = nil
+                    continuation.resume(throwing: SpotifyAuthError.userCancelled)
+                }
             }
         }
         
         print("[SpotifyAuth] 🔗 Received callback URL: \(callbackURL)")
         
-        // Extract authorization code from URL
-        guard let code = extractAuthorizationCode(from: callbackURL) else {
-            throw SpotifyAuthError.invalidAuthorizationCode
-        }
+        // Extract and validate authorization code from URL
+        let code = try extractAuthorizationCode(from: callbackURL, expectedState: state)
         
-        print("[SpotifyAuth] ✓ Authorization code extracted")
+        // Clear state after use
+        currentState = nil
+        
+        print("[SpotifyAuth] ✓ Authorization code extracted and validated")
         
         // Exchange code for access token
         let session = try await exchangeCodeForToken(code: code, scopes: scopes)
@@ -237,21 +258,38 @@ class SpotifyAuthService {
         return session
     }
     
-    /// Extracts authorization code from callback URL
-    private func extractAuthorizationCode(from url: URL) -> String? {
+    /// Generates a random state string for CSRF protection
+    private func generateRandomState() -> String {
+        let letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        return String((0..<16).map { _ in letters.randomElement()! })
+    }
+    
+    /// Extracts and validates authorization code from callback URL
+    private func extractAuthorizationCode(from url: URL, expectedState: String) throws -> String {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let queryItems = components.queryItems else {
-            return nil
+            throw SpotifyAuthError.invalidAuthorizationCode
         }
         
-        // Check for error
+        // Check for error from Spotify
         if let error = queryItems.first(where: { $0.name == "error" })?.value {
             print("[SpotifyAuth] ❌ Authorization error: \(error)")
-            return nil
+            throw SpotifyAuthError.authorizationDenied(error)
+        }
+        
+        // Verify state parameter matches (CSRF protection)
+        let receivedState = queryItems.first(where: { $0.name == "state" })?.value
+        guard receivedState == expectedState else {
+            print("[SpotifyAuth] ❌ State mismatch: expected \(expectedState), got \(receivedState ?? "nil")")
+            throw SpotifyAuthError.stateMismatch
         }
         
         // Extract code
-        return queryItems.first(where: { $0.name == "code" })?.value
+        guard let code = queryItems.first(where: { $0.name == "code" })?.value else {
+            throw SpotifyAuthError.invalidAuthorizationCode
+        }
+        
+        return code
     }
     
     /// Exchanges authorization code for access token
@@ -260,14 +298,20 @@ class SpotifyAuthService {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
-        // Build request body
+        // Create Basic Authentication header with base64 encoded credentials
+        let credentials = "\(clientID):\(clientSecret)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw SpotifyAuthError.configurationInvalid
+        }
+        let base64Credentials = credentialsData.base64EncodedString()
+        request.setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
+        
+        // Build request body (WITHOUT client_id and client_secret - they go in the header)
         var components = URLComponents()
         components.queryItems = [
             URLQueryItem(name: "grant_type", value: "authorization_code"),
             URLQueryItem(name: "code", value: code),
-            URLQueryItem(name: "redirect_uri", value: redirectURI),
-            URLQueryItem(name: "client_id", value: clientID),
-            URLQueryItem(name: "client_secret", value: clientSecret)
+            URLQueryItem(name: "redirect_uri", value: redirectURI)
         ]
         
         request.httpBody = components.query?.data(using: .utf8)
@@ -321,13 +365,19 @@ class SpotifyAuthService {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
-        // Build request body
+        // Create Basic Authentication header with base64 encoded credentials
+        let credentials = "\(clientID):\(clientSecret)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw SpotifyAuthError.configurationInvalid
+        }
+        let base64Credentials = credentialsData.base64EncodedString()
+        request.setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
+        
+        // Build request body (WITHOUT client_id and client_secret - they go in the header)
         var components = URLComponents()
         components.queryItems = [
             URLQueryItem(name: "grant_type", value: "refresh_token"),
-            URLQueryItem(name: "refresh_token", value: refreshToken),
-            URLQueryItem(name: "client_id", value: clientID),
-            URLQueryItem(name: "client_secret", value: clientSecret)
+            URLQueryItem(name: "refresh_token", value: refreshToken)
         ]
         
         request.httpBody = components.query?.data(using: .utf8)
