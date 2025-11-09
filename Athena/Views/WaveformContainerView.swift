@@ -14,18 +14,31 @@ struct WaveformContainerView: View {
     @ObservedObject var chatViewModel: ChatViewModel
     @ObservedObject private var config = ConfigurationManager.shared
     
+    @State private var cyclingTimer: Timer?
+    
     var body: some View {
         HStack(spacing: AppMetrics.spacingMedium) {
             Spacer()
             
             // Waveform visualization (centered)
             Group {
-                if let thinkingMessage = appViewModel.orchestratorThinkingMessage {
-                    // Thinking state - show thinking message text
-                    Text(thinkingMessage)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.white.opacity(0.9))
-                        .transition(.scale.combined(with: .opacity))
+                if let thinkingIndex = appViewModel.orchestratorThinkingIndex {
+                    // Thinking state - show thinking message text with animated dots
+                    HStack(spacing: 0) {
+                        Text(getCurrentThinkingMessage(index: thinkingIndex))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.9))
+                        AnimatedDotsView()
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.9))
+                    }
+                    .transition(.scale.combined(with: .opacity))
+                    .onAppear {
+                        startMessageCycling()
+                    }
+                    .onDisappear {
+                        stopMessageCycling()
+                    }
                 } else if chatViewModel.isRecording, let monitor = chatViewModel.amplitudeMonitor {
                     // Recording state - show animated waveform
                     WaveformView(monitor: monitor)
@@ -37,7 +50,14 @@ struct WaveformContainerView: View {
                 }
             }
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: chatViewModel.isRecording)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: appViewModel.orchestratorThinkingMessage)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: appViewModel.orchestratorThinkingIndex != nil)
+            .onChange(of: appViewModel.orchestratorThinkingIndex) { newValue in
+                if newValue != nil {
+                    startMessageCycling()
+                } else {
+                    stopMessageCycling()
+                }
+            }
             
             Spacer()
             
@@ -47,6 +67,34 @@ struct WaveformContainerView: View {
         .frame(height: 60)
         .padding(.horizontal, AppMetrics.padding)
         .background(AppMaterial.tertiaryGlass)
+    }
+    
+    /// Gets the current thinking message from the index
+    private func getCurrentThinkingMessage(index: Int) -> String {
+        guard !appViewModel.thinkingMessages.isEmpty else { return "Thinking" }
+        let safeIndex = index % appViewModel.thinkingMessages.count
+        return appViewModel.thinkingMessages[safeIndex]
+    }
+    
+    /// Starts the message cycling timer
+    private func startMessageCycling() {
+        stopMessageCycling() // Clear any existing timer
+        
+        cyclingTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { _ in
+            guard let currentIndex = appViewModel.orchestratorThinkingIndex else { return }
+            let messagesCount = appViewModel.thinkingMessages.count
+            guard messagesCount > 0 else { return }
+            
+            // Generate random offset (1 to count-1) to ensure we get a different message
+            let randomOffset = messagesCount > 1 ? Int.random(in: 1..<messagesCount) : 1
+            appViewModel.orchestratorThinkingIndex = (currentIndex + randomOffset) % messagesCount
+        }
+    }
+    
+    /// Stops the message cycling timer
+    private func stopMessageCycling() {
+        cyclingTimer?.invalidate()
+        cyclingTimer = nil
     }
     
     /// Toggle button for wake word mode
@@ -88,6 +136,34 @@ struct WaveformContainerView: View {
         let pattern: [CGFloat] = [0.3, 0.5, 0.7, 0.9, 1.0, 0.9, 0.7, 0.5, 0.3, 0.5, 0.7, 0.9, 0.7, 0.5, 0.3]
         let multiplier = pattern[index % pattern.count]
         return baseHeight + (maxHeight - baseHeight) * multiplier
+    }
+}
+
+/// Animated dots view that cycles through 0-3 dots
+struct AnimatedDotsView: View {
+    @State private var dotCount: Int = 0
+    @State private var timer: Timer?
+    
+    var body: some View {
+        Text(String(repeating: ".", count: dotCount))
+            .onAppear {
+                startAnimation()
+            }
+            .onDisappear {
+                stopAnimation()
+            }
+    }
+    
+    private func startAnimation() {
+        stopAnimation() // Clear any existing timer
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+            dotCount = (dotCount + 1) % 4
+        }
+    }
+    
+    private func stopAnimation() {
+        timer?.invalidate()
+        timer = nil
     }
 }
 

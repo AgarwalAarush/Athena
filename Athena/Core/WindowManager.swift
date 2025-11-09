@@ -21,7 +21,7 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
     private let minWidth: CGFloat = 400
     private let maxWidth: CGFloat = 800
     private let minHeight: CGFloat = 250
-    private let maxHeight: CGFloat = 600
+    private let maxHeight: CGFloat = 700
     
     // Waveform-only and expanded heights
     private let waveformOnlyHeight: CGFloat = 60

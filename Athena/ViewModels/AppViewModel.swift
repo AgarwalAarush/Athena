@@ -32,8 +32,36 @@ class AppViewModel: ObservableObject {
     /// Tracks whether the orchestrator is currently running (prevents auto-hide)
     @Published var isOrchestratorRunning: Bool = false
     
-    /// Displays thinking message in waveform area while orchestrator processes
-    @Published var orchestratorThinkingMessage: String?
+    /// Index of current thinking message (nil when not thinking)
+    @Published var orchestratorThinkingIndex: Int?
+    
+    /// Array of humorous thinking messages to display while orchestrator processes
+    let thinkingMessages = [
+        "Doing mental gymnastics",
+        "Consulting the cloud spirits",
+        "Contemplating in binary",
+        "Letting the neurons gossip",
+        "Mentally buffering",
+        "Pondering like a caffeinated philosopher",
+        "Allocating extra gpu cores to contemplation",
+        "Engaging quantum overthinking mode",
+        "Cache-warming the hypotheses",
+        "Forking a subprocess of enlightenment",
+        "Backpropagating through existential dread",
+        "Having a lightbulb moment (or trying to)",
+        "Opening a wormhole of inference",
+        "Contacting the mainframe for wisdom",
+        "Running recursive self-doubt.exe",
+        "Pretending to be sentient",
+        "Surfing the probability waveform",
+        "Transcending into 32-bit enlightenment",
+        "Consulting the oracle of gradients",
+        "Compiling my thoughts",
+        "Rebuilding the mental cache",
+        "Inhaling data, exhaling insight",
+        "Savoring a byte of contemplation",
+        "Pausing for a micro-epiphany"
+    ]
 
     // MARK: - View Models for Orchestrator Access
 

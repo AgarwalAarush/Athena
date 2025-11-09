@@ -42,37 +42,11 @@ class Orchestrator {
     
     // MARK: - Thinking Messages
     
-    /// Array of humorous thinking messages to display while orchestrator processes
-    private let thinkingMessages = [
-        "Doing mental gymnastics",
-        "Consulting the cloud spirits",
-        "Contemplating in binary",
-        "Letting the neurons gossip",
-        "Mentally buffering",
-        "Pondering like a caffeinated philosopher",
-        "Allocating extra gpu cores to contemplation",
-        "Engaging quantum overthinking mode…",
-        "Cache-warming the hypotheses…",
-        "Forking a subprocess of enlightenment…",
-        "Backpropagating through existential dread…",
-        "Having a lightbulb moment (or trying to)",
-        "Opening a wormhole of inference…",
-        "Contacting the mainframe for wisdom…",
-        "Running recursive self-doubt.exe…",
-        "Pretending to be sentient…",
-        "Surfing the probability waveform…",
-        "Transcending into 32-bit enlightenment…",
-        "Consulting the oracle of gradients…",
-        "Compiling my thoughts…",
-        "Rebuilding the mental cache…",
-        "Inhaling data, exhaling insight…",
-        "Savoring a byte of contemplation…",
-        "Pausing for a micro-epiphany…"
-    ]
-    
-    /// Returns a random thinking message
-    private func getRandomThinkingMessage() -> String {
-        return thinkingMessages.randomElement() ?? "Thinking..."
+    /// Returns a random thinking message index
+    private func getRandomThinkingMessageIndex() -> Int {
+        guard let appViewModel = appViewModel else { return 0 }
+        let count = appViewModel.thinkingMessages.count
+        return count > 0 ? Int.random(in: 0..<count) : 0
     }
 
     /// Routes a user prompt to the appropriate handler.
@@ -138,17 +112,17 @@ class Orchestrator {
     ///   }
     ///   ```
     func route(prompt: String, context: AppView? = nil) async throws {
-        // Set orchestrator running state and thinking message
+        // Set orchestrator running state and thinking message index
         await MainActor.run {
             appViewModel?.isOrchestratorRunning = true
-            appViewModel?.orchestratorThinkingMessage = getRandomThinkingMessage()
+            appViewModel?.orchestratorThinkingIndex = getRandomThinkingMessageIndex()
         }
         
         // Use defer to ensure we always reset the state, even if an error occurs
         defer {
             Task { @MainActor in
                 appViewModel?.isOrchestratorRunning = false
-                appViewModel?.orchestratorThinkingMessage = nil
+                appViewModel?.orchestratorThinkingIndex = nil
             }
         }
         
