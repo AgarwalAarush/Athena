@@ -39,6 +39,41 @@ class Orchestrator {
         self.aiService = aiService
         self.appViewModel = appViewModel
     }
+    
+    // MARK: - Thinking Messages
+    
+    /// Array of humorous thinking messages to display while orchestrator processes
+    private let thinkingMessages = [
+        "Doing mental gymnastics",
+        "Consulting the cloud spirits",
+        "Contemplating in binary",
+        "Letting the neurons gossip",
+        "Mentally buffering",
+        "Pondering like a caffeinated philosopher",
+        "Allocating extra gpu cores to contemplation",
+        "Engaging quantum overthinking mode…",
+        "Cache-warming the hypotheses…",
+        "Forking a subprocess of enlightenment…",
+        "Backpropagating through existential dread…",
+        "Having a lightbulb moment (or trying to)",
+        "Opening a wormhole of inference…",
+        "Contacting the mainframe for wisdom…",
+        "Running recursive self-doubt.exe…",
+        "Pretending to be sentient…",
+        "Surfing the probability waveform…",
+        "Transcending into 32-bit enlightenment…",
+        "Consulting the oracle of gradients…",
+        "Compiling my thoughts…",
+        "Rebuilding the mental cache…",
+        "Inhaling data, exhaling insight…",
+        "Savoring a byte of contemplation…",
+        "Pausing for a micro-epiphany…"
+    ]
+    
+    /// Returns a random thinking message
+    private func getRandomThinkingMessage() -> String {
+        return thinkingMessages.randomElement() ?? "Thinking..."
+    }
 
     /// Routes a user prompt to the appropriate handler.
     ///
@@ -103,15 +138,17 @@ class Orchestrator {
     ///   }
     ///   ```
     func route(prompt: String, context: AppView? = nil) async throws {
-        // Set orchestrator running state to prevent auto-hide during processing
+        // Set orchestrator running state and thinking message
         await MainActor.run {
             appViewModel?.isOrchestratorRunning = true
+            appViewModel?.orchestratorThinkingMessage = getRandomThinkingMessage()
         }
         
         // Use defer to ensure we always reset the state, even if an error occurs
         defer {
             Task { @MainActor in
                 appViewModel?.isOrchestratorRunning = false
+                appViewModel?.orchestratorThinkingMessage = nil
             }
         }
         
@@ -213,7 +250,7 @@ class Orchestrator {
         4) If the query is about the computer outside Athena (apps, OS features), RETURN 'computerUse'.
         5) If the query is to enable/disable wake word, RETURN 'wakewordControl'.
         6) If multiple could apply, prefer specific domain labels ('notes', 'calendar', 'gmail', 'messaging') over 'appCommand'.
-        7) If genuinely unclear, RETURN 'NA'.
+        7) If genuinely unclear, RETURN 'NA', however, try your best to determine what the user's intent may be.
 
         Keyword guidance (non-exhaustive):
         - calendar domain: calendar, agenda, events, schedule, day, week, month, today, tomorrow, meeting, appointment, gcal, google calendar
@@ -541,17 +578,13 @@ class Orchestrator {
         // Default to Apple Calendar
         print("[Orchestrator] handleCalendarTask: Using Apple Calendar (default)")
 
-        // ALWAYS switch to calendar view first
-        await MainActor.run {
-            self.appViewModel?.showCalendar()
-        }
-
         // Try local parsing first for navigation commands
         if prompt.lowercased().contains("open") {
             if let targetDate = parseNavigationCommand(prompt: prompt) {
                 print("[Orchestrator] handleCalendarTask: Local parse successful, navigating to date")
                 await MainActor.run {
                     self.appViewModel?.dayViewModel.selectedDate = targetDate
+                    self.appViewModel?.showCalendar()
                 }
                 print("[Orchestrator] handleCalendarTask: Navigation completed")
                 return
@@ -565,8 +598,8 @@ class Orchestrator {
         // Execute the appropriate action
         switch result.action {
         case .view:
-            // Already switched to calendar, nothing more to do
-            print("[Orchestrator] handleCalendarTask: View action - calendar opened")
+            // Just need to switch to calendar view
+            print("[Orchestrator] handleCalendarTask: View action - opening calendar")
 
         case .navigate:
             await executeNavigate(params: result.params)
@@ -582,6 +615,11 @@ class Orchestrator {
 
         case .query:
             await executeQuery(params: result.params)
+        }
+
+        // Switch to calendar view after all operations complete
+        await MainActor.run {
+            self.appViewModel?.showCalendar()
         }
 
         print("[Orchestrator] handleCalendarTask: Action completed")
@@ -639,11 +677,6 @@ class Orchestrator {
     private func handleNotesTask(prompt: String) async {
         print("[Orchestrator] handleNotesTask: Processing query '\(prompt)'")
 
-        // ALWAYS switch to notes view first
-        await MainActor.run {
-            self.appViewModel?.showNotes()
-        }
-
         // Parse the notes query using AI
         do {
             let result = try await parseNotesQuery(prompt: prompt)
@@ -662,6 +695,11 @@ class Orchestrator {
 
         } catch {
             print("[Orchestrator] handleNotesTask: Error parsing/executing notes query: \(error)")
+        }
+        
+        // Switch to notes view after all operations complete
+        await MainActor.run {
+            self.appViewModel?.showNotes()
         }
     }
 
@@ -732,7 +770,7 @@ class Orchestrator {
             
             print("[Orchestrator] handleGmailTask: Parsed - to: '\(recipient)', subject: '\(subject)'")
 
-            // 2. Show the Gmail view with parsed data
+            // 2. Prepare the Gmail view model with parsed data, then show the view
             await MainActor.run {
                 // Prepare the Gmail view model with parsed data
                 appViewModel?.gmailViewModel.prepareEmail(
@@ -1471,12 +1509,6 @@ class Orchestrator {
 
         print("[Orchestrator] Create: Preparing event '\(title)' from \(startDate) to \(endDate)")
 
-        // Navigate to calendar view first, showing the event's date
-        await MainActor.run {
-            self.appViewModel?.showCalendar()
-            self.appViewModel?.dayViewModel.selectedDate = eventDate
-        }
-
         // Create pending event data
         let pendingData = PendingEventData(
             title: title,
@@ -1486,9 +1518,11 @@ class Orchestrator {
             notes: notes
         )
 
-        // Present the creation split view
+        // Navigate to calendar view and present the creation split view
         await MainActor.run {
+            self.appViewModel?.dayViewModel.selectedDate = eventDate
             self.appViewModel?.dayViewModel.presentCreateEventSplit(with: pendingData)
+            self.appViewModel?.showCalendar()
         }
 
         print("[Orchestrator] Create: Split view presented with event data")

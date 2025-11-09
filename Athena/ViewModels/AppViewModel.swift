@@ -31,6 +31,9 @@ class AppViewModel: ObservableObject {
     
     /// Tracks whether the orchestrator is currently running (prevents auto-hide)
     @Published var isOrchestratorRunning: Bool = false
+    
+    /// Displays thinking message in waveform area while orchestrator processes
+    @Published var orchestratorThinkingMessage: String?
 
     // MARK: - View Models for Orchestrator Access
 

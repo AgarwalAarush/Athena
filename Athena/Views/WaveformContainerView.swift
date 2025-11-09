@@ -20,7 +20,14 @@ struct WaveformContainerView: View {
             
             // Waveform visualization (centered)
             Group {
-                if chatViewModel.isRecording, let monitor = chatViewModel.amplitudeMonitor {
+                if let thinkingMessage = appViewModel.orchestratorThinkingMessage {
+                    // Thinking state - show thinking message text
+                    Text(thinkingMessage)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white.opacity(0.9))
+                        .transition(.scale.combined(with: .opacity))
+                } else if chatViewModel.isRecording, let monitor = chatViewModel.amplitudeMonitor {
+                    // Recording state - show animated waveform
                     WaveformView(monitor: monitor)
                         .transition(.scale.combined(with: .opacity))
                 } else {
@@ -30,6 +37,7 @@ struct WaveformContainerView: View {
                 }
             }
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: chatViewModel.isRecording)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: appViewModel.orchestratorThinkingMessage)
             
             Spacer()
             
