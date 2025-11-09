@@ -841,7 +841,89 @@ class Orchestrator {
         let title: String?
     }
 
+    /// Attempts to parse notes queries using manual pattern matching for common phrases.
+    /// Returns NotesActionResult if a pattern matches, nil otherwise (requiring AI parsing).
+    private func parseNotesQueryManual(prompt: String) -> NotesActionResult? {
+        let lowercased = prompt.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Check for open patterns
+        if lowercased.contains("open") && lowercased.contains("note") {
+            // Pattern: "open my xyz notes"
+            if let range = lowercased.range(of: "open my ") {
+                let afterOpen = String(lowercased[range.upperBound...])
+                if let notesRange = afterOpen.range(of: " note") {
+                    let title = String(afterOpen[..<notesRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !title.isEmpty {
+                        print("[Orchestrator] parseNotesQueryManual: Matched 'open my xyz notes' pattern with title '\(title)'")
+                        return NotesActionResult(action: .open, title: title)
+                    }
+                }
+            }
+            
+            // Pattern: "open my notes for xyz" or "open my notes on xyz"
+            let triggers = ["open my notes for ", "open my notes on "]
+            for trigger in triggers {
+                if let range = lowercased.range(of: trigger) {
+                    let title = String(lowercased[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !title.isEmpty {
+                        print("[Orchestrator] parseNotesQueryManual: Matched '\(trigger)xyz' pattern with title '\(title)'")
+                        return NotesActionResult(action: .open, title: title)
+                    }
+                }
+            }
+        }
+        
+        // Check for create patterns
+        if lowercased.contains("create") && lowercased.contains("note") {
+            // Pattern: "create a note titled xyz"
+            if let range = lowercased.range(of: "create a note titled ") {
+                let title = String(lowercased[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !title.isEmpty {
+                    print("[Orchestrator] parseNotesQueryManual: Matched 'create a note titled xyz' pattern with title '\(title)'")
+                    return NotesActionResult(action: .create, title: title)
+                }
+            }
+            
+            // Pattern: "create a note for xyz"
+            if let range = lowercased.range(of: "create a note for ") {
+                let title = String(lowercased[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !title.isEmpty {
+                    print("[Orchestrator] parseNotesQueryManual: Matched 'create a note for xyz' pattern with title '\(title)'")
+                    return NotesActionResult(action: .create, title: title)
+                }
+            }
+            
+            // Pattern: "create xyz note"
+            if let createRange = lowercased.range(of: "create "),
+               let noteRange = lowercased.range(of: " note") {
+                let titleRange = createRange.upperBound..<noteRange.lowerBound
+                let title = String(lowercased[titleRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+                // Filter out articles "a", "an", "the"
+                let filtered = title.replacingOccurrences(of: "a ", with: "")
+                                   .replacingOccurrences(of: "an ", with: "")
+                                   .replacingOccurrences(of: "the ", with: "")
+                                   .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !filtered.isEmpty {
+                    print("[Orchestrator] parseNotesQueryManual: Matched 'create xyz note' pattern with title '\(filtered)'")
+                    return NotesActionResult(action: .create, title: filtered)
+                }
+            }
+        }
+        
+        print("[Orchestrator] parseNotesQueryManual: No manual pattern matched")
+        return nil
+    }
+
     private func parseNotesQuery(prompt: String) async throws -> NotesActionResult {
+        // Try manual pattern matching first
+        if let manualResult = parseNotesQueryManual(prompt: prompt) {
+            print("[Orchestrator] parseNotesQuery: ⚡ Manual pattern matched - action: \(manualResult.action), title: '\(manualResult.title ?? "N/A")'")
+            return manualResult
+        }
+        
+        // Fall back to AI parsing
+        print("[Orchestrator] parseNotesQuery: 🤖 No manual pattern matched, using AI")
+        
         // Fetch all note titles for context
         var noteTitlesContext = ""
         if let notesViewModel = appViewModel?.notesViewModel {
