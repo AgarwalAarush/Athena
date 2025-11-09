@@ -92,6 +92,13 @@ class ContactsService {
     /// Searches for contacts by name using fuzzy matching
     /// - Parameter name: The name to search for (can be partial, case-insensitive)
     /// - Returns: Array of matching contacts, sorted by match quality
+    ///
+    /// - Note: You may see a console warning about CardDAV, Exchange, and LDAP account types.
+    ///   This is a benign system message from the Contacts framework when it attempts to enumerate
+    ///   all available contact sources on macOS. The warning does not indicate an error or prevent
+    ///   functionality - it's expected behavior and can be safely ignored. The app has the correct
+    ///   entitlement (com.apple.security.personal-information.addressbook) and contacts are
+    ///   accessed successfully.
     func searchContacts(byName name: String) async throws -> [CNContact] {
         if !hasAccess {
             print("[ContactsService] ❌ No Contacts access, requesting...")
@@ -113,6 +120,8 @@ class ContactsService {
         print("[ContactsService] 🔍 Searching for contacts matching '\(searchQuery)'")
 
         // Fetch all contacts (for fuzzy matching)
+        // Note: This will trigger a benign system warning about CardDAV/Exchange/LDAP account types
+        // This is expected behavior and does not indicate an error
         let fetchRequest = CNContactFetchRequest(keysToFetch: keysToFetch)
         var allContacts: [CNContact] = []
 

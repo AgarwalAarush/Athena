@@ -140,7 +140,7 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
         let height: CGFloat
         switch view {
         case .gmail, .messaging:
-            height = 500  // Taller for forms with multiple fields
+            height = 650  // Taller height to display full form content and expanded text fields
         case .calendar, .notes:
             height = 600  // Full height for content-heavy views
         default:
