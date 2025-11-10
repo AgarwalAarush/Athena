@@ -194,10 +194,9 @@ class GmailViewModel: ObservableObject {
         print("[GmailViewModel] Canceling email")
         reset()
         
-        // Collapse the content area and return to home
+        // Collapse the content area and return to waveform view
         await MainActor.run {
-            appViewModel?.currentView = .home
-            appViewModel?.isContentExpanded = false
+            appViewModel?.collapseContent()
         }
     }
     
