@@ -122,13 +122,29 @@ class GoogleAuthService {
     /// Initiates Google OAuth authorization flow
     /// - Parameters:
     ///   - scopes: Array of OAuth scopes to request (defaults to basic openid and profile)
-    ///   - presentingWindow: The NSWindow to present the authorization UI from
+    ///   - presentingWindow: The NSWindow to present the authorization UI from (optional, will create temp window if nil)
     /// - Returns: Authorized AuthSession
     /// - Throws: GoogleAuthError on failure
-    func authorize(scopes: [String] = GoogleOAuthScopes.defaultScopes, presentingWindow: NSWindow) async throws -> AuthSession {
+    func authorize(scopes: [String] = GoogleOAuthScopes.defaultScopes, presentingWindow: NSWindow? = nil) async throws -> AuthSession {
+        print("[GoogleAuthService] 🔐 Starting authorization flow")
+        print("[GoogleAuthService] 📋 Requested scopes: \(scopes.joined(separator: ", "))")
+        
+        // Get or create a suitable window for authorization
+        let authWindow = presentingWindow ?? createTemporaryAuthWindow()
+        
+        print("[GoogleAuthService] 🪟 Presenting window: \(authWindow)")
+        print("[GoogleAuthService] 🪟 Window visible: \(authWindow.isVisible)")
+        print("[GoogleAuthService] 🪟 Window key: \(authWindow.isKeyWindow)")
+        print("[GoogleAuthService] 🪟 Window level: \(authWindow.level)")
+        print("[GoogleAuthService] 🪟 Window style mask: \(authWindow.styleMask)")
+        print("[GoogleAuthService] 🪟 Window collection behavior: \(authWindow.collectionBehavior)")
+        print("[GoogleAuthService] 🔗 Redirect URI: \(redirectURI)")
+        
         // Get Google's OAuth configuration using discovery
         let issuer = URL(string: "https://accounts.google.com")!
+        print("[GoogleAuthService] 🌐 Discovering OAuth configuration from issuer: \(issuer)")
         let configuration = try await discoverConfiguration(issuer: issuer)
+        print("[GoogleAuthService] ✅ OAuth configuration discovered")
         
         // Create authorization request
         let request = OIDAuthorizationRequest(
@@ -140,30 +156,86 @@ class GoogleAuthService {
             responseType: OIDResponseTypeCode,
             additionalParameters: nil
         )
+        print("[GoogleAuthService] 📝 Authorization request created")
+        print("[GoogleAuthService] 📝 Client ID: \(clientID)")
+        print("[GoogleAuthService] 📝 Auth endpoint: \(configuration.authorizationEndpoint)")
+        
+        // Ensure window is visible and active
+        if !authWindow.isVisible {
+            print("[GoogleAuthService] 🪟 Making window visible before auth...")
+            authWindow.makeKeyAndOrderFront(nil)
+        }
+        
+        // Temporarily change activation policy to allow OAuth
+        let originalPolicy = NSApp.activationPolicy()
+        if originalPolicy == .accessory {
+            print("[GoogleAuthService] 🔄 Temporarily changing activation policy from .accessory to .regular")
+            NSApp.setActivationPolicy(.regular)
+        }
+        
+        NSApp.activate(ignoringOtherApps: true)
         
         // Perform authorization using continuation
         return try await withCheckedThrowingContinuation { continuation in
+            print("[GoogleAuthService] 🚀 Presenting authorization UI...")
+            
             // Present authorization UI and store the flow session
-            let authFlow = OIDAuthState.authState(byPresenting: request, presenting: presentingWindow) { [weak self] authState, error in
+            let authFlow = OIDAuthState.authState(byPresenting: request, presenting: authWindow) { [weak self] authState, error in
                 Task { @MainActor in
+                    print("[GoogleAuthService] 🔄 Authorization callback received")
+                    
                     if let error = error {
+                        let nsError = error as NSError
+                        print("[GoogleAuthService] ❌ Authorization error occurred")
+                        print("[GoogleAuthService] ❌ Error domain: \(nsError.domain)")
+                        print("[GoogleAuthService] ❌ Error code: \(nsError.code)")
+                        print("[GoogleAuthService] ❌ Error description: \(error.localizedDescription)")
+                        print("[GoogleAuthService] ❌ Error userInfo: \(nsError.userInfo)")
+                        
+                        // Restore original activation policy if needed
+                        if originalPolicy == .accessory {
+                            print("[GoogleAuthService] 🔄 Restoring activation policy to .accessory (error path)")
+                            NSApp.setActivationPolicy(.accessory)
+                        }
+                        
                         // Check if user cancelled
-                        if (error as NSError).domain == OIDGeneralErrorDomain &&
-                           (error as NSError).code == OIDErrorCode.userCanceledAuthorizationFlow.rawValue {
+                        if nsError.domain == OIDGeneralErrorDomain &&
+                           nsError.code == OIDErrorCode.userCanceledAuthorizationFlow.rawValue {
+                            print("[GoogleAuthService] 🚫 User cancelled authorization")
                             continuation.resume(throwing: GoogleAuthError.userCancelled)
-                        } else if (error as NSError).domain == NSURLErrorDomain {
+                        } else if nsError.domain == NSURLErrorDomain {
+                            print("[GoogleAuthService] 🌐 Network error during authorization")
                             continuation.resume(throwing: GoogleAuthError.networkError(error))
                         } else {
+                            print("[GoogleAuthService] ⚠️ Unknown error during authorization")
                             continuation.resume(throwing: GoogleAuthError.unknownError(error))
                         }
                         return
                     }
                     
+                    print("[GoogleAuthService] ✅ Authorization callback completed without errors")
+                    
                     guard let authState = authState else {
+                        print("[GoogleAuthService] ❌ No auth state returned from authorization")
+                        
+                        // Restore original activation policy if needed
+                        if originalPolicy == .accessory {
+                            print("[GoogleAuthService] 🔄 Restoring activation policy to .accessory (no auth state path)")
+                            NSApp.setActivationPolicy(.accessory)
+                        }
+                        
                         continuation.resume(throwing: GoogleAuthError.unknownError(
                             NSError(domain: "GoogleAuthService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No auth state returned"])
                         ))
                         return
+                    }
+                    
+                    print("[GoogleAuthService] 🎉 Auth state received successfully")
+                    
+                    // Restore original activation policy if needed
+                    if originalPolicy == .accessory {
+                        print("[GoogleAuthService] 🔄 Restoring activation policy to .accessory")
+                        NSApp.setActivationPolicy(.accessory)
                     }
                     
                     // Create AuthSession from OIDAuthState
@@ -171,6 +243,7 @@ class GoogleAuthService {
                     
                     // Save authorization
                     do {
+                        print("[GoogleAuthService] 💾 Saving authorization to keychain...")
                         try self?.saveAuthorization(authorization)
                         let scopesString = scopes.joined(separator: ",")
                         try self?.configManager.saveGoogleAuthScopes(scopesString)
@@ -178,19 +251,55 @@ class GoogleAuthService {
                         // Update current authorization
                         self?.currentAuthorization = authorization
                         
-                        print("✓ Google OAuth authorization successful")
+                        print("[GoogleAuthService] ✅ Google OAuth authorization successful!")
                         continuation.resume(returning: authorization)
                     } catch {
+                        print("[GoogleAuthService] ❌ Failed to save authorization: \(error)")
+                        
+                        // Restore original activation policy if needed
+                        if originalPolicy == .accessory {
+                            print("[GoogleAuthService] 🔄 Restoring activation policy to .accessory (save error path)")
+                            NSApp.setActivationPolicy(.accessory)
+                        }
+                        
                         continuation.resume(throwing: GoogleAuthError.unknownError(error))
                     }
                 }
             }
             
+            print("[GoogleAuthService] 🔄 Authorization flow object created: \(String(describing: authFlow))")
+            
             // Store the authorization flow so AppDelegate can resume it with the redirect URL
             if let appDelegate = NSApp.delegate as? AppDelegate {
+                print("[GoogleAuthService] 📌 Storing authorization flow in AppDelegate")
                 type(of: appDelegate).currentAuthorizationFlow = authFlow
+            } else {
+                print("[GoogleAuthService] ⚠️ WARNING: Could not get AppDelegate to store authorization flow!")
             }
         }
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Creates a temporary window suitable for OAuth authorization
+    private func createTemporaryAuthWindow() -> NSWindow {
+        print("[GoogleAuthService] 🏗️ Creating temporary authorization window")
+        
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        
+        window.title = "Google Authorization"
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.level = .normal
+        window.collectionBehavior = .canJoinAllSpaces
+        
+        print("[GoogleAuthService] ✅ Temporary authorization window created")
+        return window
     }
     
     // MARK: - Session Management

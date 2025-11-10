@@ -126,7 +126,7 @@ struct WaveformContainerView: View {
                     .frame(width: 6, height: idleBarHeight(for: index))
             }
         }
-        .frame(width: 120, height: 40)
+        .frame(width: 200, height: 40)
     }
     
     /// Calculate idle bar heights to create a wave-like pattern

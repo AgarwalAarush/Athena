@@ -135,27 +135,58 @@ class GmailViewModel: ObservableObject {
     
     /// Requests Google authorization and retries sending email on success
     func requestAuthorization() async {
-        guard !isAuthenticating else { return }
+        guard !isAuthenticating else {
+            print("[GmailViewModel] ⚠️ Already authenticating, skipping duplicate request")
+            return
+        }
         
+        print("[GmailViewModel] 🔐 Starting authorization request...")
         isAuthenticating = true
         showAuthPrompt = false // Hide the prompt while authenticating
         errorMessage = nil
         
         do {
             // Get the main window for authorization
+            print("[GmailViewModel] 🪟 Attempting to get presenting window...")
+            
             guard let window = await MainActor.run(body: {
                 if let appDelegate = NSApp.delegate as? AppDelegate,
                    let windowManager = appDelegate.windowManager {
-                    return windowManager.window
+                    print("[GmailViewModel] 🪟 Found windowManager")
+                    if let window = windowManager.window {
+                        print("[GmailViewModel] 🪟 Window exists: \(window)")
+                        print("[GmailViewModel] 🪟 Window visible: \(window.isVisible)")
+                        print("[GmailViewModel] 🪟 Window key: \(window.isKeyWindow)")
+                        print("[GmailViewModel] 🪟 Window level: \(window.level)")
+                        print("[GmailViewModel] 🪟 Window frame: \(window.frame)")
+                        
+                        // Ensure window is visible and key
+                        if !window.isVisible {
+                            print("[GmailViewModel] 🪟 Making window visible...")
+                            window.makeKeyAndOrderFront(nil)
+                        }
+                        
+                        // Activate the app to ensure proper focus
+                        print("[GmailViewModel] 🎯 Activating application...")
+                        NSApp.activate(ignoringOtherApps: true)
+                        
+                        return window
+                    } else {
+                        print("[GmailViewModel] ❌ windowManager.window is nil")
+                    }
+                } else {
+                    print("[GmailViewModel] ❌ Could not get AppDelegate or windowManager")
                 }
                 return nil
             }) else {
-                errorMessage = "Unable to present authorization window. Please try from Settings."
+                print("[GmailViewModel] ❌ Failed to get presenting window")
+                errorMessage = "Unable to present authorization window. Please try again."
                 isAuthenticating = false
                 return
             }
             
-            print("[GmailViewModel] Requesting Google authorization for Gmail")
+            print("[GmailViewModel] 🚀 Requesting Google authorization for Gmail")
+            print("[GmailViewModel] 📋 Scopes: \(GoogleOAuthScopes.allScopes.joined(separator: ", "))")
             
             // Request all scopes for full access
             _ = try await authService.authorize(
@@ -163,29 +194,39 @@ class GmailViewModel: ObservableObject {
                 presentingWindow: window
             )
             
-            print("[GmailViewModel] ✅ Authorization successful, retrying email send")
+            print("[GmailViewModel] ✅ Authorization successful!")
+            print("[GmailViewModel] 🔄 Retrying email send...")
             
             // Retry sending the email
             await sendEmail()
             
         } catch let error as GoogleAuthError {
-            print("[GmailViewModel] ❌ Authorization failed: \(error.localizedDescription)")
+            print("[GmailViewModel] ❌ Authorization failed with GoogleAuthError")
+            print("[GmailViewModel] ❌ Error type: \(error)")
+            print("[GmailViewModel] ❌ Error description: \(error.localizedDescription)")
             
             switch error {
             case .userCancelled:
+                print("[GmailViewModel] 🚫 User cancelled the sign-in")
                 errorMessage = "Sign-in was cancelled. Please try again to send email."
             case .networkError(let networkError):
+                print("[GmailViewModel] 🌐 Network error: \(networkError)")
                 errorMessage = "Network error: \(networkError.localizedDescription)"
             case .configurationMissing, .configurationInvalid:
+                print("[GmailViewModel] ⚙️ Configuration error")
                 errorMessage = "Google OAuth is not configured. Please contact support."
             default:
+                print("[GmailViewModel] ⚠️ Other authorization error")
                 errorMessage = "Authorization failed: \(error.localizedDescription)"
             }
         } catch {
-            print("[GmailViewModel] ❌ Unexpected authorization error: \(error.localizedDescription)")
+            print("[GmailViewModel] ❌ Unexpected authorization error (not GoogleAuthError)")
+            print("[GmailViewModel] ❌ Error: \(error)")
+            print("[GmailViewModel] ❌ Error type: \(type(of: error))")
             errorMessage = "Failed to authorize: \(error.localizedDescription)"
         }
         
+        print("[GmailViewModel] 🏁 Authorization flow completed, isAuthenticating = false")
         isAuthenticating = false
     }
     

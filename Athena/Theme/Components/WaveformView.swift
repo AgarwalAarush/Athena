@@ -14,7 +14,7 @@ struct WaveformView: View {
     @ObservedObject var monitor: AudioAmplitudeMonitor
 
     /// Width of the waveform view
-    private let width: CGFloat = 120
+    private let width: CGFloat = 200
 
     /// Height of the waveform view
     private let height: CGFloat = 40

@@ -102,21 +102,6 @@ struct GmailView: View {
                         // Body field
                         FormGroupContainer {
                             VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: AppMetrics.spacingMedium) {
-                                    Image(systemName: "doc.text.fill")
-                                        .font(.system(size: 20))
-                                        .foregroundColor(.green)
-                                        .frame(width: 24)
-                                    
-                                    Text("Message")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    
-                                    Spacer()
-                                }
-                                .padding(.horizontal, AppMetrics.paddingLarge)
-                                .padding(.top, 12)
-                                
                                 // Multi-line body input
                                 MultiLineTextInput(
                                     text: $viewModel.body,
@@ -125,9 +110,9 @@ struct GmailView: View {
                                     maxHeight: 200
                                 )
                                 .padding(.horizontal, AppMetrics.paddingLarge - 5)
+                                .padding(.vertical, 12)
                                 .focused($focusedField, equals: .body)
                                 .disabled(viewModel.isSending)
-                                .padding(.bottom, 12)
                             }
                         }
                         .contentShape(Rectangle())

@@ -17,7 +17,7 @@ struct NoteListView: View {
                 Text("Notes")
                     .font(.largeTitle)
                     .bold()
-                    .foregroundColor(.black)
+                    .foregroundColor(.white)
                 Spacer()
                 Button(action: {
                     Task {
@@ -25,7 +25,7 @@ struct NoteListView: View {
                     }
                 }) {
                     Image(systemName: "plus")
-                        .foregroundColor(.black)
+                        .foregroundColor(.white)
                 }
                 .buttonStyle(.plain)
             }
@@ -38,18 +38,18 @@ struct NoteListView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(note.title.isEmpty ? "Untitled" : note.title)
                                 .font(.headline)
-                                .foregroundColor(.black)
+                                .foregroundColor(.white)
                             if !note.body.isEmpty {
                                 Text(note.body)
                                     .font(.subheadline)
-                                    .foregroundColor(.black)
+                                    .foregroundColor(.white.opacity(0.8))
                                     .lineLimit(1)
                                     .truncationMode(.tail)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding()
-                        .background(Color.gray.opacity(0.15))
+                        .background(Color.white.opacity(0.1))
                         .cornerRadius(8)
                         .onTapGesture {
                             vm.selectNote(note)
@@ -67,10 +67,6 @@ struct NoteListView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            Color.white.opacity(0.6)
-                .cornerRadius(8)
-        )
         .padding()
     }
 }

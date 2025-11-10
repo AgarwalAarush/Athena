@@ -42,8 +42,8 @@ struct NoteEditorView: View {
                     }
                 }) {
                     Image(systemName: "chevron.left")
-                        .foregroundColor(.accentColor)
-                    Text("Back").foregroundColor(.accentColor)
+                        .foregroundColor(.white)
+                    Text("Back").foregroundColor(.white)
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 16)
@@ -112,7 +112,7 @@ struct NoteEditorView: View {
             switch vm.listenModeState {
             case .idle:
                 Image(systemName: "mic.fill")
-                    .foregroundColor(.gray)
+                    .foregroundColor(.white.opacity(0.6))
             case .listening:
                 Image(systemName: "mic.fill")
                     .foregroundColor(.red)
@@ -120,6 +120,7 @@ struct NoteEditorView: View {
             case .processing:
                 ProgressView()
                     .scaleEffect(0.8)
+                    .tint(.white)
             case .error:
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundColor(.yellow)
@@ -143,18 +144,18 @@ struct NoteEditorView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Listening...")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                     
                     if !vm.listenModePartialTranscript.isEmpty {
                         Text(vm.listenModePartialTranscript)
                             .font(.body)
-                            .foregroundColor(.primary)
+                            .foregroundColor(.white)
                             .lineLimit(3)
                     }
                     
                     Text("Say 'Athena stop listening' or tap mic to finish")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                 }
             }
             .padding()

@@ -247,8 +247,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     /// Handles incoming URLs (OAuth redirect callback)
     func application(_ application: NSApplication, open urls: [URL]) {
+        print("[AppDelegate] 🔗 application(_:open:) called with \(urls.count) URL(s)")
+        
         for url in urls {
-            print("[AppDelegate] 🔗 Received URL: \(url.absoluteString)")
+            print("[AppDelegate] 🔗 Processing URL: \(url.absoluteString)")
+            print("[AppDelegate] 🔗 URL scheme: \(url.scheme ?? "nil")")
+            print("[AppDelegate] 🔗 URL host: \(url.host ?? "nil")")
+            print("[AppDelegate] 🔗 URL path: \(url.path)")
+            print("[AppDelegate] 🔗 URL query: \(url.query ?? "nil")")
             
             // Handle Spotify OAuth redirect (athena://spotify-callback?code=...)
             if url.scheme == "athena", url.host == "spotify-callback" {
@@ -259,14 +265,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             
             // Handle Google OAuth redirect
-            if let authorizationFlow = AppDelegate.currentAuthorizationFlow,
-               authorizationFlow.resumeExternalUserAgentFlow(with: url) {
-                AppDelegate.currentAuthorizationFlow = nil
-                print("[AppDelegate] ✓ Google OAuth redirect handled successfully")
-                return
+            print("[AppDelegate] 🔍 Checking for Google OAuth authorization flow...")
+            if let authorizationFlow = AppDelegate.currentAuthorizationFlow {
+                print("[AppDelegate] ✅ Authorization flow exists: \(authorizationFlow)")
+                print("[AppDelegate] 🔄 Attempting to resume external user agent flow...")
+                
+                let resumed = authorizationFlow.resumeExternalUserAgentFlow(with: url)
+                print("[AppDelegate] 🔄 Resume result: \(resumed)")
+                
+                if resumed {
+                    AppDelegate.currentAuthorizationFlow = nil
+                    print("[AppDelegate] ✅ Google OAuth redirect handled successfully")
+                    return
+                } else {
+                    print("[AppDelegate] ⚠️ Authorization flow did not accept this URL")
+                }
+            } else {
+                print("[AppDelegate] ⚠️ No authorization flow available (currentAuthorizationFlow is nil)")
             }
         }
         
-        print("[AppDelegate] ⚠️ URL not handled: \(urls)")
+        print("[AppDelegate] ⚠️ URL(s) not handled: \(urls.map { $0.absoluteString })")
     }
 }
